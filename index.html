@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chess Puzzle Mini App</title>
+
+  <!-- Telegram WebApp SDK (optional but useful inside Telegram) -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Board UI (web component) -->
+  <script type="module" src="https://unpkg.com/chessboard-element@1.5.3/bundled/chessboard-element.js"></script>
+
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 14px; }
+    .wrap { max-width: 900px; margin: 0 auto; }
+    .card { border: 1px solid rgba(127,127,127,.35); border-radius: 14px; padding: 14px; }
+    h1 { font-size: 18px; margin: 0 0 10px; }
+    h2 { font-size: 16px; margin: 10px 0 6px; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0; }
+    button {
+      padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(127,127,127,.35);
+      cursor: pointer; font-weight: 650;
+    }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .muted { opacity: .75; font-size: 12px; }
+    .pill { padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(127,127,127,.35); font-size: 12px; opacity: .9; }
+    a { word-break: break-word; }
+    .grid { display: grid; grid-template-columns: 380px 1fr; gap: 14px; align-items: start; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    chess-board { width: 380px; max-width: 100%; }
+    .statusGood { border-color: rgba(60,180,90,.65) !important; }
+    .statusBad  { border-color: rgba(220,70,70,.65) !important; }
+    pre { white-space: pre-wrap; word-break: break-word; padding: 10px; border-radius: 12px; border: 1px solid rgba(127,127,127,.35); overflow: auto; }
+    details { margin-top: 10px; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Шахматная задача</h1>
+
+      <div class="row">
+        <button id="btnRandom">Другая (рандом)</button>
+        <button id="btnToday">Задача дня</button>
+        <button id="btnReset" disabled>Сбросить позицию</button>
+        <span id="state" class="pill">—</span>
+        <span id="hint" class="muted"></span>
+      </div>
+
+      <div class="grid">
+        <div>
+          <chess-board id="board" draggable-pieces></chess-board>
+          <div class="row" style="margin-top: 10px;">
+            <span class="muted" id="meta"></span>
+          </div>
+        </div>
+
+        <div>
+          <h2 id="title">—</h2>
+          <div class="muted" style="margin-bottom: 10px;">
+            Источник: <a id="link" href="#" target="_blank" rel="noopener noreferrer">—</a>
+          </div>
+
+          <div class="card" style="border-radius:12px;">
+            <div class="row" style="margin:0;">
+              <span class="pill" id="progress">Ходы: —</span>
+              <span class="pill" id="turn">Ход: —</span>
+            </div>
+            <div class="muted" style="margin-top:8px;" id="message"></div>
+          </div>
+
+          <details>
+            <summary>FEN / PGN (для отладки)</summary>
+            <div class="muted" style="margin-top:8px;">FEN</div>
+            <pre id="fenBox"></pre>
+            <div class="muted">PGN</div>
+            <pre id="pgnBox"></pre>
+            <div class="muted">Решение (SAN, разобранное из PGN)</div>
+            <pre id="solBox"></pre>
+          </details>
+
+          <div id="error" style="display:none; margin-top: 12px;">
+            <pre id="errorText"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ----------------------------
+  // ⚠️ ВАЖНО
+  // Ты открыл файл как file://... (видно на скрине). Telegram Mini App так не работает.
+  // Хости этот HTML по HTTPS (GitHub Pages / Cloudflare Pages / Vercel / Netlify).
+  // Но даже для кривых окружений я добавил динамическую подгрузку chess.js с двух CDN.
+  // ----------------------------
+
+  // Telegram cosmetics
+  try {
+    if (window.Telegram?.WebApp) {
+      Telegram.WebApp.ready();
+      Telegram.WebApp.expand();
+    }
+  } catch (_) {}
+
+  const ENDPOINT_TODAY  = "https://api.chess.com/pub/puzzle";
+  const ENDPOINT_RANDOM = "https://api.chess.com/pub/puzzle/random";
+
+  const $ = (id) => document.getElementById(id);
+
+  const btnRandom = $("btnRandom");
+  const btnToday  = $("btnToday");
+  const btnReset  = $("btnReset");
+
+  const boardEl = $("board");
+
+  // chess.js constructor will appear as window.Chess after load
+  let ChessCtor = null;
+
+  // Game state
+  let chess = null;
+  let solutionSAN = [];
+  let step = 0;
+  let solved = false;
+
+  let currentPuzzleKey = "";
+  let currentPuzzle = null;
+
+  function setBusy(isBusy, text = "") {
+    btnRandom.disabled = isBusy;
+    btnToday.disabled  = isBusy;
+    $("state").textContent = text || (isBusy ? "Загружаю…" : "Готово");
+  }
+
+  function setMessage(text, kind = "") {
+    const box = $("message");
+    box.textContent = text || "";
+    box.parentElement.classList.remove("statusGood", "statusBad");
+    if (kind === "good") box.parentElement.classList.add("statusGood");
+    if (kind === "bad")  box.parentElement.classList.add("statusBad");
+  }
+
+  function showError(err) {
+    $("error").style.display = "block";
+    $("errorText").textContent = String(err?.stack || err?.message || err);
+  }
+
+  function clearError() {
+    $("error").style.display = "none";
+    $("errorText").textContent = "";
+  }
+
+  function updateUI() {
+    $("fenBox").textContent = chess ? chess.fen() : "";
+    $("progress").textContent = solutionSAN.length ? `Ходы: ${step}/${solutionSAN.length}` : "Ходы: —";
+    $("turn").textContent = chess ? (chess.turn() === "w" ? "Ход: белые" : "Ход: чёрные") : "Ход: —";
+    btnReset.disabled = !chess || solved;
+
+    if (solved) {
+      $("hint").textContent = "Решено.";
+      $("state").textContent = "✅ Решено";
+    } else if (solutionSAN.length) {
+      $("hint").textContent = `Сделай лучший ход (шаг ${step + 1}).`;
+    } else {
+      $("hint").textContent = "";
+    }
+  }
+
+  function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  }
+
+  // ---------- Robust script loader (fixes: "Chess is not defined") ----------
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = src;
+      s.async = true;
+      s.onload = () => resolve(true);
+      s.onerror = () => reject(new Error(`Не удалось загрузить скрипт: ${src}`));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function ensureChessJs() {
+    if (ChessCtor) return;
+    if (window.Chess) {
+      ChessCtor = window.Chess;
+      return;
+    }
+
+    // Try jsDelivr first, then unpkg
+    const cdns = [
+      "https://cdn.jsdelivr.net/npm/chess.js@1.0.0/dist/chess.js",
+      "https://unpkg.com/chess.js@1.0.0/dist/chess.js",
+    ];
+
+    let lastErr = null;
+    for (const url of cdns) {
+      try {
+        await loadScript(url);
+        if (window.Chess) {
+          ChessCtor = window.Chess;
+          return;
+        }
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+
+    throw lastErr || new Error("Chess.js не загрузился, Chess is undefined");
+  }
+
+  // ---------------- PGN -> SAN list (main line only) ----------------
+  function pgnToSanList(pgnRaw) {
+    if (!pgnRaw) return [];
+    let pgn = String(pgnRaw).replace(/\r/g, "");
+
+    // drop headers
+    pgn = pgn.replace(/^\s*\[.*?\]\s*$/gm, " ");
+
+    // remove comments and line comments
+    pgn = pgn.replace(/\{[^}]*\}/g, " ");
+    pgn = pgn.replace(/;.*$/gm, " ");
+
+    // remove variations ( ... ) (repeat for nested)
+    while (/\([^()]*\)/.test(pgn)) pgn = pgn.replace(/\([^()]*\)/g, " ");
+
+    // remove NAGs
+    pgn = pgn.replace(/\$\d+/g, " ");
+
+    // remove move numbers
+    pgn = pgn.replace(/\d+\.(\.\.)?/g, " ");
+
+    // remove results
+    pgn = pgn.replace(/\b(1-0|0-1|1\/2-1\/2|\*)\b/g, " ");
+
+    const tokens = pgn.split(/\s+/).map(t => t.trim()).filter(Boolean);
+
+    return tokens
+      .map(t => t.replace(/[!?]+$/g, ""))
+      .filter(t => t && t !== "..." && t !== "--");
+  }
+
+  // ---------------- Chess.com PubAPI fetch (fetch -> JSONP fallback) ----------------
+  async function fetchJson(url) {
+    const withBust = url + (url.includes("?") ? "&" : "?") + "_=" + Date.now();
+    try {
+      const res = await fetch(withBust, { method: "GET" });
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      return await res.json();
+    } catch (_) {
+      return await jsonp(withBust);
+    }
+  }
+
+  function jsonp(url) {
+    return new Promise((resolve, reject) => {
+      const cbName = "cb_" + Math.random().toString(16).slice(2);
+      const sep = url.includes("?") ? "&" : "?";
+      const full = url + sep + "callback=" + cbName;
+
+      const script = document.createElement("script");
+      script.src = full;
+      script.async = true;
+
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error("JSONP timeout"));
+      }, 12000);
+
+      window[cbName] = (data) => {
+        cleanup();
+        resolve(data);
+      };
+
+      script.onerror = () => {
+        cleanup();
+        reject(new Error("JSONP load error"));
+      };
+
+      function cleanup() {
+        clearTimeout(timeout);
+        delete window[cbName];
+        script.remove();
+      }
+
+      document.head.appendChild(script);
+    });
+  }
+
+  function puzzleKey(data) {
+    return String((data && (data.url || data.fen || "")) || "");
+  }
+
+  async function loadPuzzle(endpoint, { forceDifferent = false } = {}) {
+    clearError();
+    setBusy(true, "Загружаю…");
+    setMessage("");
+
+    try {
+      // Ensure libs are ready BEFORE using Chess
+      await ensureChessJs();
+      await customElements.whenDefined("chess-board");
+
+      const maxTries = forceDifferent ? 40 : 1;
+      let data = null;
+
+      for (let i = 0; i < maxTries; i++) {
+        data = await fetchJson(endpoint);
+        const key = puzzleKey(data);
+
+        if (!forceDifferent || key !== currentPuzzleKey) break;
+
+        // Chess.com random can repeat for a short time; retry.
+        $("state").textContent = "Ищу другую…";
+        await sleep(650);
+      }
+
+      if (!data) throw new Error("Пустой ответ от API");
+
+      const key = puzzleKey(data);
+      const isSame = (key === currentPuzzleKey);
+
+      currentPuzzle = data;
+      currentPuzzleKey = key;
+
+      // reset solve state
+      solved = false;
+      step = 0;
+      solutionSAN = pgnToSanList(data.pgn || "");
+
+      // init chess position
+      chess = new ChessCtor(data.fen);
+
+      // board orientation based on side to move
+      boardEl.orientation = (chess.turn() === "w") ? "white" : "black";
+      boardEl.position = chess.fen();
+
+      // UI text
+      const dt = data.publish_time ? new Date(data.publish_time * 1000) : null;
+      $("meta").textContent = dt ? `Опубликовано: ${dt.toLocaleString()}` : "";
+
+      $("title").textContent = data.title || "Без названия";
+      $("link").textContent = data.url || "";
+      $("link").href = data.url || "#";
+
+      $("pgnBox").textContent = data.pgn || "";
+      $("fenBox").textContent = data.fen || "";
+      $("solBox").textContent = solutionSAN.join(" ");
+
+      if (forceDifferent && isSame) {
+        setMessage(
+          "Chess.com иногда отдаёт один и тот же random из-за кэша. Я делал несколько попыток, но пришло то же самое. Жми ещё раз через пару секунд.",
+          "bad"
+        );
+      }
+
+      if (!solutionSAN.length) {
+        setMessage("PGN распарсился в пустую линию. Такое бывает редко — смотри PGN в отладке.", "bad");
+      } else {
+        setMessage("Перетаскивай фигуры на доске. Ходы проверяются по главной линии PGN.");
+      }
+
+      updateUI();
+    } catch (e) {
+      showError(e);
+      setMessage("Ошибка загрузки. Смотри детали ниже.", "bad");
+    } finally {
+      setBusy(false, "Готово");
+      updateUI();
+    }
+  }
+
+  function resetPosition() {
+    if (!currentPuzzle?.fen) return;
+    solved = false;
+    step = 0;
+    chess = new ChessCtor(currentPuzzle.fen);
+    boardEl.orientation = (chess.turn() === "w") ? "white" : "black";
+    boardEl.position = chess.fen();
+    setMessage("");
+    updateUI();
+  }
+
+  // ---------------- Board events (solve by matching SAN sequence) ----------------
+  boardEl.addEventListener("drag-start", (ev) => {
+    if (!chess || solved) {
+      ev.preventDefault();
+      return;
+    }
+
+    const piece = ev.detail?.piece; // e.g. "wP"
+    if (!piece || piece === "false") return;
+
+    const color = piece[0];
+    if (color !== chess.turn()) ev.preventDefault();
+  });
+
+  boardEl.addEventListener("drop", (ev) => {
+    if (!chess || solved) {
+      boardEl.position = chess ? chess.fen() : "start";
+      return;
+    }
+
+    const from = ev.detail?.source;
+    const to   = ev.detail?.target;
+
+    if (!from || !to || from === to) {
+      boardEl.position = chess.fen();
+      return;
+    }
+
+    const move = chess.move({ from, to, promotion: "q" });
+
+    if (!move) {
+      boardEl.position = chess.fen();
+      setMessage("Нелегальный ход.", "bad");
+      return;
+    }
+
+    boardEl.position = chess.fen();
+
+    if (!solutionSAN.length) {
+      setMessage("Решение не распарсилось из PGN. Проверь PGN внизу.", "bad");
+      updateUI();
+      return;
+    }
+
+    const expected = solutionSAN[step];
+    const got = move.san;
+
+    if (got !== expected) {
+      chess.undo();
+      boardEl.position = chess.fen();
+      setMessage(`Не то. Ожидалось: ${expected}`, "bad");
+      updateUI();
+      return;
+    }
+
+    step += 1;
+
+    if (step >= solutionSAN.length) {
+      solved = true;
+      setMessage("Готово. Решение совпало с линией из PGN.", "good");
+    } else {
+      setMessage(`Верно: ${got}`, "good");
+    }
+
+    updateUI();
+  });
+
+  // ---------------- Buttons ----------------
+  btnReset.addEventListener("click", resetPosition);
+  btnToday.addEventListener("click", () => loadPuzzle(ENDPOINT_TODAY,  { forceDifferent: false }));
+  btnRandom.addEventListener("click", () => loadPuzzle(ENDPOINT_RANDOM, { forceDifferent: true  }));
+
+  // Start
+  loadPuzzle(ENDPOINT_TODAY, { forceDifferent: false });
+</script>
+</body>
+</html>
