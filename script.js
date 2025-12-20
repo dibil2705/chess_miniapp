@@ -181,10 +181,11 @@ function loadPositionFromFen(fen){
   boardState = parsed.board;
   activeColor = parsed.active;
   castlingRights = parsed.castling;
+  const hasSolution = puzzleSolutionMoves.length > 0;
   puzzlePlayerColor = parsed.active;
-  promotionState = null;
-  puzzleMode = true;
+  puzzleMode = hasSolution;
   puzzleSolved = false;
+  promotionState = null;
   resetSelection();
   closePromotionDialog();
   render();
