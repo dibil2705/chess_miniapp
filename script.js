@@ -39,6 +39,7 @@ let puzzleSolutionMoves = [];
 let puzzleMoveIndex = 0;
 let puzzleSolved = false;
 let puzzleStartFen = null;
+let puzzlePlayerColor = null;
 
 const files = ['a','b','c','d','e','f','g','h'];
 const ranks = ['8','7','6','5','4','3','2','1'];
@@ -175,6 +176,7 @@ function loadPositionFromFen(fen){
   boardState = parsed.board;
   activeColor = parsed.active;
   castlingRights = parsed.castling;
+  puzzlePlayerColor = parsed.active;
   promotionState = null;
   puzzleMode = true;
   puzzleSolved = false;
@@ -563,6 +565,18 @@ function buildMoveKey({ fromR, fromC, toR, toC, promotionPiece = null }){
   return `${coordToNotation(fromR, fromC)}${coordToNotation(toR, toC)}${promo}`;
 }
 
+function parseMoveKey(moveKey){
+  const match = moveKey.match(/^([a-h])([1-8])([a-h])([1-8])([nbrqNBRQ])?$/);
+  if (!match) return null;
+  const [, fromFile, fromRank, toFile, toRank, promo = ''] = match;
+  const fromC = files.indexOf(fromFile);
+  const toC = files.indexOf(toFile);
+  const fromR = ranks.indexOf(fromRank);
+  const toR = ranks.indexOf(toRank);
+  if ([fromC, toC, fromR, toR].some(v => v === -1)) return null;
+  return { fromR, fromC, toR, toC, promotionPiece: promo || null };
+}
+
 function resetPuzzleProgress(){
   puzzleMoveIndex = 0;
   puzzleSolved = false;
@@ -692,6 +706,7 @@ function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null }){
   activeColor = activeColor === 'w' ? 'b' : 'w';
   resetSelection();
   render();
+  attemptAutoOpponentMove();
 }
 
 function handlePromotionChoice(pieceCode){
@@ -713,6 +728,30 @@ function performMove(fromR, fromC, toR, toC){
     return;
   }
   applyMove({ fromR, fromC, toR, toC, piece });
+}
+
+function attemptAutoOpponentMove(){
+  if (!puzzleMode || puzzleSolved) return;
+  if (!puzzleSolutionMoves.length) return;
+  if (puzzleMoveIndex >= puzzleSolutionMoves.length) return;
+  if (activeColor === puzzlePlayerColor) return;
+
+  const moveKey = puzzleSolutionMoves[puzzleMoveIndex];
+  const parsed = parseMoveKey(moveKey);
+  if (!parsed) return;
+
+  const { fromR, fromC, toR, toC, promotionPiece } = parsed;
+  const piece = boardState[fromR]?.[fromC];
+  if (!piece) return;
+  if ((activeColor === 'w' && isBlack(piece)) || (activeColor === 'b' && isWhite(piece))) return;
+
+  const promoPiece = promotionPiece
+    ? (activeColor === 'w' ? promotionPiece.toUpperCase() : promotionPiece.toLowerCase())
+    : null;
+
+  setTimeout(() => {
+    applyMove({ fromR, fromC, toR, toC, piece, promotionPiece: promoPiece });
+  }, 200);
 }
 
 function updateCoordinates(){
@@ -1042,6 +1081,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   puzzleMoveIndex = 0;
   puzzleSolved = false;
   puzzleStartFen = null;
+  puzzlePlayerColor = null;
   updatePuzzleFeedback('idle');
   closePromotionDialog();
   resetSelection();
@@ -1064,6 +1104,7 @@ document.getElementById('loadStartBtn').addEventListener('click', () => {
   puzzleMoveIndex = 0;
   puzzleSolved = false;
   puzzleStartFen = null;
+  puzzlePlayerColor = null;
   updatePuzzleFeedback('idle');
   closePromotionDialog();
   resetSelection();
