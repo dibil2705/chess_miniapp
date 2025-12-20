@@ -522,7 +522,7 @@ function render(){
 }
 
 let dragFrom = null; // {r,c}
-let manualDrag = null; // { fromR, fromC, pointerId, ghost }
+let manualDrag = null; // { fromR, fromC, pointerId, ghost, originEl }
 let manualDragActive = false;
 
 function getSquareFromPoint(clientX, clientY){
@@ -540,6 +540,7 @@ function getSquareFromPoint(clientX, clientY){
 function stopManualDrag(){
   manualDragActive = false;
   if (manualDrag){
+    manualDrag.originEl?.classList?.remove('dragging');
     if (manualDrag.ghost?.remove) manualDrag.ghost.remove();
     manualDrag = null;
   }
@@ -559,6 +560,7 @@ function onPointerDownManual(e){
   }
 
   manualDragActive = true;
+  e.currentTarget.classList.add('dragging');
   const rect = e.currentTarget.getBoundingClientRect();
   const ghost = e.currentTarget.cloneNode(true);
   ghost.classList.add('drag-ghost');
@@ -570,7 +572,8 @@ function onPointerDownManual(e){
     fromR,
     fromC,
     pointerId: e.pointerId,
-    ghost
+    ghost,
+    originEl: e.currentTarget
   };
 
   const moveGhost = () => {
@@ -578,9 +581,6 @@ function onPointerDownManual(e){
     ghost.style.top = `${e.clientY}px`;
   };
   moveGhost();
-
-  selectSquare(fromR, fromC);
-  render();
 
   window.addEventListener('pointermove', onPointerMoveManual);
   window.addEventListener('pointerup', onPointerUpManual);
@@ -603,10 +603,14 @@ function onPointerMoveManual(e){
 
 function onPointerUpManual(e){
   if (!manualDrag || e.pointerId !== manualDrag.pointerId) return;
-  const { fromR, fromC } = manualDrag;
+  const { fromR, fromC, originEl } = manualDrag;
   const targetSq = getSquareFromPoint(e.clientX, e.clientY);
   stopManualDrag();
   document.querySelectorAll('.sq.drop').forEach(el => el.classList.remove('drop'));
+
+  if (originEl){
+    originEl.classList.remove('dragging');
+  }
 
   if (!targetSq) return;
 
