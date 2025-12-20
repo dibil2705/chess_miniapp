@@ -33,12 +33,21 @@ let castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
 let selectedSquare = null;
 let highlightedMoves = [];
 let promotionState = null;
+let puzzleData = null;
+let puzzleMode = false;
 
 const boardEl = document.getElementById('board');
 const fenOutEl = document.getElementById('fenOut');
 const statusEl = document.getElementById('status');
 const promotionOverlay = document.getElementById('promotionOverlay');
 const promotionButtons = Array.from(promotionOverlay?.querySelectorAll('.promotion-btn') || []);
+const puzzleStatusEl = document.getElementById('puzzleStatus');
+const puzzleTitleEl = document.getElementById('puzzleTitle');
+const puzzleUrlEl = document.getElementById('puzzleUrl');
+const puzzlePublishEl = document.getElementById('puzzlePublish');
+const puzzleFenEl = document.getElementById('puzzleFen');
+const puzzlePgnEl = document.getElementById('puzzlePgn');
+const puzzleImageEl = document.getElementById('puzzleImage');
 
 const defaultTheme = {
   bg: '#111',
@@ -132,6 +141,36 @@ function fenToBoard(fen){
     b.push(row);
   }
   return b;
+}
+
+function parseFenState(fen){
+  const parts = fen.split(' ');
+  const board = fenToBoard(fen);
+  const active = parts[1] === 'b' ? 'b' : 'w';
+  const castlingPart = parts[2] || '-';
+  const castling = { w: { K: false, Q: false }, b: { K: false, Q: false } };
+  if (castlingPart && castlingPart !== '-'){
+    for (const ch of castlingPart){
+      if (ch === 'K') castling.w.K = true;
+      if (ch === 'Q') castling.w.Q = true;
+      if (ch === 'k') castling.b.K = true;
+      if (ch === 'q') castling.b.Q = true;
+    }
+  }
+  return { board, active, castling };
+}
+
+function loadPositionFromFen(fen){
+  const parsed = parseFenState(fen);
+  boardState = parsed.board;
+  activeColor = parsed.active;
+  castlingRights = parsed.castling;
+  promotionState = null;
+  puzzleMode = true;
+  resetSelection();
+  closePromotionDialog();
+  render();
+  updatePuzzleStatus();
 }
 
 function boardToFen(b){
@@ -438,6 +477,39 @@ function updateStatus(){
   statusEl.textContent = `Ход ${activeColor === 'w' ? 'белых' : 'черных'}.`;
 }
 
+function updatePuzzleStatus(){
+  if (!puzzleStatusEl) return;
+  if (puzzleMode && puzzleData){
+    puzzleStatusEl.textContent = `Режим задачи: ход ${activeColor === 'w' ? 'белых' : 'черных'}.`;
+    return;
+  }
+  if (puzzleData){
+    puzzleStatusEl.textContent = 'Задача загружена.';
+    return;
+  }
+  puzzleStatusEl.textContent = '';
+}
+
+function formatPublishTime(ts){
+  if (!ts) return '';
+  const date = new Date(Number(ts) * 1000);
+  if (Number.isNaN(date.getTime())) return String(ts);
+  return date.toLocaleString('ru-RU');
+}
+
+function updatePuzzleInfoDisplay(data){
+  puzzleData = data;
+  puzzleTitleEl.textContent = data?.title || '';
+  puzzleUrlEl.textContent = data?.url || '';
+  puzzleUrlEl.href = data?.url || '#';
+  puzzlePublishEl.textContent = data?.publish_time ? formatPublishTime(data.publish_time) : '';
+  puzzleFenEl.textContent = data?.fen || '';
+  puzzlePgnEl.textContent = data?.pgn || '';
+  puzzleImageEl.textContent = data?.image || '';
+  puzzleImageEl.href = data?.image || '#';
+  updatePuzzleStatus();
+}
+
 function updateCastlingRights(fromR, fromC, toR, toC, piece){
   const pieceColor = isWhite(piece) ? 'w' : 'b';
   if (piece.toLowerCase() === 'k'){
@@ -585,6 +657,7 @@ function render(){
 
   fenOutEl.textContent = boardToFen(boardState);
   updateStatus();
+  updatePuzzleStatus();
 }
 
 let dragFrom = null; // {r,c}
@@ -804,11 +877,32 @@ function onDrop(e){
   performMove(from.r, from.c, toR, toC);
 }
 
+async function fetchRandomPuzzle(){
+  puzzleMode = false;
+  if (puzzleStatusEl) puzzleStatusEl.textContent = 'Загрузка...';
+  try {
+    const res = await fetch('https://api.chess.com/pub/puzzle/random');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    updatePuzzleInfoDisplay(data);
+    if (data?.fen) {
+      loadPositionFromFen(data.fen);
+    } else {
+      puzzleMode = false;
+      updatePuzzleStatus();
+    }
+  } catch (err) {
+    console.error('Puzzle load error', err);
+    if (puzzleStatusEl) puzzleStatusEl.textContent = 'Не удалось загрузить задачу.';
+  }
+}
+
 document.getElementById('resetBtn').addEventListener('click', () => {
   boardState = fenToBoard(START_FEN);
   activeColor = 'w';
   castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
   promotionState = null;
+  puzzleMode = false;
   closePromotionDialog();
   resetSelection();
   render();
@@ -825,9 +919,14 @@ document.getElementById('loadStartBtn').addEventListener('click', () => {
   activeColor = 'w';
   castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
   promotionState = null;
+  puzzleMode = false;
   closePromotionDialog();
   resetSelection();
   render();
+});
+
+document.getElementById('puzzleBtn').addEventListener('click', () => {
+  fetchRandomPuzzle();
 });
 
 promotionButtons.forEach(btn => {
