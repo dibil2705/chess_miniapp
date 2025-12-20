@@ -41,6 +41,10 @@ const fenOutEl = document.getElementById('fenOut');
 const statusEl = document.getElementById('status');
 const promotionOverlay = document.getElementById('promotionOverlay');
 const promotionButtons = Array.from(promotionOverlay?.querySelectorAll('.promotion-btn') || []);
+const filesTopEl = document.getElementById('filesTop');
+const filesBottomEl = document.getElementById('filesBottom');
+const ranksLeftEl = document.getElementById('ranksLeft');
+const ranksRightEl = document.getElementById('ranksRight');
 const puzzleStatusEl = document.getElementById('puzzleStatus');
 const puzzleTitleEl = document.getElementById('puzzleTitle');
 const puzzleUrlEl = document.getElementById('puzzleUrl');
@@ -212,6 +216,16 @@ function displayToCoord(dr,dc){
   // reverse mapping
   if (!flipped) return { r: dr, c: dc };
   return { r: 7 - dr, c: 7 - dc };
+}
+
+function getDisplayFiles(){
+  const files = ['a','b','c','d','e','f','g','h'];
+  return flipped ? [...files].reverse() : files;
+}
+
+function getDisplayRanks(){
+  const ranks = ['8','7','6','5','4','3','2','1'];
+  return flipped ? [...ranks].reverse() : ranks;
 }
 
 function isWhite(piece){ return piece === piece.toUpperCase(); }
@@ -588,8 +602,18 @@ function performMove(fromR, fromC, toR, toC){
   applyMove({ fromR, fromC, toR, toC, piece });
 }
 
+function updateCoordinates(){
+  const files = getDisplayFiles();
+  const ranks = getDisplayRanks();
+  if (filesTopEl) filesTopEl.innerHTML = files.map(f => `<span>${f}</span>`).join('');
+  if (filesBottomEl) filesBottomEl.innerHTML = files.map(f => `<span>${f}</span>`).join('');
+  if (ranksLeftEl) ranksLeftEl.innerHTML = ranks.map(r => `<span>${r}</span>`).join('');
+  if (ranksRightEl) ranksRightEl.innerHTML = ranks.map(r => `<span>${r}</span>`).join('');
+}
+
 function render(){
   boardEl.innerHTML = '';
+  updateCoordinates();
   const whiteKingPos = getKingPosition(boardState, 'w');
   const blackKingPos = getKingPosition(boardState, 'b');
   const whiteInCheck = whiteKingPos && isKingInCheck(boardState, 'w');
