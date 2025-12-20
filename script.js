@@ -23,6 +23,8 @@ const BLACK_SVG = {
 // Default: start position
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
+const tg = window.Telegram?.WebApp;
+
 let flipped = false;
 let boardState = fenToBoard(START_FEN);
 let activeColor = 'w';
@@ -34,6 +36,36 @@ let highlightedMoves = [];
 const boardEl = document.getElementById('board');
 const fenOutEl = document.getElementById('fenOut');
 const statusEl = document.getElementById('status');
+
+const defaultTheme = {
+  bg: '#111',
+  panel: 'rgba(255,255,255,.06)',
+  border: 'rgba(255,255,255,.12)',
+  text: '#fff',
+  dark: '#769656',
+  light: '#eeeed2'
+};
+
+function applyTelegramTheme(){
+  if (!tg) return;
+  const theme = tg.themeParams || {};
+  const root = document.documentElement;
+  root.style.setProperty('--bg', theme.bg_color || defaultTheme.bg);
+  root.style.setProperty('--panel', theme.secondary_bg_color || defaultTheme.panel);
+  root.style.setProperty('--border', theme.section_separator_color || defaultTheme.border);
+  root.style.setProperty('--text', theme.text_color || defaultTheme.text);
+  // Keep board colors stable, but allow overriding if Telegram provides button colors.
+  root.style.setProperty('--dark', theme.button_color || defaultTheme.dark);
+  root.style.setProperty('--light', theme.button_text_color || defaultTheme.light);
+}
+
+function initTelegram(){
+  if (!tg) return;
+  tg.ready();
+  tg.expand();
+  applyTelegramTheme();
+  tg.onEvent('themeChanged', applyTelegramTheme);
+}
 
 function fenToBoard(fen){
   // returns 8x8 array; each cell is piece char or ''
@@ -580,5 +612,6 @@ document.getElementById('loadStartBtn').addEventListener('click', () => {
   render();
 });
 
+initTelegram();
 // initial render
 render();
