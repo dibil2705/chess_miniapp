@@ -544,6 +544,19 @@ function updatePuzzleInfoDisplay(data){
 
 function parseSolutionMovesFromPgn(pgn){
   if (!pgn) return [];
+  // Prefer full PGN parsing when chess.js is available to convert SAN to UCI.
+  try {
+    if (typeof Chess !== 'undefined'){
+      const chess = new Chess();
+      chess.load_pgn(pgn);
+      const moves = chess.history({ verbose: true });
+      return moves.map(m => `${m.from}${m.to}${m.promotion || ''}`);
+    }
+  } catch (err) {
+    console.warn('PGN parse failed, fallback to raw tokens', err);
+  }
+
+  // Fallback: try to read space-separated UCI moves from lines after a standalone "w" marker.
   const lines = pgn.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   const singleWIndex = lines.findIndex(line => /^w$/i.test(line));
   if (singleWIndex !== -1 && lines[singleWIndex + 1]){
