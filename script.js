@@ -26,6 +26,7 @@ const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 let flipped = false;
 let boardState = fenToBoard(START_FEN);
 let activeColor = 'w';
+let castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
 
 let selectedSquare = null;
 let highlightedMoves = [];
@@ -71,7 +72,17 @@ function boardToFen(b){
     if (empties) out += String(empties);
     return out;
   });
-  return rows.join('/') + ` ${activeColor} - - 0 1`;
+  const castle = getCastlingFen();
+  return rows.join('/') + ` ${activeColor} ${castle} - 0 1`;
+}
+
+function getCastlingFen(){
+  let out = '';
+  if (castlingRights.w.K) out += 'K';
+  if (castlingRights.w.Q) out += 'Q';
+  if (castlingRights.b.K) out += 'k';
+  if (castlingRights.b.Q) out += 'q';
+  return out || '-';
 }
 
 function coordToDisplay(r,c){
@@ -132,13 +143,22 @@ function isLegalQueenMove(fromR, fromC, toR, toC, board = boardState){
   return isLegalRookMove(fromR, fromC, toR, toC, board) || isLegalBishopMove(fromR, fromC, toR, toC, board);
 }
 
-function isLegalKingMove(fromR, fromC, toR, toC){
+function isLegalKingMove(fromR, fromC, toR, toC, board = boardState, { allowCastling = true } = {}){
   const dr = Math.abs(toR - fromR);
   const dc = Math.abs(toC - fromC);
-  return dr <= 1 && dc <= 1;
+  if (dr <= 1 && dc <= 1) return true;
+  if (!allowCastling) return false;
+  const piece = board[fromR][fromC];
+  const color = isWhite(piece) ? 'w' : 'b';
+  if (dr === 0 && dc === 2){
+    const side = toC > fromC ? 'K' : 'Q';
+    return canCastle(color, side, board);
+  }
+  return false;
 }
 
-function isLegalMove(fromR, fromC, toR, toC, board = boardState){
+function isLegalMove(fromR, fromC, toR, toC, board = boardState, opts = {}){
+  const { allowCastling = true } = opts;
   if (fromR === toR && fromC === toC) return false;
   if (toR < 0 || toR > 7 || toC < 0 || toC > 7) return false;
 
@@ -162,7 +182,7 @@ function isLegalMove(fromR, fromC, toR, toC, board = boardState){
     case 'q':
       return isLegalQueenMove(fromR, fromC, toR, toC, board);
     case 'k':
-      return isLegalKingMove(fromR, fromC, toR, toC);
+      return isLegalKingMove(fromR, fromC, toR, toC, board, { allowCastling });
     default:
       return false;
   }
@@ -179,35 +199,76 @@ function isSquareAttacked(board, targetR, targetC, attackerColor){
       if (!piece) continue;
       if (attackerColor === 'w' && !isWhite(piece)) continue;
       if (attackerColor === 'b' && !isBlack(piece)) continue;
-      if (isLegalMove(r, c, targetR, targetC, board)) return true;
+      if (isLegalMove(r, c, targetR, targetC, board, { allowCastling: false })) return true;
     }
   }
   return false;
 }
 
-function isKingInCheck(board, color){
+function getKingPosition(board, color){
   const kingChar = color === 'w' ? 'K' : 'k';
-  let kingPos = null;
   for (let r=0; r<8; r++){
     for (let c=0; c<8; c++){
       if (board[r][c] === kingChar){
-        kingPos = { r, c };
-        break;
+        return { r, c };
       }
     }
-    if (kingPos) break;
   }
+  return null;
+}
+
+function isKingInCheck(board, color){
+  const kingPos = getKingPosition(board, color);
   if (!kingPos) return false;
   const attacker = color === 'w' ? 'b' : 'w';
   return isSquareAttacked(board, kingPos.r, kingPos.c, attacker);
+}
+
+function canCastle(color, side, board = boardState){
+  const rights = castlingRights[color];
+  if (!rights) return false;
+  if (side === 'K' && !rights.K) return false;
+  if (side === 'Q' && !rights.Q) return false;
+
+  const row = color === 'w' ? 7 : 0;
+  const kingCol = 4;
+  const rookCol = side === 'K' ? 7 : 0;
+  const king = color === 'w' ? 'K' : 'k';
+  const rook = color === 'w' ? 'R' : 'r';
+  if (board[row][kingCol] !== king || board[row][rookCol] !== rook) return false;
+
+  const throughCols = side === 'K' ? [5,6] : [3,2];
+  if (!isPathClear(row, kingCol, row, rookCol, board)) return false;
+  if (isKingInCheck(board, color)) return false;
+  const opponent = color === 'w' ? 'b' : 'w';
+  for (const col of throughCols){
+    if (isSquareAttacked(board, row, col, opponent)) return false;
+  }
+  return true;
+}
+
+function isCastlingMove(piece, fromR, fromC, toR, toC){
+  if (piece.toLowerCase() !== 'k') return false;
+  if (fromR !== toR) return false;
+  return Math.abs(toC - fromC) === 2;
 }
 
 function moveLeavesKingInCheck(fromR, fromC, toR, toC, board = boardState){
   const piece = board[fromR][fromC];
   const movingColor = isWhite(piece) ? 'w' : 'b';
   const next = cloneBoard(board);
-  next[toR][toC] = piece;
-  next[fromR][fromC] = '';
+  if (isCastlingMove(piece, fromR, fromC, toR, toC)){
+    const isKingSide = toC > fromC;
+    const rookFromC = isKingSide ? 7 : 0;
+    const rookToC = isKingSide ? 5 : 3;
+    next[toR][toC] = piece;
+    next[fromR][fromC] = '';
+    next[fromR][rookFromC] = '';
+    next[fromR][rookToC] = isWhite(piece) ? 'R' : 'r';
+  } else {
+    next[toR][toC] = piece;
+    next[fromR][fromC] = '';
+  }
   return isKingInCheck(next, movingColor);
 }
 
@@ -277,11 +338,52 @@ function updateStatus(){
   statusEl.textContent = `Ход ${activeColor === 'w' ? 'белых' : 'черных'}.`;
 }
 
+function updateCastlingRights(fromR, fromC, toR, toC, piece){
+  const pieceColor = isWhite(piece) ? 'w' : 'b';
+  if (piece.toLowerCase() === 'k'){
+    castlingRights[pieceColor].K = false;
+    castlingRights[pieceColor].Q = false;
+  }
+  if (piece.toLowerCase() === 'r'){
+    if (pieceColor === 'w'){
+      if (fromR === 7 && fromC === 0) castlingRights.w.Q = false;
+      if (fromR === 7 && fromC === 7) castlingRights.w.K = false;
+    } else {
+      if (fromR === 0 && fromC === 0) castlingRights.b.Q = false;
+      if (fromR === 0 && fromC === 7) castlingRights.b.K = false;
+    }
+  }
+
+  const target = boardState[toR][toC];
+  if (target && target.toLowerCase() === 'r'){
+    const targetColor = isWhite(target) ? 'w' : 'b';
+    if (targetColor === 'w'){
+      if (toR === 7 && toC === 0) castlingRights.w.Q = false;
+      if (toR === 7 && toC === 7) castlingRights.w.K = false;
+    } else {
+      if (toR === 0 && toC === 0) castlingRights.b.Q = false;
+      if (toR === 0 && toC === 7) castlingRights.b.K = false;
+    }
+  }
+}
+
 function performMove(fromR, fromC, toR, toC){
   if (!isMoveAllowed(fromR, fromC, toR, toC)) return;
   const piece = boardState[fromR][fromC];
-  boardState[fromR][fromC] = '';
-  boardState[toR][toC] = piece;
+  updateCastlingRights(fromR, fromC, toR, toC, piece);
+
+  if (isCastlingMove(piece, fromR, fromC, toR, toC)){
+    const isKingSide = toC > fromC;
+    const rookFromC = isKingSide ? 7 : 0;
+    const rookToC = isKingSide ? 5 : 3;
+    boardState[fromR][fromC] = '';
+    boardState[toR][toC] = piece;
+    boardState[fromR][rookFromC] = '';
+    boardState[fromR][rookToC] = isWhite(piece) ? 'R' : 'r';
+  } else {
+    boardState[fromR][fromC] = '';
+    boardState[toR][toC] = piece;
+  }
   activeColor = activeColor === 'w' ? 'b' : 'w';
   resetSelection();
   render();
@@ -289,6 +391,10 @@ function performMove(fromR, fromC, toR, toC){
 
 function render(){
   boardEl.innerHTML = '';
+  const whiteKingPos = getKingPosition(boardState, 'w');
+  const blackKingPos = getKingPosition(boardState, 'b');
+  const whiteInCheck = whiteKingPos && isKingInCheck(boardState, 'w');
+  const blackInCheck = blackKingPos && isKingInCheck(boardState, 'b');
   for (let dr=0; dr<8; dr++){
     for (let dc=0; dc<8; dc++){
       const { r, c } = displayToCoord(dr, dc);
@@ -301,6 +407,10 @@ function render(){
 
       if (selectedSquare && selectedSquare.r === r && selectedSquare.c === c){
         sq.classList.add('selected');
+      }
+
+      if ((whiteInCheck && whiteKingPos && whiteKingPos.r === r && whiteKingPos.c === c) || (blackInCheck && blackKingPos && blackKingPos.r === r && blackKingPos.c === c)){
+        sq.classList.add('king-check');
       }
 
       if (piece){
@@ -451,6 +561,7 @@ function onDrop(e){
 document.getElementById('resetBtn').addEventListener('click', () => {
   boardState = fenToBoard(START_FEN);
   activeColor = 'w';
+  castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
   resetSelection();
   render();
 });
@@ -464,6 +575,7 @@ document.getElementById('loadStartBtn').addEventListener('click', () => {
   // start position (same as START_FEN but explicit)
   boardState = fenToBoard('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1');
   activeColor = 'w';
+  castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
   resetSelection();
   render();
 });
