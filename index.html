@@ -3,463 +3,359 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Chess Puzzle Mini App</title>
-
-  <!-- Telegram WebApp SDK (optional but useful inside Telegram) -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-  <!-- Board UI (web component) -->
-  <script type="module" src="https://unpkg.com/chessboard-element@1.5.3/bundled/chessboard-element.js"></script>
-
+  <title>Chess Board</title>
   <style>
-    :root { color-scheme: light dark; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 14px; }
-    .wrap { max-width: 900px; margin: 0 auto; }
-    .card { border: 1px solid rgba(127,127,127,.35); border-radius: 14px; padding: 14px; }
-    h1 { font-size: 18px; margin: 0 0 10px; }
-    h2 { font-size: 16px; margin: 10px 0 6px; }
-    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0; }
-    button {
-      padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(127,127,127,.35);
-      cursor: pointer; font-weight: 650;
+    :root{
+      --dark:#769656;
+      --light:#eeeed2;
+      --bg:#111;
+      --panel:rgba(255,255,255,.06);
+      --border:rgba(255,255,255,.12);
+      --text:#fff;
     }
-    button:disabled { opacity: .6; cursor: not-allowed; }
-    .muted { opacity: .75; font-size: 12px; }
-    .pill { padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(127,127,127,.35); font-size: 12px; opacity: .9; }
-    a { word-break: break-word; }
-    .grid { display: grid; grid-template-columns: 380px 1fr; gap: 14px; align-items: start; }
-    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
-    chess-board { width: 380px; max-width: 100%; }
-    .statusGood { border-color: rgba(60,180,90,.65) !important; }
-    .statusBad  { border-color: rgba(220,70,70,.65) !important; }
-    pre { white-space: pre-wrap; word-break: break-word; padding: 10px; border-radius: 12px; border: 1px solid rgba(127,127,127,.35); overflow: auto; }
-    details { margin-top: 10px; }
+
+    body{
+      margin:16px;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    .wrap{ max-width: 560px; }
+
+    .board{
+      width:min(520px, 100%);
+      aspect-ratio: 1 / 1;
+      display:grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      grid-auto-rows: 1fr;
+      border-radius:14px;
+      overflow:hidden;
+      box-shadow: 0 12px 40px rgba(0,0,0,.45);
+      user-select:none;
+      -webkit-user-select:none;
+      touch-action: manipulation;
+    }
+
+    .sq{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size: clamp(22px, 6vw, 44px);
+      line-height: 1;
+      aspect-ratio: 1 / 1;
+      overflow: hidden;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .light{ background:var(--light); }
+    .dark{ background:var(--dark); }
+
+    /* pieces (so pieces never affect square size) */
+    .piece{
+      /* IMPORTANT: do NOT make the draggable element full-square size,
+         otherwise the drag-ghost can look like you drag the whole cell. */
+      width: auto;
+      height: auto;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor: grab;
+      line-height: 1;
+      pointer-events: auto;
+    }
+    .piece.white{ }
+    .piece.white img{
+      width: 140.712%;
+      height: 140.712%;
+      display:block;
+      pointer-events: none; /* so drag events stay on .piece */
+      user-select:none;
+      -webkit-user-select:none;
+    }
+    .piece.black{ }
+    .piece.black img{
+      width: 140.712%;
+      height: 140.712%;
+      display:block;
+      pointer-events: none; /* so drag events stay on .piece */
+      user-select:none;
+      -webkit-user-select:none;
+    }
+
+    /* drag feedback */
+    .sq.drop{ outline: 3px solid rgba(255,255,255,.55); outline-offset:-3px; }
+
+    .row{ display:flex; gap:10px; margin-top: 12px; flex-wrap:wrap; }
+    button{
+      padding:10px 12px;
+      border-radius:12px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color:#fff;
+      cursor:pointer;
+    }
+    button:active{ transform: translateY(1px); }
+
+    .box{
+      margin-top:12px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:var(--panel);
+    }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    .hint{ opacity:.8; font-size: 13px; margin-top: 8px; }
   </style>
 </head>
-
 <body>
   <div class="wrap">
-    <div class="card">
-      <h1>Шахматная задача</h1>
+    <h2 style="margin:0 0 10px 0;">Chess Board</h2>
 
-      <div class="row">
-        <button id="btnRandom">Другая (рандом)</button>
-        <button id="btnToday">Задача дня</button>
-        <button id="btnReset" disabled>Сбросить позицию</button>
-        <span id="state" class="pill">—</span>
-        <span id="hint" class="muted"></span>
-      </div>
+    <div id="board" class="board" aria-label="Chess board"></div>
 
-      <div class="grid">
-        <div>
-          <chess-board id="board" draggable-pieces></chess-board>
-          <div class="row" style="margin-top: 10px;">
-            <span class="muted" id="meta"></span>
-          </div>
-        </div>
+    <div class="row">
+      <button id="resetBtn">Reset</button>
+      <button id="flipBtn">Flip</button>
+      <button id="loadStartBtn">Load Start</button>
+    </div>
 
-        <div>
-          <h2 id="title">—</h2>
-          <div class="muted" style="margin-bottom: 10px;">
-            Источник: <a id="link" href="#" target="_blank" rel="noopener noreferrer">—</a>
-          </div>
-
-          <div class="card" style="border-radius:12px;">
-            <div class="row" style="margin:0;">
-              <span class="pill" id="progress">Ходы: —</span>
-              <span class="pill" id="turn">Ход: —</span>
-            </div>
-            <div class="muted" style="margin-top:8px;" id="message"></div>
-          </div>
-
-          <details>
-            <summary>FEN / PGN (для отладки)</summary>
-            <div class="muted" style="margin-top:8px;">FEN</div>
-            <pre id="fenBox"></pre>
-            <div class="muted">PGN</div>
-            <pre id="pgnBox"></pre>
-            <div class="muted">Решение (SAN, разобранное из PGN)</div>
-            <pre id="solBox"></pre>
-          </details>
-
-          <div id="error" style="display:none; margin-top: 12px;">
-            <pre id="errorText"></pre>
-          </div>
-        </div>
-      </div>
+    <div class="box">
+      <div><b>FEN:</b></div>
+      <div id="fenOut" class="mono" style="word-break: break-all;"></div>
+      <div class="hint">Можно перетаскивать фигуры. Проверки легальности ходов нет (чистый фронтенд без движка).</div>
     </div>
   </div>
 
-<script>
-  // ----------------------------
-  // ⚠️ ВАЖНО
-  // Ты открыл файл как file://... (видно на скрине). Telegram Mini App так не работает.
-  // Хости этот HTML по HTTPS (GitHub Pages / Cloudflare Pages / Vercel / Netlify).
-  // Но даже для кривых окружений я добавил динамическую подгрузку chess.js с двух CDN.
-  // ----------------------------
+  <script>
+    // --- White pieces: local SVGs (relative to this HTML file) ---
+    // IMPORTANT: in URLs use forward slashes: icone/white/...
+    const WHITE_SVG = {
+      P: 'icone/white/Chess_plt45.svg',
+      N: 'icone/white/Chess_nlt45.svg',
+      B: 'icone/white/Chess_blt45.svg',
+      R: 'icone/white/Chess_rlt45.svg',
+      Q: 'icone/white/Chess_qlt45.svg',
+      K: 'icone/white/Chess_klt45.svg'
+    };
 
-  // Telegram cosmetics
-  try {
-    if (window.Telegram?.WebApp) {
-      Telegram.WebApp.ready();
-      Telegram.WebApp.expand();
-    }
-  } catch (_) {}
+    // --- Black pieces: local SVGs (relative to this HTML file) ---
+    // IMPORTANT: in URLs use forward slashes: icone/black/...
+    const BLACK_SVG = {
+      p: 'icone/black/Chess_pdt45.svg',
+      n: 'icone/black/Chess_ndt45.svg',
+      b: 'icone/black/Chess_bdt45.svg',
+      r: 'icone/black/Chess_rdt45.svg',
+      q: 'icone/black/Chess_qdt45.svg',
+      k: 'icone/black/Chess_kdt45.svg'
+    };
 
-  const ENDPOINT_TODAY  = "https://api.chess.com/pub/puzzle";
-  const ENDPOINT_RANDOM = "https://api.chess.com/pub/puzzle/random";
+    // Default: start position
+    const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
-  const $ = (id) => document.getElementById(id);
+    let flipped = false;
+    let boardState = fenToBoard(START_FEN);
 
-  const btnRandom = $("btnRandom");
-  const btnToday  = $("btnToday");
-  const btnReset  = $("btnReset");
+    const boardEl = document.getElementById('board');
+    const fenOutEl = document.getElementById('fenOut');
 
-  const boardEl = $("board");
-
-  // chess.js constructor will appear as window.Chess after load
-  let ChessCtor = null;
-
-  // Game state
-  let chess = null;
-  let solutionSAN = [];
-  let step = 0;
-  let solved = false;
-
-  let currentPuzzleKey = "";
-  let currentPuzzle = null;
-
-  function setBusy(isBusy, text = "") {
-    btnRandom.disabled = isBusy;
-    btnToday.disabled  = isBusy;
-    $("state").textContent = text || (isBusy ? "Загружаю…" : "Готово");
-  }
-
-  function setMessage(text, kind = "") {
-    const box = $("message");
-    box.textContent = text || "";
-    box.parentElement.classList.remove("statusGood", "statusBad");
-    if (kind === "good") box.parentElement.classList.add("statusGood");
-    if (kind === "bad")  box.parentElement.classList.add("statusBad");
-  }
-
-  function showError(err) {
-    $("error").style.display = "block";
-    $("errorText").textContent = String(err?.stack || err?.message || err);
-  }
-
-  function clearError() {
-    $("error").style.display = "none";
-    $("errorText").textContent = "";
-  }
-
-  function updateUI() {
-    $("fenBox").textContent = chess ? chess.fen() : "";
-    $("progress").textContent = solutionSAN.length ? `Ходы: ${step}/${solutionSAN.length}` : "Ходы: —";
-    $("turn").textContent = chess ? (chess.turn() === "w" ? "Ход: белые" : "Ход: чёрные") : "Ход: —";
-    btnReset.disabled = !chess || solved;
-
-    if (solved) {
-      $("hint").textContent = "Решено.";
-      $("state").textContent = "✅ Решено";
-    } else if (solutionSAN.length) {
-      $("hint").textContent = `Сделай лучший ход (шаг ${step + 1}).`;
-    } else {
-      $("hint").textContent = "";
-    }
-  }
-
-  function sleep(ms) {
-    return new Promise(r => setTimeout(r, ms));
-  }
-
-  // ---------- Robust script loader (fixes: "Chess is not defined") ----------
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = src;
-      s.async = true;
-      s.onload = () => resolve(true);
-      s.onerror = () => reject(new Error(`Не удалось загрузить скрипт: ${src}`));
-      document.head.appendChild(s);
-    });
-  }
-
-  async function ensureChessJs() {
-    if (ChessCtor) return;
-    if (window.Chess) {
-      ChessCtor = window.Chess;
-      return;
-    }
-
-    // Try jsDelivr first, then unpkg
-    const cdns = [
-      "https://cdn.jsdelivr.net/npm/chess.js@1.0.0/dist/chess.js",
-      "https://unpkg.com/chess.js@1.0.0/dist/chess.js",
-    ];
-
-    let lastErr = null;
-    for (const url of cdns) {
-      try {
-        await loadScript(url);
-        if (window.Chess) {
-          ChessCtor = window.Chess;
-          return;
+    function fenToBoard(fen){
+      // returns 8x8 array; each cell is piece char or ''
+      const placement = fen.split(' ')[0];
+      const rows = placement.split('/');
+      if (rows.length !== 8) throw new Error('Bad FEN');
+      const b = [];
+      for (const r of rows){
+        const row = [];
+        for (const ch of r){
+          if (/[1-8]/.test(ch)){
+            for (let i=0;i<Number(ch);i++) row.push('');
+          } else {
+            row.push(ch);
+          }
         }
-      } catch (e) {
-        lastErr = e;
+        if (row.length !== 8) throw new Error('Bad FEN row');
+        b.push(row);
       }
+      return b;
     }
 
-    throw lastErr || new Error("Chess.js не загрузился, Chess is undefined");
-  }
-
-  // ---------------- PGN -> SAN list (main line only) ----------------
-  function pgnToSanList(pgnRaw) {
-    if (!pgnRaw) return [];
-    let pgn = String(pgnRaw).replace(/\r/g, "");
-
-    // drop headers
-    pgn = pgn.replace(/^\s*\[.*?\]\s*$/gm, " ");
-
-    // remove comments and line comments
-    pgn = pgn.replace(/\{[^}]*\}/g, " ");
-    pgn = pgn.replace(/;.*$/gm, " ");
-
-    // remove variations ( ... ) (repeat for nested)
-    while (/\([^()]*\)/.test(pgn)) pgn = pgn.replace(/\([^()]*\)/g, " ");
-
-    // remove NAGs
-    pgn = pgn.replace(/\$\d+/g, " ");
-
-    // remove move numbers
-    pgn = pgn.replace(/\d+\.(\.\.)?/g, " ");
-
-    // remove results
-    pgn = pgn.replace(/\b(1-0|0-1|1\/2-1\/2|\*)\b/g, " ");
-
-    const tokens = pgn.split(/\s+/).map(t => t.trim()).filter(Boolean);
-
-    return tokens
-      .map(t => t.replace(/[!?]+$/g, ""))
-      .filter(t => t && t !== "..." && t !== "--");
-  }
-
-  // ---------------- Chess.com PubAPI fetch (fetch -> JSONP fallback) ----------------
-  async function fetchJson(url) {
-    const withBust = url + (url.includes("?") ? "&" : "?") + "_=" + Date.now();
-    try {
-      const res = await fetch(withBust, { method: "GET" });
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-      return await res.json();
-    } catch (_) {
-      return await jsonp(withBust);
+    function boardToFen(b){
+      // only placement part (enough for visual)
+      const rows = b.map(row => {
+        let out = '';
+        let empties = 0;
+        for (const cell of row){
+          if (!cell){
+            empties++;
+          } else {
+            if (empties){ out += String(empties); empties = 0; }
+            out += cell;
+          }
+        }
+        if (empties) out += String(empties);
+        return out;
+      });
+      // keep other fields from START_FEN for simplicity
+      return rows.join('/') + ' w - - 0 1';
     }
-  }
 
-  function jsonp(url) {
-    return new Promise((resolve, reject) => {
-      const cbName = "cb_" + Math.random().toString(16).slice(2);
-      const sep = url.includes("?") ? "&" : "?";
-      const full = url + sep + "callback=" + cbName;
+    function idxToCoord(i){
+      // i 0..63 -> {r,c} in boardState coords (0 top)
+      return { r: Math.floor(i/8), c: i%8 };
+    }
 
-      const script = document.createElement("script");
-      script.src = full;
-      script.async = true;
+    function coordToDisplay(r,c){
+      // apply flip mapping
+      if (!flipped) return { r, c };
+      return { r: 7 - r, c: 7 - c };
+    }
 
-      const timeout = setTimeout(() => {
-        cleanup();
-        reject(new Error("JSONP timeout"));
-      }, 12000);
+    function displayToCoord(dr,dc){
+      // reverse mapping
+      if (!flipped) return { r: dr, c: dc };
+      return { r: 7 - dr, c: 7 - dc };
+    }
 
-      window[cbName] = (data) => {
-        cleanup();
-        resolve(data);
-      };
+    function render(){
+      boardEl.innerHTML = '';
+      for (let dr=0; dr<8; dr++){
+        for (let dc=0; dc<8; dc++){
+          const { r, c } = displayToCoord(dr, dc);
+          const piece = boardState[r][c];
 
-      script.onerror = () => {
-        cleanup();
-        reject(new Error("JSONP load error"));
-      };
+          const sq = document.createElement('div');
+          sq.className = 'sq ' + (((dr+dc)%2===0) ? 'light' : 'dark');
+          sq.dataset.dr = String(dr);
+          sq.dataset.dc = String(dc);
 
-      function cleanup() {
-        clearTimeout(timeout);
-        delete window[cbName];
-        script.remove();
+          if (piece){
+            const p = document.createElement('div');
+            const isBlack = (piece === piece.toLowerCase());
+            p.className = 'piece ' + (isBlack ? 'black' : 'white');
+
+            if (isBlack) {
+              const img = document.createElement('img');
+              img.alt = '';
+              img.src = BLACK_SVG[piece] || '';
+              img.draggable = false; // keep drag handling on container
+              p.appendChild(img);
+            } else {
+              const img = document.createElement('img');
+              img.alt = '';
+              img.src = WHITE_SVG[piece] || '';
+              img.draggable = false; // keep drag handling on container
+              p.appendChild(img);
+            }
+            p.draggable = true;
+            p.dataset.fromR = String(r);
+            p.dataset.fromC = String(c);
+            p.addEventListener('dragstart', onDragStart);
+            p.addEventListener('dragend', onDragEnd);
+            sq.appendChild(p);
+          }
+
+          sq.addEventListener('dragover', onDragOver);
+          sq.addEventListener('dragleave', onDragLeave);
+          sq.addEventListener('drop', onDrop);
+
+          boardEl.appendChild(sq);
+        }
       }
 
-      document.head.appendChild(script);
+      fenOutEl.textContent = boardToFen(boardState);
+    }
+
+    let dragFrom = null; // {r,c}
+
+    function onDragStart(e){
+      const fromR = Number(e.target.dataset.fromR);
+      const fromC = Number(e.target.dataset.fromC);
+      dragFrom = { r: fromR, c: fromC };
+      e.dataTransfer.setData('text/plain', JSON.stringify(dragFrom));
+      e.dataTransfer.effectAllowed = 'move';
+
+      // Drag image: only the piece (not a full-square ghost).
+      const ghost = e.target.cloneNode(true);
+      ghost.style.position = 'absolute';
+      ghost.style.top = '-9999px';
+      ghost.style.left = '-9999px';
+      ghost.style.width = 'auto';
+      ghost.style.height = 'auto';
+      ghost.style.background = 'transparent';
+      ghost.style.padding = '0';
+      ghost.style.margin = '0';
+      document.body.appendChild(ghost);
+
+      const x = ghost.offsetWidth / 2;
+      const y = ghost.offsetHeight / 2;
+      if (e.dataTransfer.setDragImage) e.dataTransfer.setDragImage(ghost, x, y);
+
+      setTimeout(() => ghost.remove(), 0);
+    }
+
+    function onDragEnd(){
+      dragFrom = null;
+      document.querySelectorAll('.sq.drop').forEach(el => el.classList.remove('drop'));
+    }
+
+    function onDragOver(e){
+      e.preventDefault();
+      e.currentTarget.classList.add('drop');
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    function onDragLeave(e){
+      e.currentTarget.classList.remove('drop');
+    }
+
+    function onDrop(e){
+      e.preventDefault();
+      e.currentTarget.classList.remove('drop');
+
+      let from;
+      try{
+        from = JSON.parse(e.dataTransfer.getData('text/plain'));
+      } catch {
+        from = dragFrom;
+      }
+      if (!from) return;
+
+      const dr = Number(e.currentTarget.dataset.dr);
+      const dc = Number(e.currentTarget.dataset.dc);
+      const { r: toR, c: toC } = displayToCoord(dr, dc);
+
+      const piece = boardState[from.r][from.c];
+      if (!piece) return;
+
+      // move piece (captures overwrite)
+      boardState[from.r][from.c] = '';
+      boardState[toR][toC] = piece;
+
+      render();
+    }
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      boardState = fenToBoard(START_FEN);
+      render();
     });
-  }
 
-  function puzzleKey(data) {
-    return String((data && (data.url || data.fen || "")) || "");
-  }
+    document.getElementById('flipBtn').addEventListener('click', () => {
+      flipped = !flipped;
+      render();
+    });
 
-  async function loadPuzzle(endpoint, { forceDifferent = false } = {}) {
-    clearError();
-    setBusy(true, "Загружаю…");
-    setMessage("");
+    document.getElementById('loadStartBtn').addEventListener('click', () => {
+      // start position (same as START_FEN but explicit)
+      boardState = fenToBoard('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1');
+      render();
+    });
 
-    try {
-      // Ensure libs are ready BEFORE using Chess
-      await ensureChessJs();
-      await customElements.whenDefined("chess-board");
-
-      const maxTries = forceDifferent ? 40 : 1;
-      let data = null;
-
-      for (let i = 0; i < maxTries; i++) {
-        data = await fetchJson(endpoint);
-        const key = puzzleKey(data);
-
-        if (!forceDifferent || key !== currentPuzzleKey) break;
-
-        // Chess.com random can repeat for a short time; retry.
-        $("state").textContent = "Ищу другую…";
-        await sleep(650);
-      }
-
-      if (!data) throw new Error("Пустой ответ от API");
-
-      const key = puzzleKey(data);
-      const isSame = (key === currentPuzzleKey);
-
-      currentPuzzle = data;
-      currentPuzzleKey = key;
-
-      // reset solve state
-      solved = false;
-      step = 0;
-      solutionSAN = pgnToSanList(data.pgn || "");
-
-      // init chess position
-      chess = new ChessCtor(data.fen);
-
-      // board orientation based on side to move
-      boardEl.orientation = (chess.turn() === "w") ? "white" : "black";
-      boardEl.position = chess.fen();
-
-      // UI text
-      const dt = data.publish_time ? new Date(data.publish_time * 1000) : null;
-      $("meta").textContent = dt ? `Опубликовано: ${dt.toLocaleString()}` : "";
-
-      $("title").textContent = data.title || "Без названия";
-      $("link").textContent = data.url || "";
-      $("link").href = data.url || "#";
-
-      $("pgnBox").textContent = data.pgn || "";
-      $("fenBox").textContent = data.fen || "";
-      $("solBox").textContent = solutionSAN.join(" ");
-
-      if (forceDifferent && isSame) {
-        setMessage(
-          "Chess.com иногда отдаёт один и тот же random из-за кэша. Я делал несколько попыток, но пришло то же самое. Жми ещё раз через пару секунд.",
-          "bad"
-        );
-      }
-
-      if (!solutionSAN.length) {
-        setMessage("PGN распарсился в пустую линию. Такое бывает редко — смотри PGN в отладке.", "bad");
-      } else {
-        setMessage("Перетаскивай фигуры на доске. Ходы проверяются по главной линии PGN.");
-      }
-
-      updateUI();
-    } catch (e) {
-      showError(e);
-      setMessage("Ошибка загрузки. Смотри детали ниже.", "bad");
-    } finally {
-      setBusy(false, "Готово");
-      updateUI();
-    }
-  }
-
-  function resetPosition() {
-    if (!currentPuzzle?.fen) return;
-    solved = false;
-    step = 0;
-    chess = new ChessCtor(currentPuzzle.fen);
-    boardEl.orientation = (chess.turn() === "w") ? "white" : "black";
-    boardEl.position = chess.fen();
-    setMessage("");
-    updateUI();
-  }
-
-  // ---------------- Board events (solve by matching SAN sequence) ----------------
-  boardEl.addEventListener("drag-start", (ev) => {
-    if (!chess || solved) {
-      ev.preventDefault();
-      return;
-    }
-
-    const piece = ev.detail?.piece; // e.g. "wP"
-    if (!piece || piece === "false") return;
-
-    const color = piece[0];
-    if (color !== chess.turn()) ev.preventDefault();
-  });
-
-  boardEl.addEventListener("drop", (ev) => {
-    if (!chess || solved) {
-      boardEl.position = chess ? chess.fen() : "start";
-      return;
-    }
-
-    const from = ev.detail?.source;
-    const to   = ev.detail?.target;
-
-    if (!from || !to || from === to) {
-      boardEl.position = chess.fen();
-      return;
-    }
-
-    const move = chess.move({ from, to, promotion: "q" });
-
-    if (!move) {
-      boardEl.position = chess.fen();
-      setMessage("Нелегальный ход.", "bad");
-      return;
-    }
-
-    boardEl.position = chess.fen();
-
-    if (!solutionSAN.length) {
-      setMessage("Решение не распарсилось из PGN. Проверь PGN внизу.", "bad");
-      updateUI();
-      return;
-    }
-
-    const expected = solutionSAN[step];
-    const got = move.san;
-
-    if (got !== expected) {
-      chess.undo();
-      boardEl.position = chess.fen();
-      setMessage(`Не то. Ожидалось: ${expected}`, "bad");
-      updateUI();
-      return;
-    }
-
-    step += 1;
-
-    if (step >= solutionSAN.length) {
-      solved = true;
-      setMessage("Готово. Решение совпало с линией из PGN.", "good");
-    } else {
-      setMessage(`Верно: ${got}`, "good");
-    }
-
-    updateUI();
-  });
-
-  // ---------------- Buttons ----------------
-  btnReset.addEventListener("click", resetPosition);
-  btnToday.addEventListener("click", () => loadPuzzle(ENDPOINT_TODAY,  { forceDifferent: false }));
-  btnRandom.addEventListener("click", () => loadPuzzle(ENDPOINT_RANDOM, { forceDifferent: true  }));
-
-  // Start
-  loadPuzzle(ENDPOINT_TODAY, { forceDifferent: false });
-</script>
+    // initial render
+    render();
+  </script>
 </body>
 </html>
