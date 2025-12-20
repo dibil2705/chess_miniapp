@@ -368,7 +368,12 @@ function resetSelection(){
 
 function selectSquare(r, c){
   selectedSquare = { r, c };
-  highlightedMoves = getLegalMovesForPiece(r, c);
+  const fromPiece = boardState[r][c];
+  highlightedMoves = getLegalMovesForPiece(r, c).map(move => {
+    const targetPiece = boardState[move.r][move.c];
+    const isCapture = Boolean(targetPiece) && ((isWhite(fromPiece) && isBlack(targetPiece)) || (isBlack(fromPiece) && isWhite(targetPiece)));
+    return { ...move, capture: isCapture };
+  });
 }
 
 function updateStatus(){
@@ -486,13 +491,21 @@ function render(){
         p.addEventListener('dragstart', onDragStart);
         p.addEventListener('dragend', onDragEnd);
         p.addEventListener('click', onPieceClick);
+        p.addEventListener('pointerdown', onPointerDownManual);
         sq.appendChild(p);
       }
 
-      if (highlightedMoves.some(m => m.r === r && m.c === c)){
-        const dot = document.createElement('div');
-        dot.className = 'move-dot';
-        sq.appendChild(dot);
+      const moveInfo = highlightedMoves.find(m => m.r === r && m.c === c);
+      if (moveInfo){
+        if (moveInfo.capture){
+          const ring = document.createElement('div');
+          ring.className = 'capture-ring';
+          sq.appendChild(ring);
+        } else {
+          const dot = document.createElement('div');
+          dot.className = 'move-dot';
+          sq.appendChild(dot);
+        }
       }
 
       sq.addEventListener('dragover', onDragOver);
@@ -509,6 +522,102 @@ function render(){
 }
 
 let dragFrom = null; // {r,c}
+let manualDrag = null; // { fromR, fromC, pointerId, ghost }
+let manualDragActive = false;
+
+function getSquareFromPoint(clientX, clientY){
+  const rect = boardEl.getBoundingClientRect();
+  if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom){
+    return null;
+  }
+  const cellSize = rect.width / 8;
+  const dr = Math.floor((clientY - rect.top) / cellSize);
+  const dc = Math.floor((clientX - rect.left) / cellSize);
+  const { r, c } = displayToCoord(dr, dc);
+  return { r, c, dr, dc };
+}
+
+function stopManualDrag(){
+  manualDragActive = false;
+  if (manualDrag){
+    if (manualDrag.ghost?.remove) manualDrag.ghost.remove();
+    manualDrag = null;
+  }
+  window.removeEventListener('pointermove', onPointerMoveManual);
+  window.removeEventListener('pointerup', onPointerUpManual);
+}
+
+function onPointerDownManual(e){
+  const pointerType = e.pointerType || 'mouse';
+  if (pointerType !== 'touch' && pointerType !== 'pen') return;
+
+  const fromR = Number(e.currentTarget.dataset.fromR);
+  const fromC = Number(e.currentTarget.dataset.fromC);
+  const piece = boardState[fromR][fromC];
+  if ((activeColor === 'w' && isBlack(piece)) || (activeColor === 'b' && isWhite(piece))){
+    return;
+  }
+
+  manualDragActive = true;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const ghost = e.currentTarget.cloneNode(true);
+  ghost.classList.add('drag-ghost');
+  ghost.style.width = `${rect.width}px`;
+  ghost.style.height = `${rect.height}px`;
+  document.body.appendChild(ghost);
+
+  manualDrag = {
+    fromR,
+    fromC,
+    pointerId: e.pointerId,
+    ghost
+  };
+
+  const moveGhost = () => {
+    ghost.style.left = `${e.clientX}px`;
+    ghost.style.top = `${e.clientY}px`;
+  };
+  moveGhost();
+
+  selectSquare(fromR, fromC);
+  render();
+
+  window.addEventListener('pointermove', onPointerMoveManual);
+  window.addEventListener('pointerup', onPointerUpManual);
+  e.preventDefault();
+}
+
+function onPointerMoveManual(e){
+  if (!manualDrag || e.pointerId !== manualDrag.pointerId) return;
+  const { ghost } = manualDrag;
+  ghost.style.left = `${e.clientX}px`;
+  ghost.style.top = `${e.clientY}px`;
+
+  const sq = getSquareFromPoint(e.clientX, e.clientY);
+  document.querySelectorAll('.sq.drop').forEach(el => el.classList.remove('drop'));
+  if (sq){
+    const selector = `.sq[data-dr="${sq.dr}"][data-dc="${sq.dc}"]`;
+    document.querySelector(selector)?.classList.add('drop');
+  }
+}
+
+function onPointerUpManual(e){
+  if (!manualDrag || e.pointerId !== manualDrag.pointerId) return;
+  const { fromR, fromC } = manualDrag;
+  const targetSq = getSquareFromPoint(e.clientX, e.clientY);
+  stopManualDrag();
+  document.querySelectorAll('.sq.drop').forEach(el => el.classList.remove('drop'));
+
+  if (!targetSq) return;
+
+  const piece = boardState[fromR][fromC];
+  if (!piece) return;
+  if ((activeColor === 'w' && isBlack(piece)) || (activeColor === 'b' && isWhite(piece))){
+    return;
+  }
+
+  performMove(fromR, fromC, targetSq.r, targetSq.c);
+}
 
 function onDragStart(e){
   const fromR = Number(e.target.dataset.fromR);
@@ -549,6 +658,7 @@ function onDragEnd(){
 
 function onPieceClick(e){
   e.stopPropagation();
+  if (manualDragActive) return;
   const fromR = Number(e.currentTarget.dataset.fromR);
   const fromC = Number(e.currentTarget.dataset.fromC);
   const piece = boardState[fromR][fromC];
