@@ -35,6 +35,13 @@ let highlightedMoves = [];
 let promotionState = null;
 let puzzleData = null;
 let puzzleMode = false;
+let puzzleSolutionMoves = [];
+let puzzleMoveIndex = 0;
+let puzzleSolved = false;
+let puzzleStartFen = null;
+
+const files = ['a','b','c','d','e','f','g','h'];
+const ranks = ['8','7','6','5','4','3','2','1'];
 
 const boardEl = document.getElementById('board');
 const fenOutEl = document.getElementById('fenOut');
@@ -50,6 +57,7 @@ const puzzlePublishEl = document.getElementById('puzzlePublish');
 const puzzleFenEl = document.getElementById('puzzleFen');
 const puzzlePgnEl = document.getElementById('puzzlePgn');
 const puzzleImageEl = document.getElementById('puzzleImage');
+const puzzleFeedbackEl = document.getElementById('puzzleFeedback');
 
 const defaultTheme = {
   bg: '#111',
@@ -169,6 +177,7 @@ function loadPositionFromFen(fen){
   castlingRights = parsed.castling;
   promotionState = null;
   puzzleMode = true;
+  puzzleSolved = false;
   resetSelection();
   closePromotionDialog();
   render();
@@ -491,6 +500,10 @@ function updateStatus(){
 
 function updatePuzzleStatus(){
   if (!puzzleStatusEl) return;
+  if (puzzleSolved){
+    puzzleStatusEl.textContent = 'Задача решена верно.';
+    return;
+  }
   if (puzzleMode && puzzleData){
     puzzleStatusEl.textContent = `Режим задачи: ход ${activeColor === 'w' ? 'белых' : 'черных'}.`;
     return;
@@ -511,6 +524,7 @@ function formatPublishTime(ts){
 
 function updatePuzzleInfoDisplay(data){
   puzzleData = data;
+  puzzleStartFen = data?.fen || null;
   puzzleTitleEl.textContent = data?.title || '';
   puzzleUrlEl.textContent = data?.url || '';
   puzzleUrlEl.href = data?.url || '#';
@@ -519,7 +533,103 @@ function updatePuzzleInfoDisplay(data){
   puzzlePgnEl.textContent = data?.pgn || '';
   puzzleImageEl.textContent = data?.image || '';
   puzzleImageEl.href = data?.image || '#';
+  puzzleSolutionMoves = parseSolutionMovesFromPgn(data?.pgn || '');
+  puzzleMoveIndex = 0;
+  puzzleSolved = false;
+  updatePuzzleFeedback('idle');
   updatePuzzleStatus();
+}
+
+function parseSolutionMovesFromPgn(pgn){
+  if (!pgn) return [];
+  const lines = pgn.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const singleWIndex = lines.findIndex(line => /^w$/i.test(line));
+  if (singleWIndex !== -1 && lines[singleWIndex + 1]){
+    return lines[singleWIndex + 1].trim().split(/\s+/).filter(Boolean);
+  }
+  const inlineMatch = pgn.match(/(?:^|\n)w\s+([^\n\r]+)/i);
+  if (inlineMatch && inlineMatch[1]){
+    return inlineMatch[1].trim().split(/\s+/).filter(Boolean);
+  }
+  return [];
+}
+
+function coordToNotation(r, c){
+  return `${files[c]}${ranks[r]}`;
+}
+
+function buildMoveKey({ fromR, fromC, toR, toC, promotionPiece = null }){
+  const promo = promotionPiece ? promotionPiece.toLowerCase() : '';
+  return `${coordToNotation(fromR, fromC)}${coordToNotation(toR, toC)}${promo}`;
+}
+
+function resetPuzzleProgress(){
+  puzzleMoveIndex = 0;
+  puzzleSolved = false;
+  updatePuzzleFeedback('idle');
+}
+
+function updatePuzzleFeedback(state){
+  if (!puzzleFeedbackEl) return;
+  puzzleFeedbackEl.className = 'puzzle-feedback';
+  puzzleFeedbackEl.innerHTML = '';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'puzzle-feedback-row';
+
+  const icon = document.createElement('span');
+  icon.className = 'puzzle-indicator';
+
+  const text = document.createElement('span');
+  text.className = 'puzzle-feedback-text';
+
+  if (state === 'correct'){
+    icon.textContent = '✓';
+    wrapper.classList.add('success');
+    text.textContent = 'Ход верный.';
+  } else if (state === 'wrong'){
+    icon.textContent = '✕';
+    wrapper.classList.add('error');
+    text.textContent = 'Неправильный ход. Попробуйте решить задачу заново.';
+  } else if (state === 'solved'){
+    icon.textContent = '✓';
+    wrapper.classList.add('success');
+    text.textContent = 'Задача решена верно.';
+  } else {
+    return;
+  }
+
+  wrapper.prepend(icon);
+  wrapper.append(text);
+  puzzleFeedbackEl.appendChild(wrapper);
+}
+
+function verifyPuzzleMove(moveKey){
+  if (!puzzleMode || !puzzleSolutionMoves.length || puzzleSolved) return true;
+
+  const expectedMove = puzzleSolutionMoves[puzzleMoveIndex];
+  if (moveKey === expectedMove){
+    puzzleMoveIndex += 1;
+    if (puzzleMoveIndex >= puzzleSolutionMoves.length){
+      puzzleSolved = true;
+      updatePuzzleFeedback('solved');
+      updatePuzzleStatus();
+    } else {
+      updatePuzzleFeedback('correct');
+    }
+    return true;
+  }
+
+  puzzleSolved = false;
+  puzzleMoveIndex = 0;
+  updatePuzzleFeedback('wrong');
+  if (puzzleStartFen){
+    loadPositionFromFen(puzzleStartFen);
+  } else {
+    resetSelection();
+    render();
+  }
+  return false;
 }
 
 function updateCastlingRights(fromR, fromC, toR, toC, piece){
@@ -558,6 +668,11 @@ function needsPromotion(piece, toR){
 }
 
 function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null }){
+  const moveKey = buildMoveKey({ fromR, fromC, toR, toC, promotionPiece });
+  if (!verifyPuzzleMove(moveKey)){
+    return;
+  }
+
   const pieceToPlace = promotionPiece || piece;
   updateCastlingRights(fromR, fromC, toR, toC, piece);
 
@@ -923,6 +1038,11 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
   promotionState = null;
   puzzleMode = false;
+  puzzleSolutionMoves = [];
+  puzzleMoveIndex = 0;
+  puzzleSolved = false;
+  puzzleStartFen = null;
+  updatePuzzleFeedback('idle');
   closePromotionDialog();
   resetSelection();
   render();
@@ -940,6 +1060,11 @@ document.getElementById('loadStartBtn').addEventListener('click', () => {
   castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
   promotionState = null;
   puzzleMode = false;
+  puzzleSolutionMoves = [];
+  puzzleMoveIndex = 0;
+  puzzleSolved = false;
+  puzzleStartFen = null;
+  updatePuzzleFeedback('idle');
   closePromotionDialog();
   resetSelection();
   render();

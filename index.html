@@ -218,6 +218,38 @@
       flex-shrink:0;
     }
 
+    .puzzle-feedback{ margin-top: 8px; min-height: 22px; }
+    .puzzle-feedback-row{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.1);
+      font-size: 14px;
+    }
+    .puzzle-indicator{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .puzzle-feedback-row.success .puzzle-indicator{
+      background: rgba(64,214,108,.18);
+      color: #40d66c;
+      box-shadow: 0 0 0 1px rgba(64,214,108,.25);
+    }
+    .puzzle-feedback-row.error .puzzle-indicator{
+      background: rgba(255,99,99,.18);
+      color: #ff6b6b;
+      box-shadow: 0 0 0 1px rgba(255,107,107,.25);
+    }
+
     .promotion-overlay{
       position: fixed;
       inset: 0;
@@ -298,6 +330,7 @@
         <div><b>pgn:</b> <span id="puzzlePgn" class="mono" style="word-break: break-all;"></span></div>
         <div><b>image:</b> <a id="puzzleImage" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
       </div>
+      <div id="puzzleFeedback" class="puzzle-feedback"></div>
     </div>
   </div>
 
