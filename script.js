@@ -41,6 +41,11 @@ let puzzleSolved = false;
 let puzzleStartFen = null;
 let puzzlePlayerColor = null;
 
+function getExpectedMoveColor(moveIndex){
+  const opponentColor = puzzlePlayerColor === 'w' ? 'b' : 'w';
+  return moveIndex % 2 === 0 ? puzzlePlayerColor : opponentColor;
+}
+
 const files = ['a','b','c','d','e','f','g','h'];
 const ranks = ['8','7','6','5','4','3','2','1'];
 
@@ -463,6 +468,10 @@ function selectSquare(r, c){
 }
 
 function handleSquareTap(r, c){
+  if (puzzleMode && !puzzleSolved && activeColor !== puzzlePlayerColor){
+    return;
+  }
+
   if (selectedSquare && highlightedMoves.some(m => m.r === r && m.c === c)){
     performMove(selectedSquare.r, selectedSquare.c, r, c);
     return;
@@ -637,6 +646,9 @@ function updatePuzzleFeedback(state){
 
 function verifyPuzzleMove(moveKey){
   if (!puzzleMode || !puzzleSolutionMoves.length || puzzleSolved) return true;
+
+  const expectedColor = getExpectedMoveColor(puzzleMoveIndex);
+  if (activeColor !== expectedColor) return false;
 
   const expectedMove = puzzleSolutionMoves[puzzleMoveIndex];
   if (moveKey === expectedMove){
@@ -883,6 +895,10 @@ function onPointerDownManual(e){
   const pointerType = e.pointerType || 'mouse';
   if (pointerType !== 'touch' && pointerType !== 'pen') return;
 
+  if (puzzleMode && !puzzleSolved && activeColor !== puzzlePlayerColor){
+    return;
+  }
+
   const fromR = Number(e.currentTarget.dataset.fromR);
   const fromC = Number(e.currentTarget.dataset.fromC);
   const piece = boardState[fromR][fromC];
@@ -984,6 +1000,10 @@ function onDragStart(e){
   const fromR = Number(e.target.dataset.fromR);
   const fromC = Number(e.target.dataset.fromC);
   const piece = boardState[fromR][fromC];
+  if (puzzleMode && !puzzleSolved && activeColor !== puzzlePlayerColor){
+    e.preventDefault();
+    return;
+  }
   if ((activeColor === 'w' && isBlack(piece)) || (activeColor === 'b' && isWhite(piece))){
     e.preventDefault();
     return;
@@ -1045,6 +1065,10 @@ function onDragLeave(e){
 function onDrop(e){
   e.preventDefault();
   e.currentTarget.classList.remove('drop');
+
+  if (puzzleMode && !puzzleSolved && activeColor !== puzzlePlayerColor){
+    return;
+  }
 
   let from;
   try{
