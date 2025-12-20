@@ -226,6 +226,7 @@
       <button id="resetBtn">Reset</button>
       <button id="flipBtn">Flip</button>
       <button id="loadStartBtn">Load Start</button>
+      <button id="puzzleBtn">Random Puzzle</button>
     </div>
 
     <div class="box">
@@ -233,6 +234,23 @@
       <div id="fenOut" class="mono" style="word-break: break-all;"></div>
       <div class="hint">Можно перетаскивать фигуры. Ходы проверяются по правилам шахмат, ход по очереди (белые начинают).</div>
       <div id="status" class="hint" style="margin-top:6px;"></div>
+    </div>
+
+    <div class="box" id="puzzleBox">
+      <div style="display:flex; gap:8px; align-items:center;">
+        <b>Random Puzzle</b>
+        <span id="puzzleStatus" class="hint"></span>
+      </div>
+      <div class="hint" style="margin-top:6px;">Снизу выпиши: title, url, publish_time, fen, pgn, image.</div>
+      <div class="hint" style="margin-top:6px;">Включите «Random Puzzle», чтобы загрузить позицию и решить задачу.</div>
+      <div style="margin-top:10px; display:grid; gap:6px;">
+        <div><b>title:</b> <span id="puzzleTitle" class="mono"></span></div>
+        <div><b>url:</b> <a id="puzzleUrl" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
+        <div><b>publish_time:</b> <span id="puzzlePublish" class="mono"></span></div>
+        <div><b>fen:</b> <span id="puzzleFen" class="mono" style="word-break: break-all;"></span></div>
+        <div><b>pgn:</b> <span id="puzzlePgn" class="mono" style="word-break: break-all;"></span></div>
+        <div><b>image:</b> <a id="puzzleImage" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
+      </div>
     </div>
   </div>
 
