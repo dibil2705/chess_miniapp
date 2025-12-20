@@ -546,6 +546,7 @@ function stopManualDrag(){
   }
   window.removeEventListener('pointermove', onPointerMoveManual);
   window.removeEventListener('pointerup', onPointerUpManual);
+  window.removeEventListener('pointercancel', onPointerCancelManual);
 }
 
 function onPointerDownManual(e){
@@ -584,6 +585,7 @@ function onPointerDownManual(e){
 
   window.addEventListener('pointermove', onPointerMoveManual);
   window.addEventListener('pointerup', onPointerUpManual);
+  window.addEventListener('pointercancel', onPointerCancelManual);
   e.preventDefault();
 }
 
@@ -621,6 +623,12 @@ function onPointerUpManual(e){
   }
 
   performMove(fromR, fromC, targetSq.r, targetSq.c);
+}
+
+function onPointerCancelManual(e){
+  if (!manualDrag || e.pointerId !== manualDrag.pointerId) return;
+  stopManualDrag();
+  document.querySelectorAll('.sq.drop').forEach(el => el.classList.remove('drop'));
 }
 
 function onDragStart(e){
