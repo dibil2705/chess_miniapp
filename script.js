@@ -535,20 +535,24 @@ function updatePuzzleInfoDisplay(data){
   puzzlePgnEl.textContent = data?.pgn || '';
   puzzleImageEl.textContent = data?.image || '';
   puzzleImageEl.href = data?.image || '#';
-  puzzleSolutionMoves = parseSolutionMovesFromPgn(data?.pgn || '');
+  puzzleSolutionMoves = parseSolutionMovesFromPgn(data?.pgn || '', puzzleStartFen);
   puzzleMoveIndex = 0;
   puzzleSolved = false;
   updatePuzzleFeedback('idle');
   updatePuzzleStatus();
 }
 
-function parseSolutionMovesFromPgn(pgn){
+function parseSolutionMovesFromPgn(pgn, startFen = null){
   if (!pgn) return [];
   // Prefer full PGN parsing when chess.js is available to convert SAN to UCI.
   try {
     if (typeof Chess !== 'undefined'){
       const chess = new Chess();
-      chess.load_pgn(pgn);
+      const enrichedPgn = (startFen && !/\[FEN\s+".+"\]/i.test(pgn))
+        ? `[FEN "${startFen}"]\n[SetUp "1"]\n\n${pgn}`
+        : pgn;
+      if (startFen) chess.load(startFen);
+      chess.load_pgn(enrichedPgn);
       const moves = chess.history({ verbose: true });
       return moves.map(m => `${m.from}${m.to}${m.promotion || ''}`);
     }
