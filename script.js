@@ -54,9 +54,9 @@ function applyTelegramTheme(){
   root.style.setProperty('--panel', theme.secondary_bg_color || defaultTheme.panel);
   root.style.setProperty('--border', theme.section_separator_color || defaultTheme.border);
   root.style.setProperty('--text', theme.text_color || defaultTheme.text);
-  // Keep board colors stable, but allow overriding if Telegram provides button colors.
-  root.style.setProperty('--dark', theme.button_color || defaultTheme.dark);
-  root.style.setProperty('--light', theme.button_text_color || defaultTheme.light);
+  // Keep board colors stable across platforms.
+  root.style.setProperty('--dark', defaultTheme.dark);
+  root.style.setProperty('--light', defaultTheme.light);
 }
 
 function initTelegram(){
@@ -357,8 +357,10 @@ function updateStatus(){
     const loser = activeColor === 'w' ? 'белым' : 'черным';
     const winner = activeColor === 'w' ? 'Черные' : 'Белые';
     statusEl.textContent = `Мат ${loser}. ${winner} победили.`;
+    statusEl.classList.add('mate');
     return;
   }
+  statusEl.classList.remove('mate');
   if (!inCheck && !hasMoves){
     statusEl.textContent = 'Пат. Ничья.';
     return;
@@ -528,9 +530,17 @@ function onPieceClick(e){
   const fromR = Number(e.currentTarget.dataset.fromR);
   const fromC = Number(e.currentTarget.dataset.fromC);
   const piece = boardState[fromR][fromC];
-  if ((activeColor === 'w' && isBlack(piece)) || (activeColor === 'b' && isWhite(piece))){
+  const isFriendly = (activeColor === 'w' && isWhite(piece)) || (activeColor === 'b' && isBlack(piece));
+
+  if (selectedSquare && highlightedMoves.some(m => m.r === fromR && m.c === fromC)){
+    performMove(selectedSquare.r, selectedSquare.c, fromR, fromC);
     return;
   }
+
+  if (!isFriendly){
+    return;
+  }
+
   selectSquare(fromR, fromC);
   render();
 }
