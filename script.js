@@ -46,6 +46,28 @@ const defaultTheme = {
   light: '#eeeed2'
 };
 
+function preventZoom(){
+  // Avoid pinch and double-tap zooming inside the Telegram webview.
+  document.addEventListener('touchstart', (event) => {
+    if (event.touches.length > 1) {
+      event.preventDefault();
+    }
+  }, { passive: false });
+
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', (event) => {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 350) {
+      event.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
+
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach((type) => {
+    document.addEventListener(type, (event) => event.preventDefault());
+  });
+}
+
 function applyTelegramTheme(){
   if (!tg) return;
   const theme = tg.themeParams || {};
@@ -622,6 +644,7 @@ document.getElementById('loadStartBtn').addEventListener('click', () => {
   render();
 });
 
+preventZoom();
 initTelegram();
 // initial render
 render();
