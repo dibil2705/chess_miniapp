@@ -29,11 +29,11 @@
       width:min(560px, 100%);
       margin:auto;
       display:grid;
-      grid-template-columns: auto 1fr;
+      grid-template-columns: auto 1fr auto;
       grid-template-rows: 1fr auto;
       grid-template-areas:
-        "ranks board"
-        ". files";
+        "ranks board ranksRight"
+        ". files files";
       column-gap: 10px;
       row-gap: 8px;
       align-items: center;
@@ -73,13 +73,22 @@
     }
 
     .coord-ranks{
-      grid-area: ranks;
       display:grid;
       grid-template-rows: repeat(8, 1fr);
       align-items: center;
-      justify-items: end;
       width: 26px;
+    }
+
+    .coord-ranks.left{
+      grid-area: ranks;
+      justify-items: end;
       padding-right: 4px;
+    }
+
+    .coord-ranks.right{
+      grid-area: ranksRight;
+      justify-items: start;
+      padding-left: 4px;
     }
 
     .sq{
@@ -266,7 +275,8 @@
     <div class="board-wrapper">
       <div id="board" class="board" aria-label="Chess board"></div>
       <div id="filesBottom" class="coord-files" aria-hidden="true"></div>
-      <div id="ranksLeft" class="coord-ranks" aria-hidden="true"></div>
+      <div id="ranksLeft" class="coord-ranks left" aria-hidden="true"></div>
+      <div id="ranksRight" class="coord-ranks right" aria-hidden="true"></div>
     </div>
 
     <div class="row">
