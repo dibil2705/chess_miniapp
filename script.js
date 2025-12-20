@@ -27,8 +27,12 @@ let flipped = false;
 let boardState = fenToBoard(START_FEN);
 let activeColor = 'w';
 
+let selectedSquare = null;
+let highlightedMoves = [];
+
 const boardEl = document.getElementById('board');
 const fenOutEl = document.getElementById('fenOut');
+const statusEl = document.getElementById('status');
 
 function fenToBoard(fen){
   // returns 8x8 array; each cell is piece char or ''
@@ -85,25 +89,25 @@ function displayToCoord(dr,dc){
 function isWhite(piece){ return piece === piece.toUpperCase(); }
 function isBlack(piece){ return piece === piece.toLowerCase(); }
 
-function isPathClear(fromR, fromC, toR, toC){
+function isPathClear(fromR, fromC, toR, toC, board = boardState){
   const stepR = Math.sign(toR - fromR);
   const stepC = Math.sign(toC - fromC);
   let r = fromR + stepR;
   let c = fromC + stepC;
   while (r !== toR || c !== toC){
-    if (boardState[r][c]) return false;
+    if (board[r][c]) return false;
     r += stepR;
     c += stepC;
   }
   return true;
 }
 
-function isLegalPawnMove(piece, fromR, fromC, toR, toC){
+function isLegalPawnMove(piece, fromR, fromC, toR, toC, board = boardState){
   const dir = piece === 'P' ? -1 : 1;
   const startRow = piece === 'P' ? 6 : 1;
-  const target = boardState[toR][toC];
+  const target = board[toR][toC];
   const forward = fromC === toC && target === '';
-  const doubleForward = fromC === toC && target === '' && fromR === startRow && toR === fromR + 2*dir && boardState[fromR + dir][fromC] === '';
+  const doubleForward = fromC === toC && target === '' && fromR === startRow && toR === fromR + 2*dir && board[fromR + dir][fromC] === '';
   const capture = Math.abs(toC - fromC) === 1 && toR === fromR + dir && target && ((isWhite(piece) && isBlack(target)) || (isBlack(piece) && isWhite(target)));
   return (forward && toR === fromR + dir) || doubleForward || capture;
 }
@@ -114,18 +118,18 @@ function isLegalKnightMove(fromR, fromC, toR, toC){
   return dr * dc === 2;
 }
 
-function isLegalBishopMove(fromR, fromC, toR, toC){
+function isLegalBishopMove(fromR, fromC, toR, toC, board = boardState){
   if (Math.abs(toR - fromR) !== Math.abs(toC - fromC)) return false;
-  return isPathClear(fromR, fromC, toR, toC);
+  return isPathClear(fromR, fromC, toR, toC, board);
 }
 
-function isLegalRookMove(fromR, fromC, toR, toC){
+function isLegalRookMove(fromR, fromC, toR, toC, board = boardState){
   if (fromR !== toR && fromC !== toC) return false;
-  return isPathClear(fromR, fromC, toR, toC);
+  return isPathClear(fromR, fromC, toR, toC, board);
 }
 
-function isLegalQueenMove(fromR, fromC, toR, toC){
-  return isLegalRookMove(fromR, fromC, toR, toC) || isLegalBishopMove(fromR, fromC, toR, toC);
+function isLegalQueenMove(fromR, fromC, toR, toC, board = boardState){
+  return isLegalRookMove(fromR, fromC, toR, toC, board) || isLegalBishopMove(fromR, fromC, toR, toC, board);
 }
 
 function isLegalKingMove(fromR, fromC, toR, toC){
@@ -134,34 +138,153 @@ function isLegalKingMove(fromR, fromC, toR, toC){
   return dr <= 1 && dc <= 1;
 }
 
-function isLegalMove(fromR, fromC, toR, toC){
+function isLegalMove(fromR, fromC, toR, toC, board = boardState){
   if (fromR === toR && fromC === toC) return false;
   if (toR < 0 || toR > 7 || toC < 0 || toC > 7) return false;
 
-  const piece = boardState[fromR][fromC];
+  const piece = board[fromR][fromC];
   if (!piece) return false;
 
-  const target = boardState[toR][toC];
+  const target = board[toR][toC];
   if (target){
     if (isWhite(piece) === isWhite(target)) return false;
   }
 
   switch (piece.toLowerCase()){
     case 'p':
-      return isLegalPawnMove(piece, fromR, fromC, toR, toC);
+      return isLegalPawnMove(piece, fromR, fromC, toR, toC, board);
     case 'n':
       return isLegalKnightMove(fromR, fromC, toR, toC);
     case 'b':
-      return isLegalBishopMove(fromR, fromC, toR, toC);
+      return isLegalBishopMove(fromR, fromC, toR, toC, board);
     case 'r':
-      return isLegalRookMove(fromR, fromC, toR, toC);
+      return isLegalRookMove(fromR, fromC, toR, toC, board);
     case 'q':
-      return isLegalQueenMove(fromR, fromC, toR, toC);
+      return isLegalQueenMove(fromR, fromC, toR, toC, board);
     case 'k':
       return isLegalKingMove(fromR, fromC, toR, toC);
     default:
       return false;
   }
+}
+
+function cloneBoard(board){
+  return board.map(row => [...row]);
+}
+
+function isSquareAttacked(board, targetR, targetC, attackerColor){
+  for (let r=0; r<8; r++){
+    for (let c=0; c<8; c++){
+      const piece = board[r][c];
+      if (!piece) continue;
+      if (attackerColor === 'w' && !isWhite(piece)) continue;
+      if (attackerColor === 'b' && !isBlack(piece)) continue;
+      if (isLegalMove(r, c, targetR, targetC, board)) return true;
+    }
+  }
+  return false;
+}
+
+function isKingInCheck(board, color){
+  const kingChar = color === 'w' ? 'K' : 'k';
+  let kingPos = null;
+  for (let r=0; r<8; r++){
+    for (let c=0; c<8; c++){
+      if (board[r][c] === kingChar){
+        kingPos = { r, c };
+        break;
+      }
+    }
+    if (kingPos) break;
+  }
+  if (!kingPos) return false;
+  const attacker = color === 'w' ? 'b' : 'w';
+  return isSquareAttacked(board, kingPos.r, kingPos.c, attacker);
+}
+
+function moveLeavesKingInCheck(fromR, fromC, toR, toC, board = boardState){
+  const piece = board[fromR][fromC];
+  const movingColor = isWhite(piece) ? 'w' : 'b';
+  const next = cloneBoard(board);
+  next[toR][toC] = piece;
+  next[fromR][fromC] = '';
+  return isKingInCheck(next, movingColor);
+}
+
+function isMoveAllowed(fromR, fromC, toR, toC){
+  if (!isLegalMove(fromR, fromC, toR, toC, boardState)) return false;
+  return !moveLeavesKingInCheck(fromR, fromC, toR, toC, boardState);
+}
+
+function getLegalMovesForPiece(fromR, fromC, color = activeColor){
+  const piece = boardState[fromR][fromC];
+  if (!piece) return [];
+  if (color === 'w' && isBlack(piece)) return [];
+  if (color === 'b' && isWhite(piece)) return [];
+
+  const moves = [];
+  for (let r=0; r<8; r++){
+    for (let c=0; c<8; c++){
+      if (isMoveAllowed(fromR, fromC, r, c)){
+        moves.push({ r, c });
+      }
+    }
+  }
+  return moves;
+}
+
+function playerHasLegalMoves(color){
+  for (let r=0; r<8; r++){
+    for (let c=0; c<8; c++){
+      const piece = boardState[r][c];
+      if (!piece) continue;
+      if (color === 'w' && !isWhite(piece)) continue;
+      if (color === 'b' && !isBlack(piece)) continue;
+      if (getLegalMovesForPiece(r, c, color).length) return true;
+    }
+  }
+  return false;
+}
+
+function resetSelection(){
+  selectedSquare = null;
+  highlightedMoves = [];
+}
+
+function selectSquare(r, c){
+  selectedSquare = { r, c };
+  highlightedMoves = getLegalMovesForPiece(r, c);
+}
+
+function updateStatus(){
+  if (!statusEl) return;
+  const inCheck = isKingInCheck(boardState, activeColor);
+  const hasMoves = playerHasLegalMoves(activeColor);
+  if (inCheck && !hasMoves){
+    const loser = activeColor === 'w' ? 'белым' : 'черным';
+    const winner = activeColor === 'w' ? 'Черные' : 'Белые';
+    statusEl.textContent = `Мат ${loser}. ${winner} победили.`;
+    return;
+  }
+  if (!inCheck && !hasMoves){
+    statusEl.textContent = 'Пат. Ничья.';
+    return;
+  }
+  if (inCheck){
+    statusEl.textContent = `Шах ${activeColor === 'w' ? 'белым' : 'черным'}.`;
+    return;
+  }
+  statusEl.textContent = `Ход ${activeColor === 'w' ? 'белых' : 'черных'}.`;
+}
+
+function performMove(fromR, fromC, toR, toC){
+  if (!isMoveAllowed(fromR, fromC, toR, toC)) return;
+  const piece = boardState[fromR][fromC];
+  boardState[fromR][fromC] = '';
+  boardState[toR][toC] = piece;
+  activeColor = activeColor === 'w' ? 'b' : 'w';
+  resetSelection();
+  render();
 }
 
 function render(){
@@ -175,6 +298,10 @@ function render(){
       sq.className = 'sq ' + (((dr+dc)%2===0) ? 'light' : 'dark');
       sq.dataset.dr = String(dr);
       sq.dataset.dc = String(dc);
+
+      if (selectedSquare && selectedSquare.r === r && selectedSquare.c === c){
+        sq.classList.add('selected');
+      }
 
       if (piece){
         const p = document.createElement('div');
@@ -192,18 +319,27 @@ function render(){
         p.dataset.fromC = String(c);
         p.addEventListener('dragstart', onDragStart);
         p.addEventListener('dragend', onDragEnd);
+        p.addEventListener('click', onPieceClick);
         sq.appendChild(p);
+      }
+
+      if (highlightedMoves.some(m => m.r === r && m.c === c)){
+        const dot = document.createElement('div');
+        dot.className = 'move-dot';
+        sq.appendChild(dot);
       }
 
       sq.addEventListener('dragover', onDragOver);
       sq.addEventListener('dragleave', onDragLeave);
       sq.addEventListener('drop', onDrop);
+      sq.addEventListener('click', onSquareClick);
 
       boardEl.appendChild(sq);
     }
   }
 
   fenOutEl.textContent = boardToFen(boardState);
+  updateStatus();
 }
 
 let dragFrom = null; // {r,c}
@@ -245,6 +381,37 @@ function onDragEnd(){
   document.querySelectorAll('.sq.drop').forEach(el => el.classList.remove('drop'));
 }
 
+function onPieceClick(e){
+  e.stopPropagation();
+  const fromR = Number(e.currentTarget.dataset.fromR);
+  const fromC = Number(e.currentTarget.dataset.fromC);
+  const piece = boardState[fromR][fromC];
+  if ((activeColor === 'w' && isBlack(piece)) || (activeColor === 'b' && isWhite(piece))){
+    return;
+  }
+  selectSquare(fromR, fromC);
+  render();
+}
+
+function onSquareClick(e){
+  const dr = Number(e.currentTarget.dataset.dr);
+  const dc = Number(e.currentTarget.dataset.dc);
+  const { r, c } = displayToCoord(dr, dc);
+
+  if (selectedSquare && highlightedMoves.some(m => m.r === r && m.c === c)){
+    performMove(selectedSquare.r, selectedSquare.c, r, c);
+    return;
+  }
+
+  const piece = boardState[r][c];
+  if (piece && ((activeColor === 'w' && isWhite(piece)) || (activeColor === 'b' && isBlack(piece)))){
+    selectSquare(r, c);
+  } else {
+    resetSelection();
+  }
+  render();
+}
+
 function onDragOver(e){
   e.preventDefault();
   e.currentTarget.classList.add('drop');
@@ -278,21 +445,13 @@ function onDrop(e){
     return;
   }
 
-  if (!isLegalMove(from.r, from.c, toR, toC)){
-    return;
-  }
-
-  // move piece (captures overwrite)
-  boardState[from.r][from.c] = '';
-  boardState[toR][toC] = piece;
-  activeColor = activeColor === 'w' ? 'b' : 'w';
-
-  render();
+  performMove(from.r, from.c, toR, toC);
 }
 
 document.getElementById('resetBtn').addEventListener('click', () => {
   boardState = fenToBoard(START_FEN);
   activeColor = 'w';
+  resetSelection();
   render();
 });
 
@@ -305,6 +464,7 @@ document.getElementById('loadStartBtn').addEventListener('click', () => {
   // start position (same as START_FEN but explicit)
   boardState = fenToBoard('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1');
   activeColor = 'w';
+  resetSelection();
   render();
 });
 
