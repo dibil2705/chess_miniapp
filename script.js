@@ -41,10 +41,8 @@ const fenOutEl = document.getElementById('fenOut');
 const statusEl = document.getElementById('status');
 const promotionOverlay = document.getElementById('promotionOverlay');
 const promotionButtons = Array.from(promotionOverlay?.querySelectorAll('.promotion-btn') || []);
-const filesTopEl = document.getElementById('filesTop');
 const filesBottomEl = document.getElementById('filesBottom');
 const ranksLeftEl = document.getElementById('ranksLeft');
-const ranksRightEl = document.getElementById('ranksRight');
 const puzzleStatusEl = document.getElementById('puzzleStatus');
 const puzzleTitleEl = document.getElementById('puzzleTitle');
 const puzzleUrlEl = document.getElementById('puzzleUrl');
@@ -605,10 +603,8 @@ function performMove(fromR, fromC, toR, toC){
 function updateCoordinates(){
   const files = getDisplayFiles();
   const ranks = getDisplayRanks();
-  if (filesTopEl) filesTopEl.innerHTML = files.map(f => `<span>${f}</span>`).join('');
   if (filesBottomEl) filesBottomEl.innerHTML = files.map(f => `<span>${f}</span>`).join('');
   if (ranksLeftEl) ranksLeftEl.innerHTML = ranks.map(r => `<span>${r}</span>`).join('');
-  if (ranksRightEl) ranksRightEl.innerHTML = ranks.map(r => `<span>${r}</span>`).join('');
 }
 
 function render(){
