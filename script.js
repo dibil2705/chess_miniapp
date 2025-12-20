@@ -376,6 +376,21 @@ function selectSquare(r, c){
   });
 }
 
+function handleSquareTap(r, c){
+  if (selectedSquare && highlightedMoves.some(m => m.r === r && m.c === c)){
+    performMove(selectedSquare.r, selectedSquare.c, r, c);
+    return;
+  }
+
+  const piece = boardState[r][c];
+  if (piece && ((activeColor === 'w' && isWhite(piece)) || (activeColor === 'b' && isBlack(piece)))){
+    selectSquare(r, c);
+  } else {
+    resetSelection();
+  }
+  render();
+}
+
 function updateStatus(){
   if (!statusEl) return;
   const inCheck = isKingInCheck(boardState, activeColor);
@@ -574,7 +589,10 @@ function onPointerDownManual(e){
     fromC,
     pointerId: e.pointerId,
     ghost,
-    originEl: e.currentTarget
+    originEl: e.currentTarget,
+    startX: e.clientX,
+    startY: e.clientY,
+    moved: false
   };
 
   const moveGhost = () => {
@@ -591,9 +609,15 @@ function onPointerDownManual(e){
 
 function onPointerMoveManual(e){
   if (!manualDrag || e.pointerId !== manualDrag.pointerId) return;
-  const { ghost } = manualDrag;
+  const { ghost, startX, startY } = manualDrag;
   ghost.style.left = `${e.clientX}px`;
   ghost.style.top = `${e.clientY}px`;
+
+  if (!manualDrag.moved){
+    const dx = Math.abs(e.clientX - startX);
+    const dy = Math.abs(e.clientY - startY);
+    manualDrag.moved = dx + dy > 6;
+  }
 
   const sq = getSquareFromPoint(e.clientX, e.clientY);
   document.querySelectorAll('.sq.drop').forEach(el => el.classList.remove('drop'));
@@ -605,7 +629,7 @@ function onPointerMoveManual(e){
 
 function onPointerUpManual(e){
   if (!manualDrag || e.pointerId !== manualDrag.pointerId) return;
-  const { fromR, fromC, originEl } = manualDrag;
+  const { fromR, fromC, originEl, moved } = manualDrag;
   const targetSq = getSquareFromPoint(e.clientX, e.clientY);
   stopManualDrag();
   document.querySelectorAll('.sq.drop').forEach(el => el.classList.remove('drop'));
@@ -614,7 +638,17 @@ function onPointerUpManual(e){
     originEl.classList.remove('dragging');
   }
 
-  if (!targetSq) return;
+  if (!targetSq){
+    if (!moved){
+      handleSquareTap(fromR, fromC);
+    }
+    return;
+  }
+
+  if (!moved){
+    handleSquareTap(targetSq.r, targetSq.c);
+    return;
+  }
 
   const piece = boardState[fromR][fromC];
   if (!piece) return;
@@ -673,39 +707,14 @@ function onPieceClick(e){
   if (manualDragActive) return;
   const fromR = Number(e.currentTarget.dataset.fromR);
   const fromC = Number(e.currentTarget.dataset.fromC);
-  const piece = boardState[fromR][fromC];
-  const isFriendly = (activeColor === 'w' && isWhite(piece)) || (activeColor === 'b' && isBlack(piece));
-
-  if (selectedSquare && highlightedMoves.some(m => m.r === fromR && m.c === fromC)){
-    performMove(selectedSquare.r, selectedSquare.c, fromR, fromC);
-    return;
-  }
-
-  if (!isFriendly){
-    return;
-  }
-
-  selectSquare(fromR, fromC);
-  render();
+  handleSquareTap(fromR, fromC);
 }
 
 function onSquareClick(e){
   const dr = Number(e.currentTarget.dataset.dr);
   const dc = Number(e.currentTarget.dataset.dc);
   const { r, c } = displayToCoord(dr, dc);
-
-  if (selectedSquare && highlightedMoves.some(m => m.r === r && m.c === c)){
-    performMove(selectedSquare.r, selectedSquare.c, r, c);
-    return;
-  }
-
-  const piece = boardState[r][c];
-  if (piece && ((activeColor === 'w' && isWhite(piece)) || (activeColor === 'b' && isBlack(piece)))){
-    selectSquare(r, c);
-  } else {
-    resetSelection();
-  }
-  render();
+  handleSquareTap(r, c);
 }
 
 function onDragOver(e){
