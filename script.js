@@ -32,10 +32,13 @@ let castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
 
 let selectedSquare = null;
 let highlightedMoves = [];
+let promotionState = null;
 
 const boardEl = document.getElementById('board');
 const fenOutEl = document.getElementById('fenOut');
 const statusEl = document.getElementById('status');
+const promotionOverlay = document.getElementById('promotionOverlay');
+const promotionButtons = Array.from(promotionOverlay?.querySelectorAll('.promotion-btn') || []);
 
 const defaultTheme = {
   bg: '#111',
@@ -87,6 +90,27 @@ function initTelegram(){
   tg.expand();
   applyTelegramTheme();
   tg.onEvent('themeChanged', applyTelegramTheme);
+}
+
+function setPromotionIcons(color){
+  const iconMap = color === 'w' ? WHITE_SVG : BLACK_SVG;
+  promotionButtons.forEach(btn => {
+    const pieceCode = btn.dataset.piece;
+    const key = color === 'w' ? pieceCode.toUpperCase() : pieceCode;
+    const img = btn.querySelector('img');
+    if (img) img.src = iconMap[key] || '';
+  });
+}
+
+function openPromotionDialog(color){
+  if (!promotionOverlay) return;
+  setPromotionIcons(color);
+  promotionOverlay.classList.add('active');
+}
+
+function closePromotionDialog(){
+  if (!promotionOverlay) return;
+  promotionOverlay.classList.remove('active');
 }
 
 function fenToBoard(fen){
@@ -443,9 +467,14 @@ function updateCastlingRights(fromR, fromC, toR, toC, piece){
   }
 }
 
-function performMove(fromR, fromC, toR, toC){
-  if (!isMoveAllowed(fromR, fromC, toR, toC)) return;
-  const piece = boardState[fromR][fromC];
+function needsPromotion(piece, toR){
+  if (piece === 'P' && toR === 0) return true;
+  if (piece === 'p' && toR === 7) return true;
+  return false;
+}
+
+function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null }){
+  const pieceToPlace = promotionPiece || piece;
   updateCastlingRights(fromR, fromC, toR, toC, piece);
 
   if (isCastlingMove(piece, fromR, fromC, toR, toC)){
@@ -458,11 +487,33 @@ function performMove(fromR, fromC, toR, toC){
     boardState[fromR][rookToC] = isWhite(piece) ? 'R' : 'r';
   } else {
     boardState[fromR][fromC] = '';
-    boardState[toR][toC] = piece;
+    boardState[toR][toC] = pieceToPlace;
   }
+
   activeColor = activeColor === 'w' ? 'b' : 'w';
   resetSelection();
   render();
+}
+
+function handlePromotionChoice(pieceCode){
+  if (!promotionState) return;
+  const { fromR, fromC, toR, toC, piece } = promotionState;
+  const color = isWhite(piece) ? 'w' : 'b';
+  const promotionPiece = color === 'w' ? pieceCode.toUpperCase() : pieceCode;
+  closePromotionDialog();
+  promotionState = null;
+  applyMove({ fromR, fromC, toR, toC, piece, promotionPiece });
+}
+
+function performMove(fromR, fromC, toR, toC){
+  if (!isMoveAllowed(fromR, fromC, toR, toC)) return;
+  const piece = boardState[fromR][fromC];
+  if (needsPromotion(piece, toR)){
+    promotionState = { fromR, fromC, toR, toC, piece };
+    openPromotionDialog(isWhite(piece) ? 'w' : 'b');
+    return;
+  }
+  applyMove({ fromR, fromC, toR, toC, piece });
 }
 
 function render(){
@@ -757,6 +808,8 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   boardState = fenToBoard(START_FEN);
   activeColor = 'w';
   castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
+  promotionState = null;
+  closePromotionDialog();
   resetSelection();
   render();
 });
@@ -771,8 +824,14 @@ document.getElementById('loadStartBtn').addEventListener('click', () => {
   boardState = fenToBoard('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1');
   activeColor = 'w';
   castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
+  promotionState = null;
+  closePromotionDialog();
   resetSelection();
   render();
+});
+
+promotionButtons.forEach(btn => {
+  btn.addEventListener('click', () => handlePromotionChoice(btn.dataset.piece));
 });
 
 preventZoom();
