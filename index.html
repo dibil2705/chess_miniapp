@@ -395,6 +395,32 @@
     }
     .promotion-btn:active{ transform: translateY(1px); }
     .promotion-icon{ width: 36px; height: 36px; }
+
+    /* Compact view helpers */
+    @media (max-width: 768px){
+      body{ padding:8px 10px 14px 10px; }
+      .wrap{ gap:10px; }
+      .board-wrapper{ width:100%; }
+    }
+
+    .collapsible{
+      padding: 0;
+      overflow: hidden;
+    }
+    .collapsible summary{
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+    }
+    .collapsible summary::-webkit-details-marker{ display:none; }
+    .collapsible .collapsible-body{ padding: 0 14px 14px 14px; display:grid; gap: 8px; }
+    .chevron{ font-size: 18px; opacity: .7; transition: transform .2s ease; }
+    details[open] .chevron{ transform: rotate(180deg); }
   </style>
 </head>
 <body>
@@ -419,25 +445,35 @@
     </div>
 
     <div class="info-grid">
-      <section class="panel">
-        <div class="info-title">FEN</div>
-        <div id="fenOut" class="mono" style="word-break: break-all;"></div>
-        <div id="status" class="hint" style="margin-top:6px;"></div>
-      </section>
-
-      <section class="panel">
-        <div class="info-title">Задача</div>
-        <div class="hint" style="margin-bottom:6px;">Снизу: title, url, publish_time, fen, pgn, image.</div>
-        <div style="margin-top:4px; display:grid; gap:6px;">
-          <div><b>title:</b> <span id="puzzleTitle" class="mono"></span></div>
-          <div><b>url:</b> <a id="puzzleUrl" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
-          <div><b>publish_time:</b> <span id="puzzlePublish" class="mono"></span></div>
-          <div><b>fen:</b> <span id="puzzleFen" class="mono" style="word-break: break-all;"></span></div>
-          <div><b>pgn:</b> <span id="puzzlePgn" class="mono" style="word-break: break-all;"></span></div>
-          <div><b>image:</b> <a id="puzzleImage" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
+      <details class="panel collapsible" open>
+        <summary>
+          <span>FEN</span>
+          <span class="chevron">⌄</span>
+        </summary>
+        <div class="collapsible-body">
+          <div id="fenOut" class="mono" style="word-break: break-all;"></div>
+          <div id="status" class="hint" style="margin-top:6px;"></div>
         </div>
-        <div id="puzzleFeedback" class="puzzle-feedback"></div>
-      </section>
+      </details>
+
+      <details class="panel collapsible">
+        <summary>
+          <span>Задача</span>
+          <span class="chevron">⌄</span>
+        </summary>
+        <div class="collapsible-body">
+          <div class="hint" style="margin-bottom:6px;">Снизу: title, url, publish_time, fen, pgn, image.</div>
+          <div style="margin-top:4px; display:grid; gap:6px;">
+            <div><b>title:</b> <span id="puzzleTitle" class="mono"></span></div>
+            <div><b>url:</b> <a id="puzzleUrl" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
+            <div><b>publish_time:</b> <span id="puzzlePublish" class="mono"></span></div>
+            <div><b>fen:</b> <span id="puzzleFen" class="mono" style="word-break: break-all;"></span></div>
+            <div><b>pgn:</b> <span id="puzzlePgn" class="mono" style="word-break: break-all;"></span></div>
+            <div><b>image:</b> <a id="puzzleImage" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
+          </div>
+          <div id="puzzleFeedback" class="puzzle-feedback"></div>
+        </div>
+      </details>
     </div>
   </div>
 
