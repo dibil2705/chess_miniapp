@@ -515,7 +515,7 @@ function updateStatus(){
 function updatePuzzleStatus(){
   if (!puzzleStatusEl) return;
   if (puzzleSolved){
-    puzzleStatusEl.textContent = 'Задача решена верно.';
+    puzzleStatusEl.textContent = 'Задача решина.';
     return;
   }
   if (puzzleMode && puzzleData){
@@ -873,7 +873,7 @@ function updatePuzzleFeedback(state, message = '', options = {}){
   } else if (state === 'solved'){
     icon.textContent = '✓';
     wrapper.classList.add('success', 'solved');
-    text.textContent = message || 'Задача решена верно.';
+    text.textContent = message || 'ЗАДАЧА РЕШИНА';
   } else {
     return;
   }
@@ -934,7 +934,7 @@ function verifyPuzzleMove(moveKey){
         return false;
       }
       puzzleSolved = true;
-      updatePuzzleFeedback('solved', 'ЗАДАЧА РЕШЕНА!');
+      updatePuzzleFeedback('solved', 'ЗАДАЧА РЕШИНА');
       updatePuzzleStatus();
     } else {
       const who = isPlayerMove ? 'Ваш ход принят' : 'Соперник ответил';

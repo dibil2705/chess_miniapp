@@ -221,16 +221,18 @@
       flex-shrink:0;
     }
 
-    .puzzle-feedback{ margin-top: 8px; min-height: 22px; }
+    .puzzle-feedback{ margin-top: 8px; min-height: 22px; display: flex; justify-content: center; }
     .puzzle-feedback-row{
-      display: inline-flex;
+      display: flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
       padding: 6px 8px;
       border-radius: 10px;
       background: rgba(255,255,255,.05);
       border: 1px solid rgba(255,255,255,.1);
       font-size: 14px;
+      flex-wrap: wrap;
     }
     .puzzle-indicator{
       display: inline-flex;
@@ -274,16 +276,23 @@
     }
     .puzzle-actions{
       display: flex;
-      gap: 8px;
-      margin-left: 8px;
+      gap: 10px;
+      margin-left: 0;
+      justify-content: center;
+      width: 100%;
+      flex-wrap: wrap;
     }
     .puzzle-actions button{
+      display: flex;
+      align-items: center;
+      gap: 8px;
       background: rgba(255,255,255,.08);
-      border: 1px solid rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.14);
       color: var(--text);
-      border-radius: 10px;
-      padding: 6px 10px;
+      border-radius: 12px;
+      padding: 10px 12px;
       cursor: pointer;
+      box-shadow: 0 10px 28px rgba(0,0,0,.25);
     }
     .puzzle-actions button:active{ transform: translateY(1px); }
 
