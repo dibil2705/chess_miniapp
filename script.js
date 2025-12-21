@@ -827,7 +827,20 @@ function resetPuzzleProgress(){
   updatePuzzleFeedback('idle');
 }
 
-function updatePuzzleFeedback(state, message = ''){
+function restartCurrentPuzzle(){
+  puzzleSolved = false;
+  puzzleMoveIndex = 0;
+  if (puzzleStartFen){
+    loadPositionFromFen(puzzleStartFen);
+  } else {
+    resetSelection();
+    render();
+  }
+  updatePuzzleFeedback('info', 'Задача перезапущена.');
+}
+
+function updatePuzzleFeedback(state, message = '', options = {}){
+  const { withActions = false } = options;
   if (!puzzleFeedbackEl) return;
   puzzleFeedbackEl.className = 'puzzle-feedback';
   puzzleFeedbackEl.innerHTML = '';
@@ -859,7 +872,7 @@ function updatePuzzleFeedback(state, message = ''){
     text.textContent = message || '';
   } else if (state === 'solved'){
     icon.textContent = '✓';
-    wrapper.classList.add('success');
+    wrapper.classList.add('success', 'solved');
     text.textContent = message || 'Задача решена верно.';
   } else {
     return;
@@ -867,6 +880,29 @@ function updatePuzzleFeedback(state, message = ''){
 
   wrapper.prepend(icon);
   wrapper.append(text);
+
+  if (withActions){
+    const actions = document.createElement('div');
+    actions.className = 'puzzle-actions';
+
+    const retryBtn = document.createElement('button');
+    retryBtn.type = 'button';
+    retryBtn.textContent = 'Решить заново';
+    retryBtn.addEventListener('click', () => {
+      restartCurrentPuzzle();
+    });
+
+    const newBtn = document.createElement('button');
+    newBtn.type = 'button';
+    newBtn.textContent = 'Новая задача';
+    newBtn.addEventListener('click', () => {
+      fetchRandomPuzzle();
+    });
+
+    actions.append(retryBtn, newBtn);
+    wrapper.append(actions);
+  }
+
   puzzleFeedbackEl.appendChild(wrapper);
 }
 
@@ -881,14 +917,24 @@ function verifyPuzzleMove(moveKey){
   if (moveKey === expectedMove){
     puzzleMoveIndex += 1;
     if (puzzleMoveIndex >= puzzleSolutionMoves.length){
+      const parsedMove = parseMoveKey(moveKey);
+      const stateSnapshot = cloneState({
+        board: cloneBoard(boardState),
+        active: activeColor,
+        castling: JSON.parse(JSON.stringify(castlingRights))
+      });
+      if (parsedMove){
+        applyMoveToState(stateSnapshot, parsedMove);
+      }
       const expectedPlacement = (puzzleSolutionTargetFen || '').split(' ')[0];
-      const currentPlacement = boardToFen(boardState).split(' ')[0];
-      if (expectedPlacement && expectedPlacement !== currentPlacement){
+      const finalPlacement = stateToFen(stateSnapshot).split(' ')[0];
+      if (expectedPlacement && expectedPlacement !== finalPlacement){
         updatePuzzleFeedback('error', 'Финальная позиция не совпадает с тем, что записано в PGN.');
+        puzzleMoveIndex -= 1;
         return false;
       }
       puzzleSolved = true;
-      updatePuzzleFeedback('solved', 'Задача решена верно.');
+      updatePuzzleFeedback('solved', 'ЗАДАЧА РЕШЕНА!');
       updatePuzzleStatus();
     } else {
       const who = isPlayerMove ? 'Ваш ход принят' : 'Соперник ответил';
@@ -899,13 +945,7 @@ function verifyPuzzleMove(moveKey){
 
   puzzleSolved = false;
   puzzleMoveIndex = 0;
-  updatePuzzleFeedback('wrong', `Ожидался ход ${expectedMove}. Решение начинается заново.`);
-  if (puzzleStartFen){
-    loadPositionFromFen(puzzleStartFen);
-  } else {
-    resetSelection();
-    render();
-  }
+  updatePuzzleFeedback('wrong', `Ожидался ход ${expectedMove}.`, { withActions: true });
   return false;
 }
 
