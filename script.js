@@ -20,10 +20,13 @@ const BLACK_SVG = {
   k: 'icone/black/Chess_kdt45.svg'
 };
 
-// Default: start position
-const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+// Default: empty board while ждем задачу
+const START_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 
 const tg = window.Telegram?.WebApp;
+
+const moveSound = new Audio('audio/chess-move.mp3');
+const checkSound = new Audio('audio/chess-check.mp3');
 
 let flipped = false;
 let boardState = fenToBoard(START_FEN);
@@ -41,6 +44,7 @@ let puzzleSolved = false;
 let puzzleStartFen = null;
 let puzzlePlayerColor = null;
 let puzzleSolutionTargetFen = null;
+let puzzleLoading = false;
 
 function getExpectedMoveColor(moveIndex){
   const opponentColor = puzzlePlayerColor === 'w' ? 'b' : 'w';
@@ -476,6 +480,25 @@ function playerHasLegalMoves(color){
   return false;
 }
 
+function playSound(sound){
+  if (!sound) return;
+  try {
+    sound.currentTime = 0;
+    sound.play().catch(() => {});
+  } catch (_) {}
+}
+
+function playMoveAudio(){
+  const inCheck = isKingInCheck(boardState, activeColor);
+  const hasMoves = playerHasLegalMoves(activeColor);
+  const isMate = inCheck && !hasMoves;
+  if (isMate || inCheck){
+    playSound(checkSound);
+  } else {
+    playSound(moveSound);
+  }
+}
+
 function resetSelection(){
   selectedSquare = null;
   highlightedMoves = [];
@@ -512,6 +535,12 @@ function handleSquareTap(r, c){
 
 function updateStatus(){
   if (!statusEl) return;
+  const hasPieces = boardState.some(row => row.some(Boolean));
+  if (!hasPieces){
+    statusEl.textContent = 'Загружаем задачу...';
+    statusEl.classList.remove('mate');
+    return;
+  }
   const inCheck = isKingInCheck(boardState, activeColor);
   const hasMoves = playerHasLegalMoves(activeColor);
   if (inCheck && !hasMoves){
@@ -535,6 +564,10 @@ function updateStatus(){
 
 function updatePuzzleStatus(){
   if (!puzzleStatusEl) return;
+  if (puzzleLoading){
+    puzzleStatusEl.textContent = 'Загрузка задачи...';
+    return;
+  }
   if (puzzleSolved){
     puzzleStatusEl.textContent = 'Задача решена.';
     return;
@@ -1043,6 +1076,7 @@ function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null }){
   }
 
   activeColor = activeColor === 'w' ? 'b' : 'w';
+  playMoveAudio();
   resetSelection();
   render();
   attemptAutoOpponentMove();
@@ -1408,11 +1442,22 @@ async function fetchRandomPuzzle(){
   closePuzzleOverlay();
   puzzleMode = false;
   puzzleSolutionTargetFen = null;
-  if (puzzleStatusEl) puzzleStatusEl.textContent = 'Загрузка...';
+  puzzleLoading = true;
+  puzzleSolutionMoves = [];
+  puzzleMoveIndex = 0;
+  puzzleSolved = false;
+  puzzleStartFen = null;
+  puzzlePlayerColor = null;
+  puzzleData = null;
+  if (puzzleStatusEl) puzzleStatusEl.textContent = 'Загрузка задачи...';
+  updatePuzzleFeedback('info', 'Загружаем новую задачу...');
+  resetSelection();
+  render();
   try {
     const res = await fetch('https://api.chess.com/pub/puzzle/random');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    puzzleLoading = false;
     updatePuzzleInfoDisplay(data);
     if (data?.fen) {
       loadPositionFromFen(data.fen);
@@ -1423,50 +1468,11 @@ async function fetchRandomPuzzle(){
   } catch (err) {
     console.error('Puzzle load error', err);
     if (puzzleStatusEl) puzzleStatusEl.textContent = 'Не удалось загрузить задачу.';
+    updatePuzzleFeedback('error', 'Не удалось загрузить задачу. Попробуйте снова.');
+    puzzleLoading = false;
+    updatePuzzleStatus();
   }
 }
-
-document.getElementById('resetBtn').addEventListener('click', () => {
-  boardState = fenToBoard(START_FEN);
-  activeColor = 'w';
-  castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
-  promotionState = null;
-  puzzleMode = false;
-  puzzleSolutionMoves = [];
-  puzzleMoveIndex = 0;
-  puzzleSolved = false;
-  puzzleStartFen = null;
-  puzzlePlayerColor = null;
-  puzzleSolutionTargetFen = null;
-  updatePuzzleFeedback('idle');
-  closePromotionDialog();
-  resetSelection();
-  render();
-});
-
-document.getElementById('flipBtn').addEventListener('click', () => {
-  flipped = !flipped;
-  render();
-});
-
-document.getElementById('loadStartBtn').addEventListener('click', () => {
-  // start position (same as START_FEN but explicit)
-  boardState = fenToBoard('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1');
-  activeColor = 'w';
-  castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
-  promotionState = null;
-  puzzleMode = false;
-  puzzleSolutionMoves = [];
-  puzzleMoveIndex = 0;
-  puzzleSolved = false;
-  puzzleStartFen = null;
-  puzzlePlayerColor = null;
-  puzzleSolutionTargetFen = null;
-  updatePuzzleFeedback('idle');
-  closePromotionDialog();
-  resetSelection();
-  render();
-});
 
 document.getElementById('puzzleBtn').addEventListener('click', () => {
   fetchRandomPuzzle();
@@ -1478,5 +1484,5 @@ promotionButtons.forEach(btn => {
 
 preventZoom();
 initTelegram();
-// initial render
 render();
+fetchRandomPuzzle();
