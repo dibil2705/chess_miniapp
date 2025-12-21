@@ -17,18 +17,24 @@
     }
 
     body{
-      margin:16px;
+      margin:0;
+      padding:12px 12px 18px 12px;
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       background:var(--bg);
       color:var(--text);
     }
 
-    .wrap{ max-width: 560px; }
+    .wrap{
+      max-width: 720px;
+      margin:0 auto 24px 0;
+      display:grid;
+      gap:14px;
+    }
 
     .board-wrapper{
       position: relative;
       width:min(560px, 100%);
-      margin:auto;
+      margin:0;
       display:grid;
       grid-template-columns: auto 1fr;
       grid-template-rows: 1fr auto;
@@ -138,24 +144,33 @@
     /* drag feedback */
     .sq.drop{ outline: 3px solid rgba(255,255,255,.55); outline-offset:-3px; }
 
-    .row{ display:flex; gap:10px; margin-top: 12px; flex-wrap:wrap; }
     button{
       padding:10px 12px;
       border-radius:12px;
       border: 1px solid rgba(255,255,255,.18);
-      background: rgba(255,255,255,.08);
+      background: linear-gradient(145deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
       color:#fff;
       cursor:pointer;
+      box-shadow: 0 8px 22px rgba(0,0,0,.28);
     }
     button:active{ transform: translateY(1px); }
 
-    .box{
-      margin-top:12px;
-      padding:10px 12px;
+    .controls{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .controls .hint{ margin:0; }
+
+    .panel{
+      padding:12px 14px;
       border-radius:12px;
       border:1px solid var(--border);
       background:var(--panel);
     }
+    .info-grid{ display:grid; gap:10px; }
+    .info-title{ margin:0 0 6px 0; font-weight:700; font-size:15px; }
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
     .hint{ opacity:.8; font-size: 13px; margin-top: 8px; }
@@ -398,36 +413,31 @@
       </div>
     </div>
 
-    <div class="row">
-      <button id="resetBtn">Reset</button>
-      <button id="flipBtn">Flip</button>
-      <button id="loadStartBtn">Load Start</button>
-      <button id="puzzleBtn">Random Puzzle</button>
+    <div class="controls">
+      <button id="puzzleBtn">Новая задача</button>
+      <div id="puzzleStatus" class="hint"></div>
     </div>
 
-    <div class="box">
-      <div><b>FEN:</b></div>
-      <div id="fenOut" class="mono" style="word-break: break-all;"></div>
-      <div class="hint">Можно перетаскивать фигуры. Ходы проверяются по правилам шахмат, ход по очереди (белые начинают).</div>
-      <div id="status" class="hint" style="margin-top:6px;"></div>
-    </div>
+    <div class="info-grid">
+      <section class="panel">
+        <div class="info-title">FEN</div>
+        <div id="fenOut" class="mono" style="word-break: break-all;"></div>
+        <div id="status" class="hint" style="margin-top:6px;"></div>
+      </section>
 
-    <div class="box" id="puzzleBox">
-      <div style="display:flex; gap:8px; align-items:center;">
-        <b>Random Puzzle</b>
-        <span id="puzzleStatus" class="hint"></span>
-      </div>
-      <div class="hint" style="margin-top:6px;">Снизу выпиши: title, url, publish_time, fen, pgn, image.</div>
-      <div class="hint" style="margin-top:6px;">Включите «Random Puzzle», чтобы загрузить позицию и решить задачу.</div>
-      <div style="margin-top:10px; display:grid; gap:6px;">
-        <div><b>title:</b> <span id="puzzleTitle" class="mono"></span></div>
-        <div><b>url:</b> <a id="puzzleUrl" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
-        <div><b>publish_time:</b> <span id="puzzlePublish" class="mono"></span></div>
-        <div><b>fen:</b> <span id="puzzleFen" class="mono" style="word-break: break-all;"></span></div>
-        <div><b>pgn:</b> <span id="puzzlePgn" class="mono" style="word-break: break-all;"></span></div>
-        <div><b>image:</b> <a id="puzzleImage" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
-      </div>
-      <div id="puzzleFeedback" class="puzzle-feedback"></div>
+      <section class="panel">
+        <div class="info-title">Задача</div>
+        <div class="hint" style="margin-bottom:6px;">Снизу: title, url, publish_time, fen, pgn, image.</div>
+        <div style="margin-top:4px; display:grid; gap:6px;">
+          <div><b>title:</b> <span id="puzzleTitle" class="mono"></span></div>
+          <div><b>url:</b> <a id="puzzleUrl" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
+          <div><b>publish_time:</b> <span id="puzzlePublish" class="mono"></span></div>
+          <div><b>fen:</b> <span id="puzzleFen" class="mono" style="word-break: break-all;"></span></div>
+          <div><b>pgn:</b> <span id="puzzlePgn" class="mono" style="word-break: break-all;"></span></div>
+          <div><b>image:</b> <a id="puzzleImage" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
+        </div>
+        <div id="puzzleFeedback" class="puzzle-feedback"></div>
+      </section>
     </div>
   </div>
 
