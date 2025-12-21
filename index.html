@@ -296,6 +296,51 @@
     }
     .puzzle-actions button:active{ transform: translateY(1px); }
 
+    .puzzle-overlay{
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      z-index: 2000;
+      background: rgba(0,0,0,.55);
+      border-radius: 14px;
+    }
+    .puzzle-overlay.active{ display:flex; }
+    .puzzle-dialog{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      width: min(480px, 100%);
+      box-shadow: 0 14px 36px rgba(0,0,0,.4);
+      display: grid;
+      gap: 12px;
+    }
+    .puzzle-overlay-title{
+      margin: 0;
+      text-align: center;
+      font-weight: 900;
+      font-size: clamp(20px, 5vw, 28px);
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      text-shadow: 0 4px 14px rgba(0,0,0,.35);
+      color: var(--text);
+    }
+    .puzzle-overlay.solved .puzzle-overlay-title{ color: #4ced8c; }
+    .puzzle-overlay-actions{
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    }
+    .puzzle-overlay-actions:empty{ display:none; }
+    .puzzle-overlay-actions .promotion-btn{
+      width: 100%;
+      justify-content: center;
+      box-shadow: 0 10px 28px rgba(0,0,0,.25);
+    }
+
     .promotion-overlay{
       position: fixed;
       inset: 0;
@@ -345,6 +390,12 @@
       <div id="board" class="board" aria-label="Chess board"></div>
       <div id="filesBottom" class="coord-files" aria-hidden="true"></div>
       <div id="ranksLeft" class="coord-ranks" aria-hidden="true"></div>
+      <div id="puzzleOverlay" class="puzzle-overlay" aria-live="polite" aria-atomic="true">
+        <div class="puzzle-dialog">
+          <div id="puzzleOverlayTitle" class="puzzle-overlay-title"></div>
+          <div id="puzzleOverlayActions" class="puzzle-overlay-actions"></div>
+        </div>
+      </div>
     </div>
 
     <div class="row">
