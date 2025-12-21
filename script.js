@@ -290,7 +290,7 @@ function isLegalQueenMove(fromR, fromC, toR, toC, board = boardState){
   return isLegalRookMove(fromR, fromC, toR, toC, board) || isLegalBishopMove(fromR, fromC, toR, toC, board);
 }
 
-function isLegalKingMove(fromR, fromC, toR, toC, board = boardState, { allowCastling = true } = {}){
+function isLegalKingMove(fromR, fromC, toR, toC, board = boardState, rights = castlingRights, { allowCastling = true } = {}){
   const dr = Math.abs(toR - fromR);
   const dc = Math.abs(toC - fromC);
   if (dr <= 1 && dc <= 1) return true;
@@ -299,12 +299,12 @@ function isLegalKingMove(fromR, fromC, toR, toC, board = boardState, { allowCast
   const color = isWhite(piece) ? 'w' : 'b';
   if (dr === 0 && dc === 2){
     const side = toC > fromC ? 'K' : 'Q';
-    return canCastle(color, side, board);
+    return canCastle(color, side, board, rights);
   }
   return false;
 }
 
-function isLegalMove(fromR, fromC, toR, toC, board = boardState, opts = {}){
+function isLegalMove(fromR, fromC, toR, toC, board = boardState, rights = castlingRights, opts = {}){
   const { allowCastling = true } = opts;
   if (fromR === toR && fromC === toC) return false;
   if (toR < 0 || toR > 7 || toC < 0 || toC > 7) return false;
@@ -329,7 +329,7 @@ function isLegalMove(fromR, fromC, toR, toC, board = boardState, opts = {}){
     case 'q':
       return isLegalQueenMove(fromR, fromC, toR, toC, board);
     case 'k':
-      return isLegalKingMove(fromR, fromC, toR, toC, board, { allowCastling });
+      return isLegalKingMove(fromR, fromC, toR, toC, board, rights, { allowCastling });
     default:
       return false;
   }
@@ -339,14 +339,14 @@ function cloneBoard(board){
   return board.map(row => [...row]);
 }
 
-function isSquareAttacked(board, targetR, targetC, attackerColor){
+function isSquareAttacked(board, targetR, targetC, attackerColor, rights = castlingRights){
   for (let r=0; r<8; r++){
     for (let c=0; c<8; c++){
       const piece = board[r][c];
       if (!piece) continue;
       if (attackerColor === 'w' && !isWhite(piece)) continue;
       if (attackerColor === 'b' && !isBlack(piece)) continue;
-      if (isLegalMove(r, c, targetR, targetC, board, { allowCastling: false })) return true;
+      if (isLegalMove(r, c, targetR, targetC, board, rights, { allowCastling: false })) return true;
     }
   }
   return false;
@@ -364,18 +364,18 @@ function getKingPosition(board, color){
   return null;
 }
 
-function isKingInCheck(board, color){
+function isKingInCheck(board, color, rights = castlingRights){
   const kingPos = getKingPosition(board, color);
   if (!kingPos) return false;
   const attacker = color === 'w' ? 'b' : 'w';
-  return isSquareAttacked(board, kingPos.r, kingPos.c, attacker);
+  return isSquareAttacked(board, kingPos.r, kingPos.c, attacker, rights);
 }
 
-function canCastle(color, side, board = boardState){
-  const rights = castlingRights[color];
-  if (!rights) return false;
-  if (side === 'K' && !rights.K) return false;
-  if (side === 'Q' && !rights.Q) return false;
+function canCastle(color, side, board = boardState, rights = castlingRights){
+  const rightsForColor = rights[color];
+  if (!rightsForColor) return false;
+  if (side === 'K' && !rightsForColor.K) return false;
+  if (side === 'Q' && !rightsForColor.Q) return false;
 
   const row = color === 'w' ? 7 : 0;
   const kingCol = 4;
@@ -386,10 +386,10 @@ function canCastle(color, side, board = boardState){
 
   const throughCols = side === 'K' ? [5,6] : [3,2];
   if (!isPathClear(row, kingCol, row, rookCol, board)) return false;
-  if (isKingInCheck(board, color)) return false;
+  if (isKingInCheck(board, color, rights)) return false;
   const opponent = color === 'w' ? 'b' : 'w';
   for (const col of throughCols){
-    if (isSquareAttacked(board, row, col, opponent)) return false;
+    if (isSquareAttacked(board, row, col, opponent, rights)) return false;
   }
   return true;
 }
@@ -400,10 +400,11 @@ function isCastlingMove(piece, fromR, fromC, toR, toC){
   return Math.abs(toC - fromC) === 2;
 }
 
-function moveLeavesKingInCheck(fromR, fromC, toR, toC, board = boardState){
+function moveLeavesKingInCheck(fromR, fromC, toR, toC, board = boardState, rights = castlingRights){
   const piece = board[fromR][fromC];
   const movingColor = isWhite(piece) ? 'w' : 'b';
   const next = cloneBoard(board);
+  const nextRights = JSON.parse(JSON.stringify(rights));
   if (isCastlingMove(piece, fromR, fromC, toR, toC)){
     const isKingSide = toC > fromC;
     const rookFromC = isKingSide ? 7 : 0;
@@ -416,12 +417,12 @@ function moveLeavesKingInCheck(fromR, fromC, toR, toC, board = boardState){
     next[toR][toC] = piece;
     next[fromR][fromC] = '';
   }
-  return isKingInCheck(next, movingColor);
+  return isKingInCheck(next, movingColor, nextRights);
 }
 
 function isMoveAllowed(fromR, fromC, toR, toC){
-  if (!isLegalMove(fromR, fromC, toR, toC, boardState)) return false;
-  return !moveLeavesKingInCheck(fromR, fromC, toR, toC, boardState);
+  if (!isLegalMove(fromR, fromC, toR, toC, boardState, castlingRights)) return false;
+  return !moveLeavesKingInCheck(fromR, fromC, toR, toC, boardState, castlingRights);
 }
 
 function getLegalMovesForPiece(fromR, fromC, color = activeColor){
@@ -563,39 +564,240 @@ function updatePuzzleInfoDisplay(data){
   updatePuzzleStatus();
 }
 
+function stateFromFen(fen){
+  const parsed = parseFenState(fen || START_FEN);
+  return {
+    board: parsed.board,
+    active: parsed.active,
+    castling: parsed.castling
+  };
+}
+
+function cloneState(state){
+  return {
+    board: cloneBoard(state.board),
+    active: state.active,
+    castling: JSON.parse(JSON.stringify(state.castling || {}))
+  };
+}
+
+function castlingToFen(rights){
+  let out = '';
+  if (rights?.w?.K) out += 'K';
+  if (rights?.w?.Q) out += 'Q';
+  if (rights?.b?.K) out += 'k';
+  if (rights?.b?.Q) out += 'q';
+  return out || '-';
+}
+
+function stateToFen(state){
+  const rows = state.board.map(row => {
+    let out = '';
+    let empties = 0;
+    for (const cell of row){
+      if (!cell){
+        empties++;
+      } else {
+        if (empties){ out += String(empties); empties = 0; }
+        out += cell;
+      }
+    }
+    if (empties) out += String(empties);
+    return out;
+  });
+  return `${rows.join('/')}` + ` ${state.active} ${castlingToFen(state.castling)} - 0 1`;
+}
+
+function isMoveAllowedInState(state, fromR, fromC, toR, toC){
+  if (!isLegalMove(fromR, fromC, toR, toC, state.board, state.castling)) return false;
+  return !moveLeavesKingInCheck(fromR, fromC, toR, toC, state.board, state.castling);
+}
+
+function getLegalMovesForPieceInState(state, fromR, fromC){
+  const piece = state.board[fromR][fromC];
+  if (!piece) return [];
+  if (state.active === 'w' && isBlack(piece)) return [];
+  if (state.active === 'b' && isWhite(piece)) return [];
+
+  const moves = [];
+  for (let r=0; r<8; r++){
+    for (let c=0; c<8; c++){
+      if (isMoveAllowedInState(state, fromR, fromC, r, c)){
+        moves.push({ r, c });
+      }
+    }
+  }
+  return moves;
+}
+
+function applyMoveToState(state, { fromR, fromC, toR, toC, promotionPiece = null }){
+  const piece = state.board[fromR][fromC];
+  updateCastlingRightsForState(state, fromR, fromC, toR, toC, piece);
+
+  const normalizedPromotion = promotionPiece
+    ? (isWhite(piece) ? promotionPiece.toUpperCase() : promotionPiece.toLowerCase())
+    : null;
+  const pieceToPlace = normalizedPromotion || piece;
+  if (isCastlingMove(piece, fromR, fromC, toR, toC)){
+    const isKingSide = toC > fromC;
+    const rookFromC = isKingSide ? 7 : 0;
+    const rookToC = isKingSide ? 5 : 3;
+    state.board[fromR][fromC] = '';
+    state.board[toR][toC] = piece;
+    state.board[fromR][rookFromC] = '';
+    state.board[fromR][rookToC] = isWhite(piece) ? 'R' : 'r';
+  } else {
+    state.board[fromR][fromC] = '';
+    state.board[toR][toC] = pieceToPlace;
+  }
+
+  state.active = state.active === 'w' ? 'b' : 'w';
+}
+
+function updateCastlingRightsForState(state, fromR, fromC, toR, toC, piece){
+  const rights = state.castling;
+  const pieceColor = isWhite(piece) ? 'w' : 'b';
+  if (piece.toLowerCase() === 'k'){
+    rights[pieceColor].K = false;
+    rights[pieceColor].Q = false;
+  }
+  if (piece.toLowerCase() === 'r'){
+    if (pieceColor === 'w'){
+      if (fromR === 7 && fromC === 0) rights.w.Q = false;
+      if (fromR === 7 && fromC === 7) rights.w.K = false;
+    } else {
+      if (fromR === 0 && fromC === 0) rights.b.Q = false;
+      if (fromR === 0 && fromC === 7) rights.b.K = false;
+    }
+  }
+
+  const target = state.board[toR][toC];
+  if (target && target.toLowerCase() === 'r'){
+    const targetColor = isWhite(target) ? 'w' : 'b';
+    if (targetColor === 'w'){
+      if (toR === 7 && toC === 0) rights.w.Q = false;
+      if (toR === 7 && toC === 7) rights.w.K = false;
+    } else {
+      if (toR === 0 && toC === 0) rights.b.Q = false;
+      if (toR === 0 && toC === 7) rights.b.K = false;
+    }
+  }
+}
+
+function tokenizePgnMoves(pgn){
+  const withoutHeaders = pgn.replace(/^\s*\[[^\]]+\]\s*$/gm, '');
+  const withoutComments = withoutHeaders
+    .replace(/\{[^}]*\}/g, ' ')
+    .replace(/;[^\n]*/g, ' ')
+    .replace(/\([^)]*\)/g, ' ');
+  const tokens = withoutComments
+    .replace(/\d+\.\.\./g, ' ')
+    .replace(/\d+\./g, ' ')
+    .split(/\s+/)
+    .map(t => t.trim())
+    .filter(Boolean);
+  return tokens;
+}
+
+function sanToMoveKey(state, san){
+  const fail = (msg) => ({ ok: false, error: msg, moveKey: null });
+  if (!san) return fail('Пустой ход в PGN.');
+
+  const cleaned = san.replace(/[+#]+/g, '').replace(/[!?]+/g, '');
+  if (/^(1-0|0-1|1\/2-1\/2|\*)$/.test(cleaned)){
+    return fail('Достигнут конец партии до окончания решения.');
+  }
+
+  if (/^O-O(-O)?$/i.test(cleaned)){
+    const isQueenSide = /O-O-O/i.test(cleaned);
+    const row = state.active === 'w' ? 7 : 0;
+    const kingFromC = 4;
+    const kingToC = isQueenSide ? 2 : 6;
+    const fromR = row;
+    const fromC = kingFromC;
+    const toR = row;
+    const toC = kingToC;
+    const moveKey = buildMoveKey({ fromR, fromC, toR, toC });
+    const moveAllowed = isMoveAllowedInState(state, fromR, fromC, toR, toC);
+    return moveAllowed ? { ok: true, moveKey } : fail(`Рокировка из PGN невозможна: ${san}`);
+  }
+
+  const promotionMatch = cleaned.match(/=([NBRQ])/i);
+  const promotionPiece = promotionMatch ? promotionMatch[1].toLowerCase() : null;
+  const base = cleaned.replace(/=([NBRQ])/i, '');
+  const capture = base.includes('x');
+
+  const pieceLetter = /^[KQRBN]/.test(base) ? base[0] : 'P';
+  const rest = pieceLetter === 'P' ? base : base.slice(1);
+  const noCaptureRest = rest.replace('x', '');
+  const target = noCaptureRest.slice(-2);
+  const disambig = noCaptureRest.slice(0, -2);
+
+  const targetC = files.indexOf(target[0]);
+  const targetR = ranks.indexOf(target[1]);
+  if (targetC === -1 || targetR === -1) return fail(`Не удалось понять целевое поле в ходе ${san}`);
+
+  const legalMoves = [];
+  for (let r=0; r<8; r++){
+    for (let c=0; c<8; c++){
+      const piece = state.board[r][c];
+      if (!piece) continue;
+      const pieceColor = isWhite(piece) ? 'w' : 'b';
+      if (pieceColor !== state.active) continue;
+      const normalized = piece.toUpperCase();
+      if (pieceLetter === 'P' && normalized !== 'P') continue;
+      if (pieceLetter !== 'P' && normalized !== pieceLetter) continue;
+      if (!isMoveAllowedInState(state, r, c, targetR, targetC)) continue;
+      const promotionNeeded = needsPromotion(piece, targetR);
+      const moveKey = buildMoveKey({ fromR: r, fromC: c, toR: targetR, toC: targetC, promotionPiece: promotionPiece || undefined });
+      const moveCaptures = Boolean(state.board[targetR][targetC]);
+      if (capture && !moveCaptures) continue;
+      if (!capture && moveCaptures && pieceLetter === 'P') continue;
+      if (disambig){
+        if (disambig.length === 2){
+          if (files.indexOf(disambig[0]) !== c) continue;
+          if (ranks.indexOf(disambig[1]) !== r) continue;
+        } else if (/[a-h]/.test(disambig)){
+          if (files.indexOf(disambig) !== c) continue;
+        } else if (/[1-8]/.test(disambig)){
+          if (ranks.indexOf(disambig) !== r) continue;
+        }
+      }
+      if (promotionNeeded && !promotionPiece) continue;
+      legalMoves.push({ fromR: r, fromC: c, toR: targetR, toC: targetC, promotionPiece: promotionPiece || null, moveKey });
+    }
+  }
+
+  if (!legalMoves.length) return fail(`Не найден допустимый ход для SAN: ${san}`);
+  if (legalMoves.length > 1) return fail(`Ход неоднозначен в SAN: ${san}`);
+  const move = legalMoves[0];
+  return { ok: true, moveKey: move.moveKey, move };
+}
+
 function parseSolutionMovesFromPgn(pgn, startFen = null){
   const fail = (msg) => ({ moves: [], error: msg, finalFen: null });
   if (!pgn) return fail('В ответе задачи нет PGN с решением.');
-  if (typeof Chess === 'undefined') return fail('Библиотека chess.js недоступна для проверки решения.');
 
-  const enrichedPgn = (startFen && !/\[FEN\s+".+"\]/i.test(pgn))
-    ? `[FEN "${startFen}"]\n[SetUp "1"]\n\n${pgn}`
-    : pgn;
+  const fenFromTag = (pgn.match(/\[FEN\s+"([^"]+)"\]/i) || [])[1];
+  const initialFen = fenFromTag || startFen || START_FEN;
+  let state = stateFromFen(initialFen);
 
-  try {
-    const parsedGame = new Chess();
-    const ok = parsedGame.load_pgn(enrichedPgn, { sloppy: true });
-    if (!ok) return fail('Не удалось разобрать PGN решения.');
+  const tokens = tokenizePgnMoves(pgn);
+  const moves = [];
 
-    const moveList = parsedGame.history({ verbose: true });
-    if (!moveList.length) return fail('PGN не содержит ходов решения.');
-
-    const replay = new Chess(startFen || undefined);
-    const moves = [];
-
-    for (const m of moveList){
-      const applied = replay.move({ from: m.from, to: m.to, promotion: m.promotion });
-      if (!applied){
-        return fail(`Ход из PGN нелегален для стартовой позиции: ${m.from}${m.to}${m.promotion || ''}`);
-      }
-      moves.push(`${m.from}${m.to}${m.promotion || ''}`);
+  for (const token of tokens){
+    if (/^(1-0|0-1|1\/2-1\/2|\*)$/.test(token)) break;
+    const parsed = sanToMoveKey(state, token);
+    if (!parsed.ok){
+      return fail(parsed.error);
     }
-
-    return { moves, error: null, finalFen: replay.fen() };
-  } catch (err) {
-    console.warn('PGN parse failed', err);
-    return fail('Ошибка разбора PGN решения.');
+    moves.push(parsed.moveKey);
+    applyMoveToState(state, parsed.move);
   }
+
+  if (!moves.length) return fail('PGN не содержит ходов решения.');
+
+  return { moves, error: null, finalFen: stateToFen(state) };
 }
 
 function coordToNotation(r, c){
