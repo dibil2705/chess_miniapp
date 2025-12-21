@@ -40,6 +40,7 @@ let puzzleMoveIndex = 0;
 let puzzleSolved = false;
 let puzzleStartFen = null;
 let puzzlePlayerColor = null;
+let puzzleSolutionTargetFen = null;
 
 function getExpectedMoveColor(moveIndex){
   const opponentColor = puzzlePlayerColor === 'w' ? 'b' : 'w';
@@ -545,42 +546,56 @@ function updatePuzzleInfoDisplay(data){
   puzzlePgnEl.textContent = data?.pgn || '';
   puzzleImageEl.textContent = data?.image || '';
   puzzleImageEl.href = data?.image || '#';
-  puzzleSolutionMoves = parseSolutionMovesFromPgn(data?.pgn || '', puzzleStartFen);
+  const solution = parseSolutionMovesFromPgn(data?.pgn || '', puzzleStartFen);
+  puzzleSolutionMoves = solution.moves;
+  puzzleSolutionTargetFen = solution.finalFen;
   puzzleMoveIndex = 0;
   puzzleSolved = false;
-  updatePuzzleFeedback('idle');
+  if (solution.error){
+    updatePuzzleFeedback('error', solution.error);
+  } else if (puzzleSolutionMoves.length){
+    const startColor = (puzzleStartFen?.split(' ')[1] === 'b') ? 'b' : 'w';
+    const playerColorLabel = startColor === 'b' ? 'черными' : 'белыми';
+    updatePuzzleFeedback('info', `Решение из PGN прочитано (${puzzleSolutionMoves.length} хода). Ходите ${playerColorLabel}: ваш ход → ответ соперника → ваш ход.`);
+  } else {
+    updatePuzzleFeedback('idle');
+  }
   updatePuzzleStatus();
 }
 
 function parseSolutionMovesFromPgn(pgn, startFen = null){
-  if (!pgn) return [];
-  // Prefer full PGN parsing when chess.js is available to convert SAN to UCI.
-  try {
-    if (typeof Chess !== 'undefined'){
-      const chess = new Chess();
-      const enrichedPgn = (startFen && !/\[FEN\s+".+"\]/i.test(pgn))
-        ? `[FEN "${startFen}"]\n[SetUp "1"]\n\n${pgn}`
-        : pgn;
-      if (startFen) chess.load(startFen);
-      chess.load_pgn(enrichedPgn);
-      const moves = chess.history({ verbose: true });
-      return moves.map(m => `${m.from}${m.to}${m.promotion || ''}`);
-    }
-  } catch (err) {
-    console.warn('PGN parse failed, fallback to raw tokens', err);
-  }
+  const fail = (msg) => ({ moves: [], error: msg, finalFen: null });
+  if (!pgn) return fail('В ответе задачи нет PGN с решением.');
+  if (typeof Chess === 'undefined') return fail('Библиотека chess.js недоступна для проверки решения.');
 
-  // Fallback: try to read space-separated UCI moves from lines after a standalone "w" marker.
-  const lines = pgn.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  const singleWIndex = lines.findIndex(line => /^w$/i.test(line));
-  if (singleWIndex !== -1 && lines[singleWIndex + 1]){
-    return lines[singleWIndex + 1].trim().split(/\s+/).filter(Boolean);
+  const enrichedPgn = (startFen && !/\[FEN\s+".+"\]/i.test(pgn))
+    ? `[FEN "${startFen}"]\n[SetUp "1"]\n\n${pgn}`
+    : pgn;
+
+  try {
+    const parsedGame = new Chess();
+    const ok = parsedGame.load_pgn(enrichedPgn, { sloppy: true });
+    if (!ok) return fail('Не удалось разобрать PGN решения.');
+
+    const moveList = parsedGame.history({ verbose: true });
+    if (!moveList.length) return fail('PGN не содержит ходов решения.');
+
+    const replay = new Chess(startFen || undefined);
+    const moves = [];
+
+    for (const m of moveList){
+      const applied = replay.move({ from: m.from, to: m.to, promotion: m.promotion });
+      if (!applied){
+        return fail(`Ход из PGN нелегален для стартовой позиции: ${m.from}${m.to}${m.promotion || ''}`);
+      }
+      moves.push(`${m.from}${m.to}${m.promotion || ''}`);
+    }
+
+    return { moves, error: null, finalFen: replay.fen() };
+  } catch (err) {
+    console.warn('PGN parse failed', err);
+    return fail('Ошибка разбора PGN решения.');
   }
-  const inlineMatch = pgn.match(/(?:^|\n)w\s+([^\n\r]+)/i);
-  if (inlineMatch && inlineMatch[1]){
-    return inlineMatch[1].trim().split(/\s+/).filter(Boolean);
-  }
-  return [];
 }
 
 function coordToNotation(r, c){
@@ -610,7 +625,7 @@ function resetPuzzleProgress(){
   updatePuzzleFeedback('idle');
 }
 
-function updatePuzzleFeedback(state){
+function updatePuzzleFeedback(state, message = ''){
   if (!puzzleFeedbackEl) return;
   puzzleFeedbackEl.className = 'puzzle-feedback';
   puzzleFeedbackEl.innerHTML = '';
@@ -627,15 +642,23 @@ function updatePuzzleFeedback(state){
   if (state === 'correct'){
     icon.textContent = '✓';
     wrapper.classList.add('success');
-    text.textContent = 'Ход верный.';
+    text.textContent = message || 'Ход верный.';
   } else if (state === 'wrong'){
     icon.textContent = '✕';
     wrapper.classList.add('error');
-    text.textContent = 'Неправильный ход. Попробуйте решить задачу заново.';
+    text.textContent = message || 'Неправильный ход. Попробуйте решить задачу заново.';
+  } else if (state === 'error'){
+    icon.textContent = '✕';
+    wrapper.classList.add('error');
+    text.textContent = message || 'Не удалось проверить задачу.';
+  } else if (state === 'info'){
+    icon.textContent = '•';
+    wrapper.classList.add('info');
+    text.textContent = message || '';
   } else if (state === 'solved'){
     icon.textContent = '✓';
     wrapper.classList.add('success');
-    text.textContent = 'Задача решена верно.';
+    text.textContent = message || 'Задача решена верно.';
   } else {
     return;
   }
@@ -652,21 +675,29 @@ function verifyPuzzleMove(moveKey){
   if (activeColor !== expectedColor) return false;
 
   const expectedMove = puzzleSolutionMoves[puzzleMoveIndex];
+  const isPlayerMove = activeColor === puzzlePlayerColor;
   if (moveKey === expectedMove){
     puzzleMoveIndex += 1;
     if (puzzleMoveIndex >= puzzleSolutionMoves.length){
+      const expectedPlacement = (puzzleSolutionTargetFen || '').split(' ')[0];
+      const currentPlacement = boardToFen(boardState).split(' ')[0];
+      if (expectedPlacement && expectedPlacement !== currentPlacement){
+        updatePuzzleFeedback('error', 'Финальная позиция не совпадает с тем, что записано в PGN.');
+        return false;
+      }
       puzzleSolved = true;
-      updatePuzzleFeedback('solved');
+      updatePuzzleFeedback('solved', 'Задача решена верно.');
       updatePuzzleStatus();
     } else {
-      updatePuzzleFeedback('correct');
+      const who = isPlayerMove ? 'Ваш ход принят' : 'Соперник ответил';
+      updatePuzzleFeedback('correct', `${who}: ${moveKey}. Ждем следующий ход.`);
     }
     return true;
   }
 
   puzzleSolved = false;
   puzzleMoveIndex = 0;
-  updatePuzzleFeedback('wrong');
+  updatePuzzleFeedback('wrong', `Ожидался ход ${expectedMove}. Решение начинается заново.`);
   if (puzzleStartFen){
     loadPositionFromFen(puzzleStartFen);
   } else {
@@ -769,6 +800,8 @@ function attemptAutoOpponentMove(){
   const moveKey = puzzleSolutionMoves[puzzleMoveIndex];
   const parsed = parseMoveKey(moveKey);
   if (!parsed) return;
+
+  updatePuzzleFeedback('info', `Соперник готовит ответ: ${moveKey}`);
 
   const { fromR, fromC, toR, toC, promotionPiece } = parsed;
   const piece = boardState[fromR]?.[fromC];
@@ -1095,6 +1128,7 @@ function onDrop(e){
 
 async function fetchRandomPuzzle(){
   puzzleMode = false;
+  puzzleSolutionTargetFen = null;
   if (puzzleStatusEl) puzzleStatusEl.textContent = 'Загрузка...';
   try {
     const res = await fetch('https://api.chess.com/pub/puzzle/random');
@@ -1124,6 +1158,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   puzzleSolved = false;
   puzzleStartFen = null;
   puzzlePlayerColor = null;
+  puzzleSolutionTargetFen = null;
   updatePuzzleFeedback('idle');
   closePromotionDialog();
   resetSelection();
@@ -1147,6 +1182,7 @@ document.getElementById('loadStartBtn').addEventListener('click', () => {
   puzzleSolved = false;
   puzzleStartFen = null;
   puzzlePlayerColor = null;
+  puzzleSolutionTargetFen = null;
   updatePuzzleFeedback('idle');
   closePromotionDialog();
   resetSelection();
