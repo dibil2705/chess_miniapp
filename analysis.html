@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Stockfish анализ</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0/chess.min.js"></script>
   <style>
     :root{
       --dark:#769656;
@@ -181,6 +182,11 @@
     .analysis-history{ list-style:none; padding:0; margin:0; display:grid; gap:10px; }
     .analysis-history li{ border:1px solid var(--border); border-radius:10px; padding:10px; background: rgba(0,0,0,.35); }
     .analysis-history .meta{ font-size:13px; opacity:.8; margin-bottom:4px; }
+
+    .move-history-bar{ width:100%; }
+    .move-history{ list-style:none; padding:10px; margin:0; display:flex; gap:12px; flex-wrap:wrap; justify-content:flex-start; border:1px solid var(--border); border-radius:10px; background: rgba(0,0,0,.35); }
+    .move-history li{ display:grid; grid-template-columns:auto 1fr 1fr; gap:6px; padding:8px 10px; border-radius:8px; background:rgba(255,255,255,.04); min-width:140px; }
+    .move-history .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   </style>
 </head>
 <body>
@@ -205,6 +211,9 @@
           <div id="filesBottom" class="coord-files"></div>
         </div>
         <div class="status mono" id="boardFen"></div>
+        <div class="move-history-bar">
+          <ul id="moveHistory" class="move-history"></ul>
+        </div>
       </div>
 
       <div class="info-grid">
@@ -290,6 +299,8 @@
     let activeColor = 'w';
     let fullmove = 1;
     let selectedSq = null;
+    let chess = null;
+    let autoReplyPending = false;
 
     function renderAnalysisLines(lines = [], { fromCache = false } = {}){
       analysisListEl.innerHTML = '';
@@ -320,7 +331,7 @@
       });
       statusEl.textContent = fromCache ? 'Показан кешированный анализ (до 10 секунд).' : 'Анализ обновлён.';
       updateArrow(lines?.[0]);
-      updateEvalBar(lines?.[0]);
+      updateEvalBar(lines?.[0], activeColor);
     }
 
     function renderMoveResult(data){
@@ -444,6 +455,38 @@
       if (boardFenEl) boardFenEl.textContent = fenStr || 'FEN не передан';
     }
 
+    function renderMoveHistory(){
+      const historyEl = document.getElementById('moveHistory');
+      if (!historyEl || !chess) return;
+      const verboseMoves = chess.history({ verbose: true });
+      historyEl.innerHTML = '';
+      if (!verboseMoves.length){
+        const empty = document.createElement('li');
+        empty.textContent = 'Ходы отсутствуют';
+        historyEl.appendChild(empty);
+        return;
+      }
+      for (let i = 0; i < verboseMoves.length; i += 2){
+        const whiteMove = verboseMoves[i];
+        const blackMove = verboseMoves[i + 1];
+        const li = document.createElement('li');
+        const moveNumber = Math.floor(i / 2) + 1;
+        const numEl = document.createElement('div');
+        numEl.textContent = `${moveNumber}.`;
+        numEl.className = 'mono';
+        const whiteEl = document.createElement('div');
+        whiteEl.textContent = whiteMove ? whiteMove.san : '—';
+        whiteEl.className = 'mono';
+        const blackEl = document.createElement('div');
+        blackEl.textContent = blackMove ? blackMove.san : '—';
+        blackEl.className = 'mono';
+        li.appendChild(numEl);
+        li.appendChild(whiteEl);
+        li.appendChild(blackEl);
+        historyEl.appendChild(li);
+      }
+    }
+
     function uciToCoords(uci){
       if (!uci || uci.length < 4) return null;
       return { from: uci.slice(0,2), to: uci.slice(2,4) };
@@ -491,15 +534,18 @@
       arrowsEl.appendChild(marker);
     }
 
-    function updateEvalBar(line){
+    function updateEvalBar(line, perspectiveColor = 'w'){
       if (!evalFillEl || !evalLabelEl) return;
       const mate = line?.mate;
       let cp = Number(line?.score_cp);
+      const direction = perspectiveColor === 'w' ? 1 : -1;
       let label = '0.0';
       if (mate !== undefined && mate !== null){
-        label = `M${mate}`;
-        cp = mate > 0 ? 900 : -900;
+        const normalizedMate = mate * direction;
+        label = `M${normalizedMate}`;
+        cp = normalizedMate > 0 ? 900 : -900;
       } else if (!Number.isNaN(cp)){
+        cp = cp * direction;
         label = (cp / 100).toFixed(1);
       } else {
         cp = 0;
@@ -554,6 +600,7 @@
         const data = await fetchJson(ANALYZE_URL, payload);
         analyzeCache.set(currentFen, { timestamp: now, data });
         renderAnalysisLines(data?.lines || data?.analysis || [], { fromCache: false });
+        applyBestResponse(data?.lines || data?.analysis || []);
         pushAnalysisHistory(currentFen, data?.lines || data?.analysis || []);
       } catch (err){
         statusEl.textContent = `Ошибка анализа: ${err.message}`;
@@ -623,6 +670,26 @@
       });
     }
 
+    function applyBestResponse(lines){
+      if (!autoReplyPending || !chess) return;
+      const bestMoveUci = lines?.[0]?.best_move_uci;
+      if (!bestMoveUci || bestMoveUci.length < 4){
+        autoReplyPending = false;
+        return;
+      }
+      const from = bestMoveUci.slice(0,2);
+      const to = bestMoveUci.slice(2,4);
+      const promotion = bestMoveUci.slice(4) || undefined;
+      try {
+        chess.move({ from, to, promotion });
+        autoReplyPending = false;
+        syncFromChess();
+        analyzePosition(true);
+      } catch (_) {
+        autoReplyPending = false;
+      }
+    }
+
     function getPieceAt(square){
       const fileIdx = files.indexOf(square[0]);
       const rankIdx = ranks.indexOf(square[1]);
@@ -637,36 +704,56 @@
       boardState[rankIdx][fileIdx] = value;
     }
 
-    function handleSquareClick(square){
-      const piece = getPieceAt(square);
-      if (selectedSq && selectedSq !== square){
-        const fromPiece = getPieceAt(selectedSq);
-        if (fromPiece){
-          setPieceAt(square, fromPiece);
-          setPieceAt(selectedSq, '');
-          selectedSq = null;
-          activeColor = activeColor === 'w' ? 'b' : 'w';
-          if (activeColor === 'w') fullmove += 1;
-          currentFen = boardToFen(boardState, activeColor, fullmove);
-          fenTextEl.textContent = currentFen;
-          renderBoardFromFen(currentFen);
-          analyzePosition(true);
-          return;
-        }
-      }
-      selectedSq = piece ? square : null;
-      renderBoardFromFen(currentFen);
-    }
-
-    function init(){
-      currentFen = initialFen || '8/8/8/8/8/8/8/8 w - - 0 1';
+    function syncFromChess(){
+      if (!chess) return;
+      currentFen = chess.fen();
       const parsed = parseFenState(currentFen);
       boardState = parsed.board;
       activeColor = parsed.active;
       fullmove = parsed.fullmove;
       fenTextEl.textContent = currentFen || '—';
-      renderBoardCoords();
+      selectedSq = null;
       renderBoardFromFen(currentFen);
+      renderMoveHistory();
+    }
+
+    function handleSquareClick(square){
+      if (!chess) return;
+      const piece = getPieceAt(square);
+      const pieceColor = piece === piece?.toUpperCase() ? 'w' : 'b';
+      if (!selectedSq){
+        selectedSq = piece && pieceColor === activeColor ? square : null;
+        renderBoardFromFen(currentFen);
+        return;
+      }
+      if (selectedSq === square){
+        selectedSq = null;
+        renderBoardFromFen(currentFen);
+        return;
+      }
+      const legalMoves = chess.moves({ square: selectedSq, verbose: true });
+      const target = legalMoves.find((m) => m.to === square);
+      if (target){
+        const promotion = target.promotion || (target.flags.includes('p') ? 'q' : undefined);
+        chess.move({ from: selectedSq, to: square, promotion });
+        autoReplyPending = true;
+        syncFromChess();
+        analyzePosition(true);
+        return;
+      }
+      selectedSq = piece && pieceColor === activeColor ? square : null;
+      renderBoardFromFen(currentFen);
+    }
+
+    function init(){
+      currentFen = initialFen || '8/8/8/8/8/8/8/8 w - - 0 1';
+      try {
+        chess = new Chess(currentFen);
+      } catch (_) {
+        chess = new Chess('8/8/8/8/8/8/8/8 w - - 0 1');
+      }
+      renderBoardCoords();
+      syncFromChess();
       moveInput.value = moveFromQuery;
       analyzePosition();
       refreshBtn.addEventListener('click', () => analyzePosition(true));
