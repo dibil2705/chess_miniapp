@@ -177,10 +177,41 @@
     .piece img{ width: 140.712%; height: 140.712%; display:block; user-select:none; -webkit-user-select:none; }
     .selected{ outline: 3px solid rgba(255,255,255,.6); }
     .info-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
-    .history-panel{ grid-column: 1 / -1; }
-    .analysis-history{ list-style:none; padding:0; margin:0; display:grid; gap:10px; }
-    .analysis-history li{ border:1px solid var(--border); border-radius:10px; padding:10px; background: rgba(0,0,0,.35); }
-    .analysis-history .meta{ font-size:13px; opacity:.8; margin-bottom:4px; }
+    .history-bar{
+      width:100%;
+      background: linear-gradient(180deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.03) 100%);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px 12px 6px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 8px 22px rgba(0,0,0,.35);
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .history-head{
+      display:flex;
+      align-items:baseline;
+      justify-content:space-between;
+      gap:12px;
+      width:100%;
+    }
+    .history-head .status{ margin:0; font-size:12px; opacity:.7; }
+    .analysis-history{ display:flex; gap:10px; overflow-x:auto; padding:0 0 6px; margin:0; width:100%; }
+    .analysis-history::-webkit-scrollbar{ height:8px; }
+    .analysis-history::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.2); border-radius:999px; }
+    .analysis-history::-webkit-scrollbar-track{ background:rgba(255,255,255,.06); }
+    .history-card{
+      flex:0 0 auto;
+      min-width: 220px;
+      background: rgba(0,0,0,.35);
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:10px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+      scroll-snap-align:start;
+    }
+    .history-meta{ font-size:13px; opacity:.8; margin-bottom:6px; }
+    .history-empty{ opacity:.7; font-size:14px; padding:4px 0 2px; }
   </style>
 </head>
 <body>
@@ -205,6 +236,16 @@
           <div id="filesBottom" class="coord-files"></div>
         </div>
         <div class="status mono" id="boardFen"></div>
+        <div class="history-bar">
+          <div class="history-head">
+            <div>
+              <strong>История анализа</strong>
+              <div class="status">Последние 10 изменений позиции.</div>
+            </div>
+          </div>
+          <div id="analysisHistory" class="analysis-history" aria-live="polite" aria-atomic="true"></div>
+          <div id="historyEmpty" class="history-empty">История появится после анализа позиции.</div>
+        </div>
       </div>
 
       <div class="info-grid">
@@ -226,12 +267,6 @@
           </div>
           <div id="moveStatus" class="status" style="margin-top:8px"></div>
           <ul id="moveDetails" class="list"></ul>
-        </div>
-
-        <div class="panel history-panel">
-          <h3 style="margin:0 0 6px">История анализа</h3>
-          <p class="status">Последние анализы после изменений позиции.</p>
-          <ul id="analysisHistory" class="analysis-history"></ul>
         </div>
       </div>
     </div>
@@ -267,6 +302,7 @@
     const statusEl = document.getElementById('engineStatus');
     const analysisListEl = document.getElementById('analysisList');
     const analysisHistoryEl = document.getElementById('analysisHistory');
+    const historyEmptyEl = document.getElementById('historyEmpty');
     const refreshBtn = document.getElementById('refreshBtn');
     const moveInput = document.getElementById('moveInput');
     const evaluateBtn = document.getElementById('evaluateBtn');
@@ -596,31 +632,42 @@
       }
     }
 
-    function pushAnalysisHistory(fenValue, lines){
-      if (!analysisHistoryEl) return;
-      const entry = { fen: fenValue, createdAt: new Date(), lines: lines?.slice(0,3) || [] };
-      analysisHistory.unshift(entry);
-      analysisHistory.splice(10);
+    function renderHistory(){
+      if (!analysisHistoryEl || !historyEmptyEl) return;
       analysisHistoryEl.innerHTML = '';
+      if (!analysisHistory.length){
+        historyEmptyEl.style.display = 'block';
+        return;
+      }
+      historyEmptyEl.style.display = 'none';
       analysisHistory.forEach((item) => {
-        const li = document.createElement('li');
+        const card = document.createElement('div');
+        card.className = 'history-card';
         const meta = document.createElement('div');
-        meta.className = 'meta';
+        meta.className = 'history-meta';
         meta.textContent = item.createdAt.toLocaleTimeString();
-        li.appendChild(meta);
+        card.appendChild(meta);
         const fenRow = document.createElement('div');
         fenRow.innerHTML = `<strong>FEN</strong>: <span class="mono">${item.fen}</span>`;
-        li.appendChild(fenRow);
+        card.appendChild(fenRow);
         item.lines.forEach((line, idx) => {
           const row = document.createElement('div');
           const scoreText = line.mate !== undefined && line.mate !== null
             ? `Мат за ${line.mate}`
             : (line.score_cp !== undefined && line.score_cp !== null ? `${(Number(line.score_cp) / 100).toFixed(2)} cp` : '—');
           row.innerHTML = `<strong>#${idx + 1}</strong> ${line.best_move_uci || '—'} — <span class="mono">${scoreText}</span>`;
-          li.appendChild(row);
+          card.appendChild(row);
         });
-        analysisHistoryEl.appendChild(li);
+        analysisHistoryEl.appendChild(card);
       });
+    }
+
+    function pushAnalysisHistory(fenValue, lines){
+      if (!analysisHistoryEl) return;
+      const entry = { fen: fenValue, createdAt: new Date(), lines: lines?.slice(0,3) || [] };
+      analysisHistory.unshift(entry);
+      analysisHistory.splice(10);
+      renderHistory();
     }
 
     function getPieceAt(square){
