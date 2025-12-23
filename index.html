@@ -516,35 +516,6 @@
         </div>
       </details>
 
-      <details id="analysisBlock" class="panel collapsible" open>
-        <summary>
-          <span>Анализ</span>
-          <span class="chevron">⌄</span>
-        </summary>
-        <div class="collapsible-body" style="gap:10px;">
-          <div class="panel-header">
-            <div>
-              <div class="panel-title">Режим анализа</div>
-              <div id="analysisStatus" class="hint analysis-status"></div>
-            </div>
-            <div class="analysis-controls">
-              <button id="analysisQuickBtn" type="button">Быстрый анализ</button>
-              <button id="analysisDeepBtn" type="button">Углубить</button>
-              <button id="analysisExitBtn" type="button">Выйти</button>
-            </div>
-          </div>
-          <div class="analysis-nav">
-            <button type="button" data-nav="start">⏮</button>
-            <button type="button" data-nav="prev">◀</button>
-            <span class="analysis-move-index" id="analysisIndex">-/-</span>
-            <button type="button" data-nav="next">▶</button>
-            <button type="button" data-nav="end">⏭</button>
-            <input id="analysisJump" type="number" min="0" value="0" style="width:80px;" aria-label="Перейти к ходу" />
-            <button id="analysisJumpBtn" type="button">Перейти</button>
-          </div>
-          <div id="analysisContent" class="analysis-lines"></div>
-        </div>
-      </details>
     </div>
   </div>
 
