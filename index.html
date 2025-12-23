@@ -169,18 +169,6 @@
       border:1px solid var(--border);
       background:var(--panel);
     }
-    .panel-header{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-    .panel-title{
-      margin:0;
-      font-weight:800;
-      font-size:16px;
-    }
     .info-grid{ display:grid; gap:10px; }
     .info-title{ margin:0 0 6px 0; font-weight:700; font-size:15px; }
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
@@ -323,33 +311,6 @@
     }
     .puzzle-actions button:active{ transform: translateY(1px); }
 
-    .analysis-controls{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-      align-items:center;
-    }
-    .analysis-status{ margin-top:4px; }
-    .analysis-nav{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-    .analysis-nav button{ padding:8px 10px; }
-    .analysis-move-index{ min-width:64px; text-align:center; }
-    .analysis-lines{ display:grid; gap:8px; }
-    .analysis-line{ padding:8px 10px; border-radius:10px; background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); }
-    .badge{
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      padding:4px 8px;
-      border-radius:10px;
-      background: rgba(255,255,255,.08);
-      border:1px solid rgba(255,255,255,.12);
-      font-size: 13px;
-    }
-    .badge.good{ color:#4ced8c; border-color: rgba(76,237,140,.4); background: rgba(76,237,140,.08); }
-    .badge.warn{ color:#ffd166; border-color: rgba(255,209,102,.4); background: rgba(255,209,102,.08); }
-    .badge.bad{ color:#ff6b6b; border-color: rgba(255,107,107,.4); background: rgba(255,107,107,.08); }
-    .analysis-expl{ opacity:.9; }
-
     .puzzle-overlay{
       position: absolute;
       inset: 0;
@@ -440,7 +401,6 @@
       body{ padding:8px 10px 14px 10px; }
       .wrap{ gap:10px; }
       .board-wrapper{ width:100%; }
-      .panel-header{ flex-direction:column; align-items:flex-start; }
     }
 
     .collapsible{
@@ -481,7 +441,6 @@
 
     <div class="controls">
       <button id="puzzleBtn">Новая задача</button>
-      <button id="analysisBtn">Анализ</button>
       <div id="puzzleStatus" class="hint"></div>
     </div>
 
@@ -513,36 +472,6 @@
             <div><b>image:</b> <a id="puzzleImage" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
           </div>
           <div id="puzzleFeedback" class="puzzle-feedback"></div>
-        </div>
-      </details>
-
-      <details id="analysisBlock" class="panel collapsible" open>
-        <summary>
-          <span>Анализ</span>
-          <span class="chevron">⌄</span>
-        </summary>
-        <div class="collapsible-body" style="gap:10px;">
-          <div class="panel-header">
-            <div>
-              <div class="panel-title">Режим анализа</div>
-              <div id="analysisStatus" class="hint analysis-status"></div>
-            </div>
-            <div class="analysis-controls">
-              <button id="analysisQuickBtn" type="button">Быстрый анализ</button>
-              <button id="analysisDeepBtn" type="button">Углубить</button>
-              <button id="analysisExitBtn" type="button">Выйти</button>
-            </div>
-          </div>
-          <div class="analysis-nav">
-            <button type="button" data-nav="start">⏮</button>
-            <button type="button" data-nav="prev">◀</button>
-            <span class="analysis-move-index" id="analysisIndex">-/-</span>
-            <button type="button" data-nav="next">▶</button>
-            <button type="button" data-nav="end">⏭</button>
-            <input id="analysisJump" type="number" min="0" value="0" style="width:80px;" aria-label="Перейти к ходу" />
-            <button id="analysisJumpBtn" type="button">Перейти</button>
-          </div>
-          <div id="analysisContent" class="analysis-lines"></div>
         </div>
       </details>
     </div>
