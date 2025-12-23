@@ -100,12 +100,36 @@
       appendLine(message);
     }
 
-    function startEngine(){
+    async function checkEngineAvailability(){
+      try {
+        const response = await fetch('engine/stockfish.js', { method: 'HEAD' });
+        if (!response.ok){
+          statusEl.textContent = `Не удалось загрузить stockfish.js: ${response.status} ${response.statusText}`;
+          appendLine(`HEAD /engine/stockfish.js -> ${response.status} ${response.statusText}`);
+          return false;
+        }
+        appendLine(`stockfish.js доступен (${response.status}). content-type: ${response.headers.get('content-type') || 'нет данных'}`);
+        return true;
+      } catch (err){
+        statusEl.textContent = 'Ошибка при запросе stockfish.js. Проверьте путь к файлу.';
+        appendLine(String(err));
+        return false;
+      }
+    }
+
+    async function startEngine(){
       if (!fen){
         statusEl.textContent = 'FEN не передан. Вернитесь на главную и откройте анализ заново.';
         return;
       }
+      if (typeof Worker === 'undefined'){
+        statusEl.textContent = 'Браузер не поддерживает Web Worker.';
+        appendLine('Worker API недоступен.');
+        return;
+      }
       fenTextEl.textContent = fen;
+      const available = await checkEngineAvailability();
+      if (!available) return;
       try {
         engine = new Worker('engine/stockfish.js');
       } catch (err){
@@ -114,12 +138,21 @@
         return;
       }
       engine.onmessage = handleEngineMessage;
+      engine.onmessageerror = (err) => {
+        appendLine(`MessageError: ${err.message || err}`);
+      };
       engine.onerror = (err) => {
         statusEl.textContent = 'Ошибка в работе движка Stockfish.';
         appendLine(String(err.message || err));
       };
       engine.postMessage('uci');
       statusEl.textContent = 'Инициализация движка...';
+
+      setTimeout(() => {
+        if (!uciOkReceived){
+          appendLine('Не получили ответ uciok. Проверьте, что engine/stockfish.js загружается без 404/блокировки CORS.');
+        }
+      }, 5000);
     }
 
     startEngine();
