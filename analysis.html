@@ -148,7 +148,7 @@
       const available = await checkEngineAvailability();
       if (!available) return;
       try {
-        engine = new Worker('engine/stockfish.js');
+        engine = new Worker('engine/stockfish.bootstrap.worker.js');
       } catch (err){
         statusEl.textContent = 'Не удалось инициализировать движок Stockfish.';
         appendLine(String(err));
