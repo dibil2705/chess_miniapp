@@ -22,6 +22,10 @@ const BLACK_SVG = {
 
 // Default: empty board while ждем задачу
 const START_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
+const DEFAULT_ANALYSIS_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+const pageType = document.body?.dataset?.page || 'puzzle';
+const isAnalysisPage = pageType === 'analysis';
 
 const tg = window.Telegram?.WebApp;
 
@@ -53,6 +57,17 @@ try {
   analysisGame = new Chess();
 }
 analysisHistory = [{ fen: boardToFen(boardState), move: null, san: null, color: activeColor }];
+
+function resetAnalysisState(fen){
+  const baseFen = fen || boardToFen(boardState);
+  try {
+    analysisGame = new Chess(baseFen);
+  } catch {
+    analysisGame = new Chess();
+  }
+  analysisHistory = [{ fen: baseFen, move: null, san: null, color: (baseFen.split(' ')[1] === 'b') ? 'b' : 'w' }];
+  analysisIndex = 0;
+}
 
 let selectedSquare = null;
 let highlightedMoves = [];
@@ -1788,9 +1803,12 @@ async function fetchRandomPuzzle(){
   }
 }
 
-document.getElementById('puzzleBtn').addEventListener('click', () => {
-  fetchRandomPuzzle();
-});
+const puzzleBtn = document.getElementById('puzzleBtn');
+if (puzzleBtn){
+  puzzleBtn.addEventListener('click', () => {
+    fetchRandomPuzzle();
+  });
+}
 
 promotionButtons.forEach(btn => {
   btn.addEventListener('click', () => handlePromotionChoice(btn.dataset.piece));
@@ -1798,8 +1816,9 @@ promotionButtons.forEach(btn => {
 
 if (analysisBtn){
   analysisBtn.addEventListener('click', () => {
-    enterAnalysisMode();
-    showAnalysis();
+    const currentFen = encodeURIComponent(boardToFen(boardState));
+    const target = `analysis.html?fen=${currentFen}`;
+    window.location.href = target;
   });
 }
 
@@ -1830,7 +1849,35 @@ if (analysisExitBtn){
   analysisExitBtn.addEventListener('click', () => exitAnalysisMode());
 }
 
+const urlParams = new URLSearchParams(window.location.search);
+const fenFromUrl = urlParams.get('fen');
+
+if (isAnalysisPage){
+  const initialFen = fenFromUrl || DEFAULT_ANALYSIS_FEN;
+  try {
+    loadPositionFromFen(initialFen);
+  } catch (err) {
+    console.error('Invalid FEN in query, fallback to default', err);
+    loadPositionFromFen(DEFAULT_ANALYSIS_FEN);
+  }
+  resetAnalysisState(boardToFen(boardState));
+  enterAnalysisMode();
+  showAnalysis();
+} else {
+  if (fenFromUrl){
+    try {
+      loadPositionFromFen(fenFromUrl);
+      resetAnalysisState(boardToFen(boardState));
+    } catch (err) {
+      console.error('Invalid FEN in query, ignoring', err);
+    }
+  }
+}
+
 preventZoom();
 initTelegram();
 render();
-fetchRandomPuzzle();
+
+if (!isAnalysisPage){
+  fetchRandomPuzzle();
+}

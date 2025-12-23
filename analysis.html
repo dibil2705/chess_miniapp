@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
-  <title>Chess Board</title>
+  <title>Chess Board — Анализ</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0/chess.min.js"></script>
   <style>
@@ -107,10 +107,7 @@
     .light{ background:var(--light); }
     .dark{ background:var(--dark); }
 
-    /* pieces (so pieces never affect square size) */
     .piece{
-      /* IMPORTANT: do NOT make the draggable element full-square size,
-         otherwise the drag-ghost can look like you drag the whole cell. */
       width: auto;
       height: auto;
       display:flex;
@@ -125,7 +122,7 @@
       width: 140.712%;
       height: 140.712%;
       display:block;
-      pointer-events: none; /* so drag events stay on .piece */
+      pointer-events: none;
       user-select:none;
       -webkit-user-select:none;
     }
@@ -134,14 +131,13 @@
       width: 140.712%;
       height: 140.712%;
       display:block;
-      pointer-events: none; /* so drag events stay on .piece */
+      pointer-events: none;
       user-select:none;
       -webkit-user-select:none;
     }
 
     .piece.dragging{ opacity: 0; }
 
-    /* drag feedback */
     .sq.drop{ outline: 3px solid rgba(255,255,255,.55); outline-offset:-3px; }
 
     button{
@@ -161,7 +157,6 @@
       align-items:center;
       flex-wrap:wrap;
     }
-    .controls .hint{ margin:0; }
 
     .panel{
       padding:12px 14px;
@@ -248,81 +243,6 @@
       flex-shrink:0;
     }
 
-    .puzzle-feedback{ margin-top: 8px; min-height: 22px; display: flex; justify-content: center; }
-    .puzzle-feedback-row{
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      padding: 6px 8px;
-      border-radius: 10px;
-      background: rgba(255,255,255,.05);
-      border: 1px solid rgba(255,255,255,.1);
-      font-size: 14px;
-      flex-wrap: wrap;
-    }
-    .puzzle-indicator{
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      font-size: 12px;
-      font-weight: 700;
-    }
-    .puzzle-feedback-row.success .puzzle-indicator{
-      background: rgba(64,214,108,.18);
-      color: #40d66c;
-      box-shadow: 0 0 0 1px rgba(64,214,108,.25);
-    }
-    .puzzle-feedback-row.error .puzzle-indicator{
-      background: rgba(255,99,99,.18);
-      color: #ff6b6b;
-      box-shadow: 0 0 0 1px rgba(255,107,107,.25);
-    }
-    .puzzle-feedback-row.info .puzzle-indicator{
-      background: rgba(255,255,255,.18);
-      color: #fff;
-      box-shadow: 0 0 0 1px rgba(255,255,255,.2);
-    }
-    .puzzle-feedback-row.solved{
-      width: 100%;
-      justify-content: center;
-      text-align: center;
-      background: rgba(76, 237, 140, 0.12);
-      border-color: rgba(76, 237, 140, 0.45);
-    }
-    .puzzle-feedback-row.solved .puzzle-feedback-text{
-      color: #4ced8c;
-      font-size: clamp(22px, 5vw, 32px);
-      font-weight: 900;
-      letter-spacing: 1.2px;
-      text-transform: uppercase;
-      text-shadow: 0 4px 14px rgba(0,0,0,.35);
-    }
-    .puzzle-actions{
-      display: flex;
-      gap: 10px;
-      margin-left: 0;
-      justify-content: center;
-      width: 100%;
-      flex-wrap: wrap;
-    }
-    .puzzle-actions button{
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(255,255,255,.08);
-      border: 1px solid rgba(255,255,255,.14);
-      color: var(--text);
-      border-radius: 12px;
-      padding: 10px 12px;
-      cursor: pointer;
-      box-shadow: 0 10px 28px rgba(0,0,0,.25);
-    }
-    .puzzle-actions button:active{ transform: translateY(1px); }
-
     .analysis-controls{
       display:flex;
       gap:8px;
@@ -349,51 +269,6 @@
     .badge.warn{ color:#ffd166; border-color: rgba(255,209,102,.4); background: rgba(255,209,102,.08); }
     .badge.bad{ color:#ff6b6b; border-color: rgba(255,107,107,.4); background: rgba(255,107,107,.08); }
     .analysis-expl{ opacity:.9; }
-
-    .puzzle-overlay{
-      position: absolute;
-      inset: 0;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 12px;
-      z-index: 2000;
-      background: rgba(0,0,0,.55);
-      border-radius: 14px;
-    }
-    .puzzle-overlay.active{ display:flex; }
-    .puzzle-dialog{
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px;
-      width: min(480px, 100%);
-      box-shadow: 0 14px 36px rgba(0,0,0,.4);
-      display: grid;
-      gap: 12px;
-    }
-    .puzzle-overlay-title{
-      margin: 0;
-      text-align: center;
-      font-weight: 900;
-      font-size: clamp(20px, 5vw, 28px);
-      letter-spacing: 1.2px;
-      text-transform: uppercase;
-      text-shadow: 0 4px 14px rgba(0,0,0,.35);
-      color: var(--text);
-    }
-    .puzzle-overlay.solved .puzzle-overlay-title{ color: #4ced8c; }
-    .puzzle-overlay-actions{
-      display: grid;
-      gap: 10px;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    }
-    .puzzle-overlay-actions:empty{ display:none; }
-    .puzzle-overlay-actions .promotion-btn{
-      width: 100%;
-      justify-content: center;
-      box-shadow: 0 10px 28px rgba(0,0,0,.25);
-    }
 
     .promotion-overlay{
       position: fixed;
@@ -435,7 +310,6 @@
     .promotion-btn:active{ transform: translateY(1px); }
     .promotion-icon{ width: 36px; height: 36px; }
 
-    /* Compact view helpers */
     @media (max-width: 768px){
       body{ padding:8px 10px 14px 10px; }
       .wrap{ gap:10px; }
@@ -463,26 +337,18 @@
     details[open] .chevron{ transform: rotate(180deg); }
   </style>
 </head>
-<body data-page="puzzle">
+<body data-page="analysis">
   <div class="wrap">
-    <h2 style="margin:0 0 10px 0;">Chess Board</h2>
+    <h2 style="margin:0 0 10px 0;">Анализ партии</h2>
 
     <div class="board-wrapper">
       <div id="board" class="board" aria-label="Chess board"></div>
       <div id="filesBottom" class="coord-files" aria-hidden="true"></div>
       <div id="ranksLeft" class="coord-ranks" aria-hidden="true"></div>
-      <div id="puzzleOverlay" class="puzzle-overlay" aria-live="polite" aria-atomic="true">
-        <div class="puzzle-dialog">
-          <div id="puzzleOverlayTitle" class="puzzle-overlay-title"></div>
-          <div id="puzzleOverlayActions" class="puzzle-overlay-actions"></div>
-        </div>
-      </div>
     </div>
 
     <div class="controls">
-      <button id="puzzleBtn">Новая задача</button>
-      <button id="analysisBtn">Анализ</button>
-      <div id="puzzleStatus" class="hint"></div>
+      <a href="index.html"><button type="button">К задачам</button></a>
     </div>
 
     <div class="info-grid">
@@ -494,25 +360,6 @@
         <div class="collapsible-body">
           <div id="fenOut" class="mono" style="word-break: break-all;"></div>
           <div id="status" class="hint" style="margin-top:6px;"></div>
-        </div>
-      </details>
-
-      <details class="panel collapsible">
-        <summary>
-          <span>Задача</span>
-          <span class="chevron">⌄</span>
-        </summary>
-        <div class="collapsible-body">
-          <div class="hint" style="margin-bottom:6px;">Снизу: title, url, publish_time, fen, pgn, image.</div>
-          <div style="margin-top:4px; display:grid; gap:6px;">
-            <div><b>title:</b> <span id="puzzleTitle" class="mono"></span></div>
-            <div><b>url:</b> <a id="puzzleUrl" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
-            <div><b>publish_time:</b> <span id="puzzlePublish" class="mono"></span></div>
-            <div><b>fen:</b> <span id="puzzleFen" class="mono" style="word-break: break-all;"></span></div>
-            <div><b>pgn:</b> <span id="puzzlePgn" class="mono" style="word-break: break-all;"></span></div>
-            <div><b>image:</b> <a id="puzzleImage" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
-          </div>
-          <div id="puzzleFeedback" class="puzzle-feedback"></div>
         </div>
       </details>
 
