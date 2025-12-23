@@ -21,8 +21,7 @@
       color:var(--text);
     }
     .wrap{ max-width: 1180px; margin:0 auto; display:grid; gap:14px; }
-    .layout{ display:grid; grid-template-columns: 1.1fr 0.9fr; gap:14px; align-items:start; }
-    @media (max-width: 960px){ .layout{ grid-template-columns: 1fr; } }
+    .layout{ display:flex; flex-direction:column; gap:14px; align-items:stretch; }
     .panel{
       padding:14px;
       border-radius:12px;
@@ -46,14 +45,14 @@
     .board-panel{ display:grid; gap:12px; justify-items:center; }
     .board-wrapper{
       position: relative;
-      width:min(560px, 100%);
+      width:min(620px, 100%);
       margin:0 auto;
       display:grid;
-      grid-template-columns: auto 1fr;
+      grid-template-columns: 18px auto 1fr;
       grid-template-rows: 1fr auto;
       grid-template-areas:
-        "ranks board"
-        ". files";
+        "cp ranks board"
+        "cp . files";
       column-gap: 10px;
       row-gap: 8px;
       align-items: stretch;
@@ -62,16 +61,69 @@
       grid-area: board;
       width:100%;
       aspect-ratio: 1 / 1;
-      display:grid;
-      grid-template-columns: repeat(8, 1fr);
-      grid-template-rows: repeat(8, 1fr);
-      grid-auto-rows: 1fr;
+      display:block;
       border-radius:14px;
       overflow:hidden;
       box-shadow: 0 12px 40px rgba(0,0,0,.45);
       user-select:none;
       -webkit-user-select:none;
       touch-action: none;
+      position:relative;
+    }
+    .board-squares{
+      display:grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      grid-auto-rows: 1fr;
+      width:100%;
+      height:100%;
+    }
+    .board-arrows{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+    }
+    .arrow-path{
+      stroke:#6ccf70;
+      stroke-width:10;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+      fill:none;
+      opacity:0.65;
+    }
+    .arrow-head{
+      fill:#6ccf70;
+      opacity:0.65;
+    }
+    .eval-bar{
+      grid-area: cp;
+      position: relative;
+      width: 18px;
+      background: linear-gradient(180deg, #333 0%, #f5f5f5 100%);
+      border-radius: 10px;
+      overflow:hidden;
+      border:1px solid var(--border);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.15);
+    }
+    .eval-fill{
+      position:absolute;
+      bottom:0;
+      left:0;
+      right:0;
+      background:#f5f5f5;
+      transition:height .2s ease;
+      height:50%;
+    }
+    .eval-label{
+      position:absolute;
+      bottom:4px;
+      left:50%;
+      transform:translateX(-50%);
+      color:#000;
+      font-size:10px;
+      font-weight:700;
+      text-shadow:0 1px 3px rgba(0,0,0,.25);
+      pointer-events:none;
     }
     .coord-files,
     .coord-ranks{
@@ -123,6 +175,12 @@
       pointer-events: none;
     }
     .piece img{ width: 140.712%; height: 140.712%; display:block; user-select:none; -webkit-user-select:none; }
+    .selected{ outline: 3px solid rgba(255,255,255,.6); }
+    .info-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
+    .history-panel{ grid-column: 1 / -1; }
+    .analysis-history{ list-style:none; padding:0; margin:0; display:grid; gap:10px; }
+    .analysis-history li{ border:1px solid var(--border); border-radius:10px; padding:10px; background: rgba(0,0,0,.35); }
+    .analysis-history .meta{ font-size:13px; opacity:.8; margin-bottom:4px; }
   </style>
 </head>
 <body>
@@ -135,8 +193,15 @@
     <div class="layout">
       <div class="panel board-panel">
         <div class="board-wrapper">
+          <div class="eval-bar" aria-hidden="true">
+            <div class="eval-fill" id="evalFill"></div>
+            <div class="eval-label" id="evalLabel">0.0</div>
+          </div>
           <div id="ranksLeft" class="coord-ranks"></div>
-          <div id="board" class="board" aria-label="Доска для визуализации позиции"></div>
+          <div id="board" class="board" aria-label="Доска для визуализации позиции">
+            <svg id="boardArrows" class="board-arrows" viewBox="0 0 800 800"></svg>
+            <div id="boardSquares" class="board-squares"></div>
+          </div>
           <div id="filesBottom" class="coord-files"></div>
         </div>
         <div class="status mono" id="boardFen"></div>
@@ -162,13 +227,19 @@
           <div id="moveStatus" class="status" style="margin-top:8px"></div>
           <ul id="moveDetails" class="list"></ul>
         </div>
+
+        <div class="panel history-panel">
+          <h3 style="margin:0 0 6px">История анализа</h3>
+          <p class="status">Последние анализы после изменений позиции.</p>
+          <ul id="analysisHistory" class="analysis-history"></ul>
+        </div>
       </div>
     </div>
   </div>
 
   <script>
     const params = new URLSearchParams(window.location.search);
-    const fen = params.get('fen');
+    const initialFen = params.get('fen');
     const moveFromQuery = params.get('move') || '';
 
     const files = ['a','b','c','d','e','f','g','h'];
@@ -195,20 +266,30 @@
     const fenTextEl = document.getElementById('fenText');
     const statusEl = document.getElementById('engineStatus');
     const analysisListEl = document.getElementById('analysisList');
+    const analysisHistoryEl = document.getElementById('analysisHistory');
     const refreshBtn = document.getElementById('refreshBtn');
     const moveInput = document.getElementById('moveInput');
     const evaluateBtn = document.getElementById('evaluateBtn');
     const moveStatusEl = document.getElementById('moveStatus');
     const moveDetailsEl = document.getElementById('moveDetails');
-    const boardEl = document.getElementById('board');
+    const boardSquaresEl = document.getElementById('boardSquares');
+    const arrowsEl = document.getElementById('boardArrows');
     const boardFenEl = document.getElementById('boardFen');
     const filesBottomEl = document.getElementById('filesBottom');
     const ranksLeftEl = document.getElementById('ranksLeft');
+    const evalFillEl = document.getElementById('evalFill');
+    const evalLabelEl = document.getElementById('evalLabel');
 
     const ANALYZE_URL = 'http://127.0.0.1:8000/analyze';
     const EVAL_URL = 'http://127.0.0.1:8000/evaluate_move';
     const CACHE_TTL_MS = 10_000;
     const analyzeCache = new Map();
+    const analysisHistory = [];
+    let currentFen = initialFen;
+    let boardState = [];
+    let activeColor = 'w';
+    let fullmove = 1;
+    let selectedSq = null;
 
     function renderAnalysisLines(lines = [], { fromCache = false } = {}){
       analysisListEl.innerHTML = '';
@@ -216,6 +297,8 @@
         const empty = document.createElement('li');
         empty.textContent = 'Нет данных анализа';
         analysisListEl.appendChild(empty);
+        updateArrow(null);
+        updateEvalBar(null);
         return;
       }
       lines.slice(0, 3).forEach((line, idx) => {
@@ -236,6 +319,8 @@
         analysisListEl.appendChild(li);
       });
       statusEl.textContent = fromCache ? 'Показан кешированный анализ (до 10 секунд).' : 'Анализ обновлён.';
+      updateArrow(lines?.[0]);
+      updateEvalBar(lines?.[0]);
     }
 
     function renderMoveResult(data){
@@ -284,6 +369,33 @@
       return board;
     }
 
+    function parseFenState(fenStr){
+      const parts = (fenStr || '').split(' ');
+      const board = fenToBoard(fenStr);
+      const active = parts[1] === 'b' ? 'b' : 'w';
+      const moveNumber = Number(parts[5]) || 1;
+      return { board, active, fullmove: moveNumber };
+    }
+
+    function boardToFen(board, active = 'w', moveNumber = 1){
+      const rows = board.map((row) => {
+        let res = '';
+        let empty = 0;
+        for (const cell of row){
+          if (!cell){
+            empty++;
+          } else {
+            if (empty){ res += empty; empty = 0; }
+            res += cell;
+          }
+        }
+        if (empty) res += empty;
+        return res;
+      });
+      const placement = rows.join('/');
+      return `${placement} ${active} - - 0 ${moveNumber}`;
+    }
+
     function renderBoardCoords(){
       if (!filesBottomEl || !ranksLeftEl) return;
       filesBottomEl.innerHTML = '';
@@ -301,14 +413,17 @@
     }
 
     function renderBoardFromFen(fenStr){
-      if (!boardEl) return;
-      boardEl.innerHTML = '';
+      if (!boardSquaresEl) return;
+      boardSquaresEl.innerHTML = '';
       const grid = fenToBoard(fenStr);
       grid.forEach((row, rowIdx) => {
         row.forEach((cell, colIdx) => {
           const sq = document.createElement('div');
           const isLight = (rowIdx + colIdx) % 2 === 0;
+          const coord = `${files[colIdx]}${ranks[rowIdx]}`;
           sq.className = `sq ${isLight ? 'light' : 'dark'}`;
+          sq.dataset.square = coord;
+          sq.addEventListener('click', () => handleSquareClick(coord));
           if (cell){
             const piece = document.createElement('div');
             const img = document.createElement('img');
@@ -319,10 +434,80 @@
             piece.appendChild(img);
             sq.appendChild(piece);
           }
-          boardEl.appendChild(sq);
+          boardSquaresEl.appendChild(sq);
         });
       });
+      if (selectedSq){
+        const sqEl = boardSquaresEl.querySelector(`[data-square="${selectedSq}"]`);
+        if (sqEl) sqEl.classList.add('selected');
+      }
       if (boardFenEl) boardFenEl.textContent = fenStr || 'FEN не передан';
+    }
+
+    function uciToCoords(uci){
+      if (!uci || uci.length < 4) return null;
+      return { from: uci.slice(0,2), to: uci.slice(2,4) };
+    }
+
+    function updateArrow(line){
+      if (!arrowsEl) return;
+      arrowsEl.innerHTML = '';
+      const move = line?.best_move_uci;
+      const coords = uciToCoords(move);
+      if (!coords) return;
+      const startFile = files.indexOf(coords.from[0]);
+      const startRank = ranks.indexOf(coords.from[1]);
+      const endFile = files.indexOf(coords.to[0]);
+      const endRank = ranks.indexOf(coords.to[1]);
+      if (startFile < 0 || startRank < 0 || endFile < 0 || endRank < 0) return;
+      const cell = 100;
+      const offset = cell / 2;
+      const x1 = startFile * cell + offset;
+      const y1 = startRank * cell + offset;
+      const x2 = endFile * cell + offset;
+      const y2 = endRank * cell + offset;
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg','line');
+      path.setAttribute('x1', x1);
+      path.setAttribute('y1', y1);
+      path.setAttribute('x2', x2);
+      path.setAttribute('y2', y2);
+      path.classList.add('arrow-path');
+
+      const marker = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      const headLength = 22;
+      const headWidth = 16;
+      const hx = x2 - Math.cos(angle) * headLength;
+      const hy = y2 - Math.sin(angle) * headLength;
+      const p1x = hx + Math.cos(angle + Math.PI / 2) * headWidth;
+      const p1y = hy + Math.sin(angle + Math.PI / 2) * headWidth;
+      const p2x = hx + Math.cos(angle - Math.PI / 2) * headWidth;
+      const p2y = hy + Math.sin(angle - Math.PI / 2) * headWidth;
+      marker.setAttribute('points', `${x2},${y2} ${p1x},${p1y} ${p2x},${p2y}`);
+      marker.classList.add('arrow-head');
+
+      arrowsEl.appendChild(path);
+      arrowsEl.appendChild(marker);
+    }
+
+    function updateEvalBar(line){
+      if (!evalFillEl || !evalLabelEl) return;
+      const mate = line?.mate;
+      let cp = Number(line?.score_cp);
+      let label = '0.0';
+      if (mate !== undefined && mate !== null){
+        label = `M${mate}`;
+        cp = mate > 0 ? 900 : -900;
+      } else if (!Number.isNaN(cp)){
+        label = (cp / 100).toFixed(1);
+      } else {
+        cp = 0;
+      }
+      const normalized = 1 / (1 + Math.exp(-cp / 200));
+      const percent = Math.round(normalized * 100);
+      evalFillEl.style.height = `${percent}%`;
+      evalLabelEl.textContent = label;
     }
 
     function extractErrorDetail(errObj, fallback){
@@ -350,12 +535,12 @@
     }
 
     async function analyzePosition(force = false){
-      if (!fen){
+      if (!currentFen){
         statusEl.textContent = 'FEN не передан. Вернитесь на главную и откройте анализ заново.';
         return;
       }
 
-      const cached = analyzeCache.get(fen);
+      const cached = analyzeCache.get(currentFen);
       const now = Date.now();
       if (!force && cached && now - cached.timestamp < CACHE_TTL_MS){
         renderAnalysisLines(cached.data?.lines || [], { fromCache: true });
@@ -365,10 +550,11 @@
       statusEl.textContent = 'Запрашиваем анализ у сервера...';
       refreshBtn.disabled = true;
       try {
-        const payload = { fen, movetime_ms: 250, multipv: 3, side: 'turn' };
+        const payload = { fen: currentFen, movetime_ms: 250, multipv: 3, side: 'turn' };
         const data = await fetchJson(ANALYZE_URL, payload);
-        analyzeCache.set(fen, { timestamp: now, data });
+        analyzeCache.set(currentFen, { timestamp: now, data });
         renderAnalysisLines(data?.lines || data?.analysis || [], { fromCache: false });
+        pushAnalysisHistory(currentFen, data?.lines || data?.analysis || []);
       } catch (err){
         statusEl.textContent = `Ошибка анализа: ${err.message}`;
         analysisListEl.innerHTML = '';
@@ -378,7 +564,7 @@
     }
 
     async function evaluateMove(moveUci){
-      if (!fen){
+      if (!currentFen){
         moveStatusEl.textContent = 'FEN не передан. Вернитесь на главную и откройте анализ заново.';
         return;
       }
@@ -390,7 +576,7 @@
       moveStatusEl.textContent = 'Отправляем ход на проверку...';
       evaluateBtn.disabled = true;
       try {
-        const payload = { fen, move_uci: moveUci, movetime_ms: 250, side: 'turn' };
+        const payload = { fen: currentFen, move_uci: moveUci, movetime_ms: 250, side: 'turn' };
         const data = await fetchJson(EVAL_URL, payload);
         renderMoveResult(data);
       } catch (err){
@@ -410,10 +596,77 @@
       }
     }
 
+    function pushAnalysisHistory(fenValue, lines){
+      if (!analysisHistoryEl) return;
+      const entry = { fen: fenValue, createdAt: new Date(), lines: lines?.slice(0,3) || [] };
+      analysisHistory.unshift(entry);
+      analysisHistory.splice(10);
+      analysisHistoryEl.innerHTML = '';
+      analysisHistory.forEach((item) => {
+        const li = document.createElement('li');
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = item.createdAt.toLocaleTimeString();
+        li.appendChild(meta);
+        const fenRow = document.createElement('div');
+        fenRow.innerHTML = `<strong>FEN</strong>: <span class="mono">${item.fen}</span>`;
+        li.appendChild(fenRow);
+        item.lines.forEach((line, idx) => {
+          const row = document.createElement('div');
+          const scoreText = line.mate !== undefined && line.mate !== null
+            ? `Мат за ${line.mate}`
+            : (line.score_cp !== undefined && line.score_cp !== null ? `${(Number(line.score_cp) / 100).toFixed(2)} cp` : '—');
+          row.innerHTML = `<strong>#${idx + 1}</strong> ${line.best_move_uci || '—'} — <span class="mono">${scoreText}</span>`;
+          li.appendChild(row);
+        });
+        analysisHistoryEl.appendChild(li);
+      });
+    }
+
+    function getPieceAt(square){
+      const fileIdx = files.indexOf(square[0]);
+      const rankIdx = ranks.indexOf(square[1]);
+      if (fileIdx < 0 || rankIdx < 0) return '';
+      return boardState[rankIdx]?.[fileIdx] || '';
+    }
+
+    function setPieceAt(square, value){
+      const fileIdx = files.indexOf(square[0]);
+      const rankIdx = ranks.indexOf(square[1]);
+      if (fileIdx < 0 || rankIdx < 0) return;
+      boardState[rankIdx][fileIdx] = value;
+    }
+
+    function handleSquareClick(square){
+      const piece = getPieceAt(square);
+      if (selectedSq && selectedSq !== square){
+        const fromPiece = getPieceAt(selectedSq);
+        if (fromPiece){
+          setPieceAt(square, fromPiece);
+          setPieceAt(selectedSq, '');
+          selectedSq = null;
+          activeColor = activeColor === 'w' ? 'b' : 'w';
+          if (activeColor === 'w') fullmove += 1;
+          currentFen = boardToFen(boardState, activeColor, fullmove);
+          fenTextEl.textContent = currentFen;
+          renderBoardFromFen(currentFen);
+          analyzePosition(true);
+          return;
+        }
+      }
+      selectedSq = piece ? square : null;
+      renderBoardFromFen(currentFen);
+    }
+
     function init(){
-      fenTextEl.textContent = fen || '—';
+      currentFen = initialFen || '8/8/8/8/8/8/8/8 w - - 0 1';
+      const parsed = parseFenState(currentFen);
+      boardState = parsed.board;
+      activeColor = parsed.active;
+      fullmove = parsed.fullmove;
+      fenTextEl.textContent = currentFen || '—';
       renderBoardCoords();
-      renderBoardFromFen(fen);
+      renderBoardFromFen(currentFen);
       moveInput.value = moveFromQuery;
       analyzePosition();
       refreshBtn.addEventListener('click', () => analyzePosition(true));
