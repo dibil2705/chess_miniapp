@@ -91,13 +91,17 @@
       }
       fenTextEl.textContent = fen;
       try {
-        engine = new Worker('https://cdn.jsdelivr.net/npm/stockfish@16.1.0/src/stockfish.js');
+        engine = new Worker('engine/stockfish.js');
       } catch (err){
         statusEl.textContent = 'Не удалось инициализировать движок Stockfish.';
         appendLine(String(err));
         return;
       }
       engine.onmessage = handleEngineMessage;
+      engine.onerror = (err) => {
+        statusEl.textContent = 'Ошибка в работе движка Stockfish.';
+        appendLine(String(err.message || err));
+      };
       engine.postMessage('uci');
       engine.postMessage('isready');
       engine.postMessage(`position fen ${fen}`);
