@@ -75,31 +75,37 @@
 
     function handleEngineMessage(event){
       const raw = event.data && event.data.data ? event.data.data : event.data;
-      const message = typeof raw === 'string' ? raw : '';
-      if (!message) return;
-      if (message === 'uciok'){
-        uciOkReceived = true;
-        statusEl.textContent = 'Движок инициализирован, проверяем готовность...';
-        engine.postMessage('isready');
-      } else if (message === 'readyok'){
-        readyOkReceived = true;
-        startAnalysis();
-      } else if (message.startsWith('info')){
-        const depthMatch = message.match(/depth\s+(\d+)/);
-        const scoreMatch = message.match(/score\s+(cp|mate)\s+([-\d]+)/);
-        let status = 'Анализируем позицию...';
-        if (depthMatch){
-          status += ` Глубина: ${depthMatch[1]}.`;
-        }
-        if (scoreMatch){
-          const [ , type, value ] = scoreMatch;
-          status += type === 'cp' ? ` Оценка: ${(Number(value)/100).toFixed(2)}.` : ` Мат за ${value}.`;
-        }
-        statusEl.textContent = status;
-      } else if (message.startsWith('bestmove')){
-        statusEl.textContent = `Лучший ход: ${message.split(' ')[1] || ''}`;
-      }
-      appendLine(message);
+      const text = String(raw || '');
+
+      text
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((line) => {
+          if (line === 'uciok'){
+            uciOkReceived = true;
+            statusEl.textContent = 'Движок инициализирован, проверяем готовность...';
+            engine.postMessage('isready');
+          } else if (line === 'readyok'){
+            readyOkReceived = true;
+            startAnalysis();
+          } else if (line.startsWith('info')){
+            const depthMatch = line.match(/depth\s+(\d+)/);
+            const scoreMatch = line.match(/score\s+(cp|mate)\s+([-\d]+)/);
+            let status = 'Анализируем позицию...';
+            if (depthMatch){
+              status += ` Глубина: ${depthMatch[1]}.`;
+            }
+            if (scoreMatch){
+              const [ , type, value ] = scoreMatch;
+              status += type === 'cp' ? ` Оценка: ${(Number(value)/100).toFixed(2)}.` : ` Мат за ${value}.`;
+            }
+            statusEl.textContent = status;
+          } else if (line.startsWith('bestmove')){
+            statusEl.textContent = `Лучший ход: ${line.split(' ')[1] || ''}`;
+          }
+          appendLine(line);
+        });
     }
 
     async function checkEngineAvailability(){
