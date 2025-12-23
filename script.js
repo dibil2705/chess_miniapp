@@ -33,27 +33,6 @@ let boardState = fenToBoard(START_FEN);
 let activeColor = 'w';
 let castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
 
-let analysisMode = false;
-let analysisIndex = 0;
-let analysisHistory = [];
-let analysisSavedState = null;
-let analysisCache = new Map();
-let stockfishWorker = null;
-let stockfishReady = false;
-let stockfishBusy = false;
-let stockfishQueue = [];
-let analysisGame = null;
-
-const QUICK_DEPTH = 12;
-const DEEP_DEPTH = 18;
-
-try {
-  analysisGame = new Chess(boardToFen(boardState));
-} catch {
-  analysisGame = new Chess();
-}
-analysisHistory = [{ fen: boardToFen(boardState), move: null, san: null, color: activeColor }];
-
 let selectedSquare = null;
 let highlightedMoves = [];
 let promotionState = null;
@@ -93,16 +72,6 @@ const puzzleFeedbackEl = document.getElementById('puzzleFeedback');
 const puzzleOverlayEl = document.getElementById('puzzleOverlay');
 const puzzleOverlayTitleEl = document.getElementById('puzzleOverlayTitle');
 const puzzleOverlayActionsEl = document.getElementById('puzzleOverlayActions');
-const analysisBtn = document.getElementById('analysisBtn');
-const analysisStatusEl = document.getElementById('analysisStatus');
-const analysisContentEl = document.getElementById('analysisContent');
-const analysisIndexEl = document.getElementById('analysisIndex');
-const analysisJumpInput = document.getElementById('analysisJump');
-const analysisJumpBtn = document.getElementById('analysisJumpBtn');
-const analysisNavButtons = Array.from(document.querySelectorAll('[data-nav]'));
-const analysisQuickBtn = document.getElementById('analysisQuickBtn');
-const analysisDeepBtn = document.getElementById('analysisDeepBtn');
-const analysisExitBtn = document.getElementById('analysisExitBtn');
 
 const defaultTheme = {
   bg: '#111',
@@ -237,16 +206,6 @@ function loadPositionFromFen(fen){
   boardState = parsed.board;
   activeColor = parsed.active;
   castlingRights = parsed.castling;
-  try {
-    analysisGame = new Chess(fen);
-  } catch (err) {
-    console.error('Не удалось инициализировать PGN-движок', err);
-    analysisGame = new Chess();
-    analysisGame.load(fen);
-  }
-  analysisHistory = [{ fen, move: null, san: null, color: parsed.active }];
-  analysisIndex = analysisHistory.length - 1;
-  analysisCache.clear();
   const hasSolution = puzzleSolutionMoves.length > 0;
   puzzlePlayerColor = parsed.active;
   puzzleMode = hasSolution;
@@ -556,7 +515,6 @@ function selectSquare(r, c){
 }
 
 function handleSquareTap(r, c){
-  if (analysisMode) return;
   if (puzzleMode && !puzzleSolved && activeColor !== puzzlePlayerColor){
     return;
   }
@@ -1102,24 +1060,6 @@ function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null }){
   }
 
   const pieceToPlace = promotionPiece || piece;
-  const moverColor = isWhite(piece) ? 'w' : 'b';
-  let sanNotation = moveKey;
-  if (analysisGame){
-    try {
-      const chessMove = analysisGame.move({
-        from: coordToNotation(fromR, fromC),
-        to: coordToNotation(toR, toC),
-        promotion: promotionPiece ? promotionPiece.toLowerCase() : undefined
-      });
-      if (chessMove?.san) sanNotation = chessMove.san;
-      analysisHistory.push({ fen: analysisGame.fen(), move: moveKey, san: sanNotation, color: moverColor });
-      analysisIndex = analysisHistory.length - 1;
-      analysisCache.clear();
-    } catch (err) {
-      console.warn('PGN move sync error', err);
-    }
-  }
-
   updateCastlingRights(fromR, fromC, toR, toC, piece);
 
   if (isCastlingMove(piece, fromR, fromC, toR, toC)){
@@ -1153,7 +1093,6 @@ function handlePromotionChoice(pieceCode){
 }
 
 function performMove(fromR, fromC, toR, toC){
-  if (analysisMode) return;
   if (!isMoveAllowed(fromR, fromC, toR, toC)) return;
   const piece = boardState[fromR][fromC];
   if (needsPromotion(piece, toR)){
@@ -1188,255 +1127,6 @@ function attemptAutoOpponentMove(){
   setTimeout(() => {
     applyMove({ fromR, fromC, toR, toC, piece, promotionPiece: promoPiece });
   }, 200);
-}
-
-function normalizeScore(score, color){
-  if (!score) return null;
-  const asNumber = score.type === 'mate'
-    ? (score.value > 0 ? 100000 - score.value * 1000 : -100000 - score.value * 1000)
-    : score.value;
-  return color === 'w' ? asNumber : -asNumber;
-}
-
-function classifyDelta(delta){
-  const abs = Math.abs(delta);
-  if (abs < 50) return { label: 'Отлично', variant: 'good' };
-  if (abs < 120) return { label: 'Неточность', variant: 'warn' };
-  if (abs < 250) return { label: 'Ошибка', variant: 'bad' };
-  return { label: 'Зевок', variant: 'bad' };
-}
-
-function formatScore(score){
-  if (!score) return '–';
-  if (score.type === 'mate') return `#${score.value}`;
-  return `${(score.value / 100).toFixed(2)} пеш.`;
-}
-
-function describeDelta(delta){
-  const side = delta > 0 ? 'пользу соперника' : 'вашу пользу';
-  const pawns = Math.abs(delta / 100).toFixed(2);
-  if (Math.abs(delta) < 50) return 'Ход сохраняет баланс.';
-  return `Оценка изменилась на ${pawns} пешек в ${side}.`;
-}
-
-function ensureStockfish(){
-  if (stockfishReady) return Promise.resolve();
-  if (!stockfishWorker){
-    stockfishWorker = new Worker('https://cdn.jsdelivr.net/npm/stockfish@16.1.0/src/stockfish.wasm.js');
-  }
-  return new Promise((resolve) => {
-    const onMessage = (event) => {
-      const text = typeof event.data === 'string' ? event.data : event.data?.data;
-      if (!text) return;
-      if (text.includes('uciok')){
-        stockfishWorker.postMessage('setoption name MultiPV value 3');
-        stockfishWorker.postMessage('setoption name Threads value 2');
-        stockfishWorker.postMessage('isready');
-      }
-      if (text.includes('readyok')){
-        stockfishReady = true;
-        stockfishWorker.removeEventListener('message', onMessage);
-        resolve();
-      }
-    };
-    stockfishWorker.addEventListener('message', onMessage);
-    stockfishWorker.postMessage('uci');
-  });
-}
-
-function analyzeFen(fen, depth = QUICK_DEPTH){
-  return new Promise(async (resolve) => {
-    await ensureStockfish();
-    const cached = analysisCache.get(`${fen}|${depth}`);
-    if (cached) return resolve(cached);
-
-    const lines = new Map();
-    const payload = { depth: 0, bestmove: null, score: null, lines: [] };
-
-    const handler = (event) => {
-      const text = typeof event.data === 'string' ? event.data : event.data?.data;
-      if (!text) return;
-      if (text.startsWith('info ')){
-        const depthMatch = text.match(/\bdepth\s+(\d+)/);
-        const multipvMatch = text.match(/\bmultipv\s+(\d+)/);
-        const scoreMatch = text.match(/\bscore\s+(cp|mate)\s+(-?\d+)/);
-        const pvIndex = text.indexOf(' pv ');
-        const multi = multipvMatch ? Number(multipvMatch[1]) : 1;
-        const pv = pvIndex !== -1 ? text.slice(pvIndex + 4).trim() : '';
-        const depthVal = depthMatch ? Number(depthMatch[1]) : payload.depth;
-        if (scoreMatch){
-          lines.set(multi, {
-            score: { type: scoreMatch[1], value: Number(scoreMatch[2]) },
-            pv,
-            depth: depthVal
-          });
-        }
-      }
-      if (text.startsWith('bestmove')){
-        stockfishWorker.removeEventListener('message', handler);
-        const best = lines.get(1) || null;
-        const sorted = Array.from(lines.entries()).sort((a,b) => a[0]-b[0]).map(([,v]) => v);
-        payload.bestmove = text.split(' ')[1] || null;
-        payload.score = best?.score || null;
-        payload.depth = best?.depth || depth;
-        payload.lines = sorted;
-        analysisCache.set(`${fen}|${depth}`, payload);
-        stockfishBusy = false;
-        if (stockfishQueue.length){
-          const next = stockfishQueue.shift();
-          next();
-        }
-        resolve(payload);
-      }
-    };
-
-    const exec = () => {
-      stockfishBusy = true;
-      stockfishWorker.addEventListener('message', handler);
-      stockfishWorker.postMessage('stop');
-      stockfishWorker.postMessage(`position fen ${fen}`);
-      stockfishWorker.postMessage(`go depth ${depth}`);
-    };
-
-    if (stockfishBusy){
-      stockfishQueue.push(exec);
-    } else {
-      exec();
-    }
-  });
-}
-
-function convertPvToSan(fen, pv){
-  if (!pv) return '';
-  let line = [];
-  try {
-    const game = new Chess(fen);
-    const moves = pv.split(' ').filter(Boolean);
-    for (const move of moves){
-      const sanMove = game.move({
-        from: move.slice(0,2),
-        to: move.slice(2,4),
-        promotion: move.slice(4) || undefined
-      });
-      if (!sanMove) break;
-      line.push(sanMove.san);
-    }
-  } catch (err) {
-    console.warn('PV parse error', err);
-  }
-  return line.join(' ');
-}
-
-function buildAnalysisLine({ label, score, pv, variant = 'good', fen }){
-  const row = document.createElement('div');
-  row.className = 'analysis-line';
-  const title = document.createElement('div');
-  title.innerHTML = `<span class="badge ${variant}">${label}</span> <b>${formatScore(score)}</b>`;
-  const pvSan = convertPvToSan(fen, pv);
-  const pvText = document.createElement('div');
-  pvText.textContent = pvSan || pv || 'Нет данных';
-  pvText.className = 'mono';
-  row.appendChild(title);
-  row.appendChild(pvText);
-  return row;
-}
-
-function updateAnalysisStatus(text){
-  if (analysisStatusEl) analysisStatusEl.textContent = text;
-}
-
-async function showAnalysis(depth = QUICK_DEPTH){
-  if (!analysisMode){
-    enterAnalysisMode();
-  }
-  if (!analysisHistory.length || !analysisContentEl) return;
-  const node = analysisHistory[analysisIndex];
-  const prev = analysisHistory[analysisIndex - 1] || null;
-  if (analysisIndexEl) analysisIndexEl.textContent = `${analysisIndex}/${analysisHistory.length - 1}`;
-  updateAnalysisStatus('Считаем...');
-  analysisContentEl.innerHTML = '';
-  const info = await analyzeFen(node.fen, depth);
-  const lines = info.lines.slice(0,3);
-
-  const best = lines[0];
-  if (best){
-    analysisContentEl.appendChild(buildAnalysisLine({ label: 'Лучший ход', score: best.score, pv: best.pv, variant: 'good', fen: node.fen }));
-  }
-  for (let i=1; i<lines.length; i++){
-    analysisContentEl.appendChild(buildAnalysisLine({ label: `Альтернатива ${i+1}`, score: lines[i].score, pv: lines[i].pv, variant: 'warn', fen: node.fen }));
-  }
-
-  if (prev && node.scoreDelta === undefined){
-    const beforeInfo = await analyzeFen(prev.fen, depth);
-    const moverColor = prev.color;
-    const beforeScore = normalizeScore(beforeInfo.score, moverColor);
-    const afterScore = -normalizeScore(info.score, moverColor === 'w' ? 'b' : 'w');
-    node.scoreDelta = (afterScore ?? 0) - (beforeScore ?? 0);
-  }
-
-  if (prev){
-    const deltaInfo = classifyDelta(node.scoreDelta || 0);
-    const deltaBlock = document.createElement('div');
-    deltaBlock.className = 'analysis-line';
-    deltaBlock.innerHTML = `<div class="badge ${deltaInfo.variant}">${deltaInfo.label}</div>`;
-    const expl = document.createElement('div');
-    expl.className = 'analysis-expl';
-    expl.textContent = describeDelta(node.scoreDelta || 0);
-    deltaBlock.appendChild(expl);
-    analysisContentEl.prepend(deltaBlock);
-  }
-
-  updateAnalysisStatus(`Глубина: ${info.depth}. ${prev ? 'Оценка хода готова.' : 'Начальная позиция.'}`);
-}
-
-function applyFenToBoard(fen){
-  const parsed = parseFenState(fen);
-  boardState = parsed.board;
-  activeColor = parsed.active;
-  castlingRights = parsed.castling;
-  render();
-}
-
-function enterAnalysisMode(){
-  if (analysisMode) return;
-  analysisMode = true;
-  analysisSavedState = {
-    board: cloneBoard(boardState),
-    active: activeColor,
-    castling: JSON.parse(JSON.stringify(castlingRights)),
-    puzzle: { mode: puzzleMode, solved: puzzleSolved, moveIndex: puzzleMoveIndex, status: puzzleStatusEl?.textContent }
-  };
-  if (analysisHistory.length){
-    applyFenToBoard(analysisHistory[analysisIndex].fen);
-  }
-  updateAnalysisStatus('Режим анализа: выберите ход.');
-}
-
-function exitAnalysisMode(){
-  if (!analysisMode) return;
-  analysisMode = false;
-  if (analysisSavedState){
-    boardState = cloneBoard(analysisSavedState.board);
-    activeColor = analysisSavedState.active;
-    castlingRights = JSON.parse(JSON.stringify(analysisSavedState.castling));
-    puzzleMode = analysisSavedState.puzzle.mode;
-    puzzleSolved = analysisSavedState.puzzle.solved;
-    puzzleMoveIndex = analysisSavedState.puzzle.moveIndex;
-    render();
-    updatePuzzleStatus();
-  }
-  analysisSavedState = null;
-  updateAnalysisStatus('Анализ выключен.');
-}
-
-function jumpAnalysis(where){
-  if (!analysisHistory.length) return;
-  if (where === 'start') analysisIndex = 0;
-  if (where === 'end') analysisIndex = analysisHistory.length - 1;
-  if (where === 'prev') analysisIndex = Math.max(0, analysisIndex - 1);
-  if (where === 'next') analysisIndex = Math.min(analysisHistory.length - 1, analysisIndex + 1);
-  applyFenToBoard(analysisHistory[analysisIndex].fen);
-  showAnalysis();
 }
 
 function updateCoordinates(){
@@ -1548,7 +1238,6 @@ function stopManualDrag(){
 }
 
 function onPointerDownManual(e){
-  if (analysisMode) return;
   const pointerType = e.pointerType || 'mouse';
   if (pointerType !== 'touch' && pointerType !== 'pen') return;
 
@@ -1654,7 +1343,6 @@ function onPointerCancelManual(e){
 }
 
 function onDragStart(e){
-  if (analysisMode) return;
   const fromR = Number(e.target.dataset.fromR);
   const fromC = Number(e.target.dataset.fromC);
   const piece = boardState[fromR][fromC];
@@ -1723,8 +1411,6 @@ function onDragLeave(e){
 function onDrop(e){
   e.preventDefault();
   e.currentTarget.classList.remove('drop');
-
-  if (analysisMode) return;
 
   if (puzzleMode && !puzzleSolved && activeColor !== puzzlePlayerColor){
     return;
@@ -1795,40 +1481,6 @@ document.getElementById('puzzleBtn').addEventListener('click', () => {
 promotionButtons.forEach(btn => {
   btn.addEventListener('click', () => handlePromotionChoice(btn.dataset.piece));
 });
-
-if (analysisBtn){
-  analysisBtn.addEventListener('click', () => {
-    enterAnalysisMode();
-    showAnalysis();
-  });
-}
-
-analysisNavButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    jumpAnalysis(btn.dataset.nav);
-  });
-});
-
-if (analysisJumpBtn){
-  analysisJumpBtn.addEventListener('click', () => {
-    const target = Number(analysisJumpInput?.value || 0);
-    if (Number.isFinite(target)){
-      analysisIndex = Math.min(Math.max(0, target), Math.max(0, analysisHistory.length - 1));
-      applyFenToBoard(analysisHistory[analysisIndex]?.fen || boardToFen(boardState));
-      showAnalysis();
-    }
-  });
-}
-
-if (analysisQuickBtn){
-  analysisQuickBtn.addEventListener('click', () => showAnalysis(QUICK_DEPTH));
-}
-if (analysisDeepBtn){
-  analysisDeepBtn.addEventListener('click', () => showAnalysis(DEEP_DEPTH));
-}
-if (analysisExitBtn){
-  analysisExitBtn.addEventListener('click', () => exitAnalysisMode());
-}
 
 preventZoom();
 initTelegram();
