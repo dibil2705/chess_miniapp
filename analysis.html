@@ -564,20 +564,111 @@
       return fallback || 'Неизвестная ошибка';
     }
 
-    async function fetchJson(url, payload){
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const text = await response.text();
-      let data = null;
-      try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
-      if (!response.ok){
-        const detail = extractErrorDetail(data, text || `${response.status} ${response.statusText}`);
-        throw new Error(detail);
+    class StockfishEngine{
+      constructor(){
+        this.worker = null;
+        this.readyPromise = null;
       }
-      return data;
+
+      async ensureReady(){
+        if (this.readyPromise) return this.readyPromise;
+        this.worker = new Worker('engine/stockfish.js');
+        this.readyPromise = new Promise((resolve) => {
+          const handleMessage = (event) => {
+            const text = String(event.data || '');
+            if (text === 'uciok'){
+              this.worker.postMessage('isready');
+            }
+            if (text === 'readyok'){
+              this.worker.removeEventListener('message', handleMessage);
+              resolve();
+            }
+          };
+          this.worker.addEventListener('message', handleMessage);
+          this.worker.postMessage('uci');
+        });
+        return this.readyPromise;
+      }
+
+      parseInfoLine(line, fen){
+        if (!line.startsWith('info')) return null;
+        const parts = line.split(/\s+/);
+        const obj = { multipv: 1, best_move_uci: '', pv_uci: '', pv_san: '', score_cp: null, mate: null };
+        for (let i = 0; i < parts.length; i++){
+          if (parts[i] === 'multipv' && parts[i + 1]) obj.multipv = Number(parts[i + 1]);
+          if (parts[i] === 'score' && parts[i + 1]){
+            if (parts[i + 1] === 'cp' && parts[i + 2]) obj.score_cp = Number(parts[i + 2]);
+            if (parts[i + 1] === 'mate' && parts[i + 2]) obj.mate = Number(parts[i + 2]);
+          }
+          if (parts[i] === 'pv'){
+            const pvMoves = parts.slice(i + 1);
+            obj.pv_uci = pvMoves.join(' ');
+            obj.pv_san = this.pvToSan(pvMoves, fen);
+            break;
+          }
+        }
+        obj.best_move_uci = obj.pv_uci.split(' ')[0] || '';
+        return obj;
+      }
+
+      pvToSan(pvMoves, fen){
+        if (!pvMoves?.length) return '';
+        let sanMoves = [];
+        try {
+          const chess = new Chess(fen);
+          pvMoves.forEach((uci) => {
+            const move = chess.move({ from: uci.slice(0,2), to: uci.slice(2,4), promotion: uci.slice(4) || undefined });
+            if (move?.san) sanMoves.push(move.san);
+          });
+        } catch (_) {}
+        return sanMoves.join(' ');
+      }
+
+      async analyze(fen, { movetime_ms = 250, multipv = 3 } = {}){
+        await this.ensureReady();
+        return new Promise((resolve) => {
+          const lines = new Map();
+          const handleMessage = (event) => {
+            const text = String(event.data || '');
+            if (text.startsWith('info')){
+              const parsed = this.parseInfoLine(text, fen);
+              if (parsed && parsed.multipv) lines.set(parsed.multipv, parsed);
+            }
+            if (text.startsWith('bestmove')){
+              this.worker.removeEventListener('message', handleMessage);
+              const result = Array.from(lines.values()).sort((a, b) => a.multipv - b.multipv);
+              resolve(result);
+            }
+          };
+          this.worker.addEventListener('message', handleMessage);
+          this.worker.postMessage('ucinewgame');
+          this.worker.postMessage(`setoption name MultiPV value ${multipv}`);
+          this.worker.postMessage(`position fen ${fen}`);
+          this.worker.postMessage(`go movetime ${movetime_ms} multipv ${multipv}`);
+        });
+      }
+    }
+
+    const localEngine = new StockfishEngine();
+
+    async function fetchJson(url, payload){
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const text = await response.text();
+        let data = null;
+        try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
+        if (!response.ok){
+          const detail = extractErrorDetail(data, text || `${response.status} ${response.statusText}`);
+          throw new Error(detail);
+        }
+        return data;
+      } catch (err){
+        throw err;
+      }
     }
 
     async function analyzePosition(force = false){
@@ -597,7 +688,14 @@
       refreshBtn.disabled = true;
       try {
         const payload = { fen: currentFen, movetime_ms: 250, multipv: 3, side: 'turn' };
-        const data = await fetchJson(ANALYZE_URL, payload);
+        let data = null;
+        try {
+          data = await fetchJson(ANALYZE_URL, payload);
+        } catch (fetchErr){
+          statusEl.textContent = 'Сервер недоступен, запускаем локальный Stockfish...';
+          const local = await localEngine.analyze(currentFen, payload);
+          data = { lines: local };
+        }
         analyzeCache.set(currentFen, { timestamp: now, data });
         renderAnalysisLines(data?.lines || data?.analysis || [], { fromCache: false });
         applyBestResponse(data?.lines || data?.analysis || []);
@@ -624,7 +722,30 @@
       evaluateBtn.disabled = true;
       try {
         const payload = { fen: currentFen, move_uci: moveUci, movetime_ms: 250, side: 'turn' };
-        const data = await fetchJson(EVAL_URL, payload);
+        let data = null;
+        try {
+          data = await fetchJson(EVAL_URL, payload);
+        } catch (_){
+          const baseLines = await localEngine.analyze(currentFen, { movetime_ms: payload.movetime_ms, multipv: 1 });
+          const chessCopy = new Chess(currentFen);
+          const moveObj = chessCopy.move({ from: moveUci.slice(0,2), to: moveUci.slice(2,4), promotion: moveUci.slice(4) || undefined });
+          if (!moveObj) throw new Error('Ход некорректен для текущего FEN');
+          const afterFen = chessCopy.fen();
+          const afterLines = await localEngine.analyze(afterFen, { movetime_ms: payload.movetime_ms, multipv: 1 });
+          const beforeScore = baseLines?.[0]?.mate !== null && baseLines?.[0]?.mate !== undefined
+            ? (baseLines[0].mate > 0 ? 100000 : -100000)
+            : Number(baseLines?.[0]?.score_cp || 0);
+          const afterScore = afterLines?.[0]?.mate !== null && afterLines?.[0]?.mate !== undefined
+            ? (afterLines[0].mate > 0 ? 100000 : -100000)
+            : Number(afterLines?.[0]?.score_cp || 0);
+          data = {
+            label: afterLines?.[0]?.mate ? `Мат за ${afterLines[0].mate}` : `${(afterScore/100).toFixed(2)} cp`,
+            delta_cp: afterScore - beforeScore,
+            best_move_uci: baseLines?.[0]?.best_move_uci,
+            best_line: baseLines?.[0],
+            after_line: afterLines?.[0],
+          };
+        }
         renderMoveResult(data);
       } catch (err){
         moveStatusEl.textContent = `Ошибка проверки: ${err.message}`;
