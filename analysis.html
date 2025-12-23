@@ -55,6 +55,15 @@
 
     let engine = null;
     let outputLines = [];
+    let uciOkReceived = false;
+    let readyOkReceived = false;
+
+    function startAnalysis(){
+      if (!engine || !fen) return;
+      engine.postMessage(`position fen ${fen}`);
+      engine.postMessage('go depth 15');
+      statusEl.textContent = 'Движок готов. Запускаем анализ...';
+    }
 
     function appendLine(text){
       outputLines.push(text);
@@ -66,7 +75,14 @@
       const raw = event.data && event.data.data ? event.data.data : event.data;
       const message = typeof raw === 'string' ? raw : '';
       if (!message) return;
-      if (message.startsWith('info')){
+      if (message === 'uciok'){
+        uciOkReceived = true;
+        statusEl.textContent = 'Движок инициализирован, проверяем готовность...';
+        engine.postMessage('isready');
+      } else if (message === 'readyok'){
+        readyOkReceived = true;
+        startAnalysis();
+      } else if (message.startsWith('info')){
         const depthMatch = message.match(/depth\s+(\d+)/);
         const scoreMatch = message.match(/score\s+(cp|mate)\s+([-\d]+)/);
         let status = 'Анализируем позицию...';
@@ -103,10 +119,7 @@
         appendLine(String(err.message || err));
       };
       engine.postMessage('uci');
-      engine.postMessage('isready');
-      engine.postMessage(`position fen ${fen}`);
-      engine.postMessage('go depth 15');
-      statusEl.textContent = 'Движок готовится...';
+      statusEl.textContent = 'Инициализация движка...';
     }
 
     startEngine();
