@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <title>Stockfish анализ</title>
+  <style>
+    :root{
+      --bg:#111;
+      --panel:rgba(255,255,255,.06);
+      --border:rgba(255,255,255,.12);
+      --text:#fff;
+    }
+    body{
+      margin:0;
+      padding:16px;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    .wrap{ max-width: 960px; margin:0 auto; display:grid; gap:12px; }
+    .panel{
+      padding:14px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:var(--panel);
+      box-shadow: 0 12px 30px rgba(0,0,0,.35);
+    }
+    h2{ margin:0 0 6px 0; }
+    code{ word-break: break-all; }
+    .status{ opacity:.85; margin:4px 0 0 0; font-size:14px; }
+    pre{ margin:10px 0 0 0; padding:12px; border-radius:10px; border:1px solid var(--border); background: rgba(0,0,0,.35); color: var(--text); overflow:auto; min-height: 160px; }
+    .hint{ font-size: 14px; opacity:.8; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <h2>Stockfish анализ позиции</h2>
+      <p class="hint">Окно анализа открывается из главной доски и использует переданный FEN.</p>
+    </div>
+    <div class="panel">
+      <div><strong>FEN:</strong> <code id="fenText"></code></div>
+      <p id="engineStatus" class="status">Запуск движка...</p>
+      <pre id="analysisOutput" aria-live="polite" aria-atomic="true"></pre>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const fen = params.get('fen');
+    const fenTextEl = document.getElementById('fenText');
+    const statusEl = document.getElementById('engineStatus');
+    const outputEl = document.getElementById('analysisOutput');
+
+    let engine = null;
+    let outputLines = [];
+
+    function appendLine(text){
+      outputLines.push(text);
+      outputLines = outputLines.slice(-14);
+      outputEl.textContent = outputLines.join('\n');
+    }
+
+    function handleEngineMessage(event){
+      const raw = event.data && event.data.data ? event.data.data : event.data;
+      const message = typeof raw === 'string' ? raw : '';
+      if (!message) return;
+      if (message.startsWith('info')){
+        const depthMatch = message.match(/depth\s+(\d+)/);
+        const scoreMatch = message.match(/score\s+(cp|mate)\s+([-\d]+)/);
+        let status = 'Анализируем позицию...';
+        if (depthMatch){
+          status += ` Глубина: ${depthMatch[1]}.`;
+        }
+        if (scoreMatch){
+          const [ , type, value ] = scoreMatch;
+          status += type === 'cp' ? ` Оценка: ${(Number(value)/100).toFixed(2)}.` : ` Мат за ${value}.`;
+        }
+        statusEl.textContent = status;
+      } else if (message.startsWith('bestmove')){
+        statusEl.textContent = `Лучший ход: ${message.split(' ')[1] || ''}`;
+      }
+      appendLine(message);
+    }
+
+    function startEngine(){
+      if (!fen){
+        statusEl.textContent = 'FEN не передан. Вернитесь на главную и откройте анализ заново.';
+        return;
+      }
+      fenTextEl.textContent = fen;
+      try {
+        engine = new Worker('https://cdn.jsdelivr.net/npm/stockfish@16.1.0/src/stockfish.js');
+      } catch (err){
+        statusEl.textContent = 'Не удалось инициализировать движок Stockfish.';
+        appendLine(String(err));
+        return;
+      }
+      engine.onmessage = handleEngineMessage;
+      engine.postMessage('uci');
+      engine.postMessage('isready');
+      engine.postMessage(`position fen ${fen}`);
+      engine.postMessage('go depth 15');
+      statusEl.textContent = 'Движок готовится...';
+    }
+
+    startEngine();
+  </script>
+</body>
+</html>

@@ -62,6 +62,7 @@ const promotionButtons = Array.from(promotionOverlay?.querySelectorAll('.promoti
 const filesBottomEl = document.getElementById('filesBottom');
 const ranksLeftEl = document.getElementById('ranksLeft');
 const puzzleStatusEl = document.getElementById('puzzleStatus');
+const analyzeBtn = document.getElementById('analyzeBtn');
 const puzzleTitleEl = document.getElementById('puzzleTitle');
 const puzzleUrlEl = document.getElementById('puzzleUrl');
 const puzzlePublishEl = document.getElementById('puzzlePublish');
@@ -1474,9 +1475,19 @@ async function fetchRandomPuzzle(){
   }
 }
 
+function openAnalysisPage(){
+  const fen = boardToFen(boardState);
+  const url = `analysis.html?fen=${encodeURIComponent(fen)}`;
+  window.open(url, '_blank');
+}
+
 document.getElementById('puzzleBtn').addEventListener('click', () => {
   fetchRandomPuzzle();
 });
+
+if (analyzeBtn){
+  analyzeBtn.addEventListener('click', openAnalysisPage);
+}
 
 promotionButtons.forEach(btn => {
   btn.addEventListener('click', () => handlePromotionChoice(btn.dataset.piece));
