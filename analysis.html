@@ -3,8 +3,6 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
-  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin" />
-  <meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp" />
   <title>Stockfish анализ</title>
   <style>
     :root{
@@ -31,141 +29,215 @@
     h2{ margin:0 0 6px 0; }
     code{ word-break: break-all; }
     .status{ opacity:.85; margin:4px 0 0 0; font-size:14px; }
-    pre{ margin:10px 0 0 0; padding:12px; border-radius:10px; border:1px solid var(--border); background: rgba(0,0,0,.35); color: var(--text); overflow:auto; min-height: 160px; }
-    .hint{ font-size: 14px; opacity:.8; margin: 0; }
+    .list{ margin:10px 0 0 0; padding:0; list-style:none; display:grid; gap:10px; }
+    .list li{ border:1px solid var(--border); border-radius:10px; padding:10px; background: rgba(0,0,0,.35); }
+    .actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .btn{ cursor:pointer; border:1px solid var(--border); background:rgba(255,255,255,.08); color:var(--text); padding:10px 14px; border-radius:10px; font-weight:600; }
+    .btn:disabled{ opacity:.5; cursor:not-allowed; }
+    .field{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+    .field input{ flex:1 1 240px; padding:10px; border-radius:10px; border:1px solid var(--border); background:rgba(0,0,0,.35); color:var(--text); }
+    .mono{ font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div>
       <h2>Stockfish анализ позиции</h2>
-      <p class="hint">Окно анализа открывается из главной доски и использует переданный FEN.</p>
+      <p class="status">Окно анализа открывается из главной доски и использует переданный FEN.</p>
     </div>
+
     <div class="panel">
       <div><strong>FEN:</strong> <code id="fenText"></code></div>
-      <p id="engineStatus" class="status">Запуск движка...</p>
-      <pre id="analysisOutput" aria-live="polite" aria-atomic="true"></pre>
+      <div class="actions">
+        <button class="btn" id="refreshBtn">Обновить анализ</button>
+      </div>
+      <p id="engineStatus" class="status">Готовимся к анализу...</p>
+      <ul id="analysisList" class="list" aria-live="polite" aria-atomic="true"></ul>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0">Проверка хода</h3>
+      <p class="status">Введите ход в формате UCI или передайте его из основной доски.</p>
+      <div class="field">
+        <input id="moveInput" type="text" inputmode="text" autocomplete="off" placeholder="Например: e2e4" />
+        <button class="btn" id="evaluateBtn">Проверить</button>
+      </div>
+      <div id="moveStatus" class="status" style="margin-top:8px"></div>
+      <ul id="moveDetails" class="list"></ul>
     </div>
   </div>
 
   <script>
     const params = new URLSearchParams(window.location.search);
     const fen = params.get('fen');
+    const moveFromQuery = params.get('move') || '';
+
     const fenTextEl = document.getElementById('fenText');
     const statusEl = document.getElementById('engineStatus');
-    const outputEl = document.getElementById('analysisOutput');
+    const analysisListEl = document.getElementById('analysisList');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const moveInput = document.getElementById('moveInput');
+    const evaluateBtn = document.getElementById('evaluateBtn');
+    const moveStatusEl = document.getElementById('moveStatus');
+    const moveDetailsEl = document.getElementById('moveDetails');
 
-    let engine = null;
-    let outputLines = [];
-    let uciOkReceived = false;
-    let readyOkReceived = false;
+    const ANALYZE_URL = 'http://127.0.0.1:8000/analyze';
+    const EVAL_URL = 'http://127.0.0.1:8000/evaluate_move';
+    const CACHE_TTL_MS = 10_000;
+    const analyzeCache = new Map();
 
-    function startAnalysis(){
-      if (!engine || !fen) return;
-      engine.postMessage(`position fen ${fen}`);
-      engine.postMessage('go depth 15');
-      statusEl.textContent = 'Движок готов. Запускаем анализ...';
-    }
-
-    function appendLine(text){
-      outputLines.push(text);
-      outputLines = outputLines.slice(-14);
-      outputEl.textContent = outputLines.join('\n');
-    }
-
-    function handleEngineMessage(event){
-      const raw = event.data && event.data.data ? event.data.data : event.data;
-      const text = String(raw || '');
-
-      text
-        .split(/\r?\n/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .forEach((line) => {
-          if (line === 'uciok'){
-            uciOkReceived = true;
-            statusEl.textContent = 'Движок инициализирован, проверяем готовность...';
-            engine.postMessage('isready');
-          } else if (line === 'readyok'){
-            readyOkReceived = true;
-            startAnalysis();
-          } else if (line.startsWith('info')){
-            const depthMatch = line.match(/depth\s+(\d+)/);
-            const scoreMatch = line.match(/score\s+(cp|mate)\s+([-\d]+)/);
-            let status = 'Анализируем позицию...';
-            if (depthMatch){
-              status += ` Глубина: ${depthMatch[1]}.`;
-            }
-            if (scoreMatch){
-              const [ , type, value ] = scoreMatch;
-              status += type === 'cp' ? ` Оценка: ${(Number(value)/100).toFixed(2)}.` : ` Мат за ${value}.`;
-            }
-            statusEl.textContent = status;
-          } else if (line.startsWith('bestmove')){
-            statusEl.textContent = `Лучший ход: ${line.split(' ')[1] || ''}`;
-          }
-          appendLine(line);
-        });
-    }
-
-    async function checkEngineAvailability(){
-      try {
-        const response = await fetch('engine/stockfish.js', { method: 'HEAD' });
-        if (!response.ok){
-          appendLine(`HEAD /engine/stockfish.js -> ${response.status} ${response.statusText}`);
-          statusEl.textContent = `Не удалось загрузить stockfish.js: ${response.status} ${response.statusText}`;
-          return false;
-        }
-
-        appendLine(`engine/stockfish.js доступен (${response.status}). content-type: ${response.headers.get('content-type') || 'нет данных'}`);
-        return true;
-      } catch (err){
-        statusEl.textContent = 'Ошибка при запросе stockfish.js. Проверьте путь к файлу.';
-        appendLine(String(err));
-        return false;
+    function renderAnalysisLines(lines = [], { fromCache = false } = {}){
+      analysisListEl.innerHTML = '';
+      if (!lines.length){
+        const empty = document.createElement('li');
+        empty.textContent = 'Нет данных анализа';
+        analysisListEl.appendChild(empty);
+        return;
       }
+      lines.slice(0, 3).forEach((line, idx) => {
+        const li = document.createElement('li');
+        const title = document.createElement('div');
+        title.innerHTML = `<strong>#${idx + 1}</strong> ${line.best_move_uci || '—'}`;
+        const scoreText = line.mate !== undefined && line.mate !== null
+          ? `Мат за ${line.mate}`
+          : (line.score_cp !== undefined && line.score_cp !== null ? `${(Number(line.score_cp) / 100).toFixed(2)} cp` : '—');
+        const score = document.createElement('div');
+        score.innerHTML = `<span class="mono">${scoreText}</span>`;
+        const pv = document.createElement('div');
+        pv.textContent = line.pv_san || '—';
+        pv.classList.add('mono');
+        li.appendChild(title);
+        li.appendChild(score);
+        li.appendChild(pv);
+        analysisListEl.appendChild(li);
+      });
+      statusEl.textContent = fromCache ? 'Показан кешированный анализ (до 10 секунд).' : 'Анализ обновлён.';
     }
 
-    async function startEngine(){
+    function renderMoveResult(data){
+      moveDetailsEl.innerHTML = '';
+      if (!data){
+        moveStatusEl.textContent = 'Нет данных по ходу.';
+        return;
+      }
+      moveStatusEl.textContent = `Оценка: ${data.label || '—'}`;
+      const rows = [
+        { label: 'Дельта (cp)', value: data.delta_cp },
+        { label: 'Лучший ход', value: data.best_move_uci },
+        { label: 'Лучшая линия', value: data.best_line?.pv_san },
+        { label: 'Линия после хода', value: data.after_line?.pv_san },
+      ];
+      rows.forEach((row) => {
+        const li = document.createElement('li');
+        const title = document.createElement('div');
+        title.innerHTML = `<strong>${row.label}</strong>`;
+        const value = document.createElement('div');
+        value.textContent = row.value !== undefined && row.value !== null ? row.value : '—';
+        value.classList.add('mono');
+        li.appendChild(title);
+        li.appendChild(value);
+        moveDetailsEl.appendChild(li);
+      });
+    }
+
+    function extractErrorDetail(errObj, fallback){
+      if (errObj && typeof errObj === 'object' && 'detail' in errObj){
+        if (typeof errObj.detail === 'string') return errObj.detail;
+        try { return JSON.stringify(errObj.detail); } catch (_) {}
+      }
+      return fallback || 'Неизвестная ошибка';
+    }
+
+    async function fetchJson(url, payload){
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const text = await response.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
+      if (!response.ok){
+        const detail = extractErrorDetail(data, text || `${response.status} ${response.statusText}`);
+        throw new Error(detail);
+      }
+      return data;
+    }
+
+    async function analyzePosition(force = false){
       if (!fen){
         statusEl.textContent = 'FEN не передан. Вернитесь на главную и откройте анализ заново.';
         return;
       }
-      if (typeof Worker === 'undefined'){
-        statusEl.textContent = 'Браузер не поддерживает Web Worker.';
-        appendLine('Worker API недоступен.');
-        return;
-      }
-      fenTextEl.textContent = fen;
-      const available = await checkEngineAvailability();
-      if (!available) return;
-      try {
-        engine = new Worker('engine/stockfish.js');
-      } catch (err){
-        statusEl.textContent = 'Не удалось инициализировать движок Stockfish.';
-        appendLine(String(err));
-        return;
-      }
-      engine.onmessage = handleEngineMessage;
-      engine.onmessageerror = (err) => {
-        appendLine(`MessageError: ${err.message || err}`);
-      };
-      engine.onerror = (err) => {
-        statusEl.textContent = 'Ошибка в работе движка Stockfish.';
-        appendLine(String(err.message || err));
-      };
-      engine.postMessage('uci');
-      statusEl.textContent = 'Инициализация движка...';
 
-      setTimeout(() => {
-        if (!uciOkReceived){
-          appendLine('Не получили ответ uciok. Проверьте, что engine/stockfish.js загружается без 404/блокировки CORS.');
-          statusEl.textContent = 'Движок не ответил. Проверьте загрузку stockfish.js.';
-        }
-      }, 10000);
+      const cached = analyzeCache.get(fen);
+      const now = Date.now();
+      if (!force && cached && now - cached.timestamp < CACHE_TTL_MS){
+        renderAnalysisLines(cached.data?.lines || [], { fromCache: true });
+        return;
+      }
+
+      statusEl.textContent = 'Запрашиваем анализ у сервера...';
+      refreshBtn.disabled = true;
+      try {
+        const payload = { fen, movetime_ms: 250, multipv: 3, side: 'turn' };
+        const data = await fetchJson(ANALYZE_URL, payload);
+        analyzeCache.set(fen, { timestamp: now, data });
+        renderAnalysisLines(data?.lines || data?.analysis || [], { fromCache: false });
+      } catch (err){
+        statusEl.textContent = `Ошибка анализа: ${err.message}`;
+        analysisListEl.innerHTML = '';
+      } finally {
+        refreshBtn.disabled = false;
+      }
     }
 
-    startEngine();
+    async function evaluateMove(moveUci){
+      if (!fen){
+        moveStatusEl.textContent = 'FEN не передан. Вернитесь на главную и откройте анализ заново.';
+        return;
+      }
+      if (!moveUci){
+        moveStatusEl.textContent = 'Введите ход в формате UCI.';
+        return;
+      }
+
+      moveStatusEl.textContent = 'Отправляем ход на проверку...';
+      evaluateBtn.disabled = true;
+      try {
+        const payload = { fen, move_uci: moveUci, movetime_ms: 250, side: 'turn' };
+        const data = await fetchJson(EVAL_URL, payload);
+        renderMoveResult(data);
+      } catch (err){
+        moveStatusEl.textContent = `Ошибка проверки: ${err.message}`;
+        moveDetailsEl.innerHTML = '';
+      } finally {
+        evaluateBtn.disabled = false;
+      }
+    }
+
+    function handleIncomingMove(event){
+      const data = event?.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'evaluate-move' && data.move_uci){
+        moveInput.value = data.move_uci;
+        evaluateMove(data.move_uci);
+      }
+    }
+
+    function init(){
+      fenTextEl.textContent = fen || '—';
+      moveInput.value = moveFromQuery;
+      analyzePosition();
+      refreshBtn.addEventListener('click', () => analyzePosition(true));
+      evaluateBtn.addEventListener('click', () => evaluateMove(moveInput.value.trim()));
+      window.addEventListener('message', handleIncomingMove);
+      if (moveFromQuery){
+        evaluateMove(moveFromQuery);
+      }
+    }
+
+    init();
   </script>
 </body>
 </html>
