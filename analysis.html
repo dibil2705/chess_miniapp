@@ -102,13 +102,27 @@
 
     async function checkEngineAvailability(){
       try {
-        const response = await fetch('engine/stockfish.js', { method: 'HEAD' });
-        if (!response.ok){
-          statusEl.textContent = `Не удалось загрузить stockfish.js: ${response.status} ${response.statusText}`;
-          appendLine(`HEAD /engine/stockfish.js -> ${response.status} ${response.statusText}`);
+        const check = async (path) => {
+          const response = await fetch(path, { method: 'HEAD' });
+          if (!response.ok){
+            appendLine(`HEAD /${path} -> ${response.status} ${response.statusText}`);
+            return { ok: false, status: response.status, statusText: response.statusText, path };
+          }
+          appendLine(`${path} доступен (${response.status}). content-type: ${response.headers.get('content-type') || 'нет данных'}`);
+          return { ok: true };
+        };
+
+        const scriptOk = await check('engine/stockfish.js');
+        const wasmOk = await check('engine/stockfish.wasm');
+
+        if (!scriptOk.ok){
+          statusEl.textContent = `Не удалось загрузить stockfish.js: ${scriptOk.status} ${scriptOk.statusText}`;
           return false;
         }
-        appendLine(`stockfish.js доступен (${response.status}). content-type: ${response.headers.get('content-type') || 'нет данных'}`);
+        if (!wasmOk.ok){
+          statusEl.textContent = `Не удалось загрузить stockfish.wasm: ${wasmOk.status} ${wasmOk.statusText}`;
+          return false;
+        }
         return true;
       } catch (err){
         statusEl.textContent = 'Ошибка при запросе stockfish.js. Проверьте путь к файлу.';
@@ -121,6 +135,9 @@
       if (!fen){
         statusEl.textContent = 'FEN не передан. Вернитесь на главную и откройте анализ заново.';
         return;
+      }
+      if (!crossOriginIsolated){
+        appendLine('SharedArrayBuffer недоступен. Убедитесь, что страница отдается с заголовками COOP/COEP (same-origin / require-corp).');
       }
       if (typeof Worker === 'undefined'){
         statusEl.textContent = 'Браузер не поддерживает Web Worker.';
@@ -150,9 +167,10 @@
 
       setTimeout(() => {
         if (!uciOkReceived){
-          appendLine('Не получили ответ uciok. Проверьте, что engine/stockfish.js загружается без 404/блокировки CORS.');
+          appendLine('Не получили ответ uciok. Проверьте, что engine/stockfish.js загружается без 404/блокировки CORS и что движку доступен stockfish.wasm.');
+          statusEl.textContent = 'Движок не ответил. Проверьте загрузку stockfish.js/stockfish.wasm и заголовки COOP/COEP.';
         }
-      }, 5000);
+      }, 10000);
     }
 
     startEngine();
