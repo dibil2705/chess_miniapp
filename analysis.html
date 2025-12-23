@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Stockfish анализ</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0/chess.min.js"></script>
   <style>
     :root{
       --dark:#769656;
@@ -290,6 +291,8 @@
     let activeColor = 'w';
     let fullmove = 1;
     let selectedSq = null;
+    let chess = null;
+    let autoReplyPending = false;
 
     function renderAnalysisLines(lines = [], { fromCache = false } = {}){
       analysisListEl.innerHTML = '';
@@ -552,9 +555,17 @@
       try {
         const payload = { fen: currentFen, movetime_ms: 250, multipv: 3, side: 'turn' };
         const data = await fetchJson(ANALYZE_URL, payload);
-        analyzeCache.set(currentFen, { timestamp: now, data });
-        renderAnalysisLines(data?.lines || data?.analysis || [], { fromCache: false });
-        pushAnalysisHistory(currentFen, data?.lines || data?.analysis || []);
+        const lines = data?.lines || data?.analysis || [];
+        analyzeCache.set(currentFen, { timestamp: now, data: { lines } });
+        renderAnalysisLines(lines, { fromCache: false });
+        pushAnalysisHistory(currentFen, lines);
+        if (autoReplyPending){
+          const bestMove = lines?.[0]?.best_move_uci;
+          if (bestMove) {
+            playBestMove(bestMove);
+          }
+          autoReplyPending = false;
+        }
       } catch (err){
         statusEl.textContent = `Ошибка анализа: ${err.message}`;
         analysisListEl.innerHTML = '';
@@ -637,36 +648,62 @@
       boardState[rankIdx][fileIdx] = value;
     }
 
-    function handleSquareClick(square){
-      const piece = getPieceAt(square);
-      if (selectedSq && selectedSq !== square){
-        const fromPiece = getPieceAt(selectedSq);
-        if (fromPiece){
-          setPieceAt(square, fromPiece);
-          setPieceAt(selectedSq, '');
-          selectedSq = null;
-          activeColor = activeColor === 'w' ? 'b' : 'w';
-          if (activeColor === 'w') fullmove += 1;
-          currentFen = boardToFen(boardState, activeColor, fullmove);
-          fenTextEl.textContent = currentFen;
-          renderBoardFromFen(currentFen);
-          analyzePosition(true);
-          return;
-        }
-      }
-      selectedSq = piece ? square : null;
-      renderBoardFromFen(currentFen);
+    function pieceColor(piece){
+      if (!piece) return null;
+      return /[PNBRQK]/.test(piece) ? 'w' : 'b';
     }
 
-    function init(){
-      currentFen = initialFen || '8/8/8/8/8/8/8/8 w - - 0 1';
+    function syncFromChess(){
+      if (!chess) return;
+      currentFen = chess.fen();
       const parsed = parseFenState(currentFen);
       boardState = parsed.board;
       activeColor = parsed.active;
       fullmove = parsed.fullmove;
       fenTextEl.textContent = currentFen || '—';
-      renderBoardCoords();
       renderBoardFromFen(currentFen);
+    }
+
+    function playBestMove(bestMoveUci){
+      if (!bestMoveUci || !chess) return;
+      const move = chess.move({ from: bestMoveUci.slice(0,2), to: bestMoveUci.slice(2,4), promotion: bestMoveUci[4] || 'q' });
+      if (!move) return;
+      syncFromChess();
+      analyzePosition(true);
+    }
+
+    function handleSquareClick(square){
+      const piece = getPieceAt(square);
+      const turn = chess?.turn?.() || activeColor;
+
+      if (selectedSq && selectedSq !== square){
+        const move = chess?.move({ from: selectedSq, to: square, promotion: 'q' });
+        if (move){
+          selectedSq = null;
+          autoReplyPending = true;
+          syncFromChess();
+          analyzePosition(true);
+          return;
+        }
+      }
+
+      if (piece && pieceColor(piece) === turn){
+        selectedSq = square;
+      } else {
+        selectedSq = null;
+      }
+      renderBoardFromFen(currentFen);
+    }
+
+    function init(){
+      currentFen = initialFen || '8/8/8/8/8/8/8/8 w - - 0 1';
+      try {
+        chess = new Chess(currentFen);
+      } catch (_) {
+        chess = new Chess('8/8/8/8/8/8/8/8 w - - 0 1');
+      }
+      syncFromChess();
+      renderBoardCoords();
       moveInput.value = moveFromQuery;
       analyzePosition();
       refreshBtn.addEventListener('click', () => analyzePosition(true));
