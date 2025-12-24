@@ -236,6 +236,7 @@
           <div id="filesBottom" class="coord-files"></div>
         </div>
         <div class="status mono" id="boardFen"></div>
+        <div class="status" id="boardStatus">Выберите фигуру текущего цвета, чтобы сделать ход.</div>
         <div class="history-bar">
           <div class="history-head">
             <div>
@@ -311,6 +312,7 @@
     const boardSquaresEl = document.getElementById('boardSquares');
     const arrowsEl = document.getElementById('boardArrows');
     const boardFenEl = document.getElementById('boardFen');
+    const boardStatusEl = document.getElementById('boardStatus');
     const filesBottomEl = document.getElementById('filesBottom');
     const ranksLeftEl = document.getElementById('ranksLeft');
     const evalFillEl = document.getElementById('evalFill');
@@ -670,6 +672,160 @@
       renderHistory();
     }
 
+    function setBoardStatus(message){
+      if (boardStatusEl) boardStatusEl.textContent = message;
+    }
+
+    function getPieceColor(piece){
+      if (!piece) return null;
+      return /[A-Z]/.test(piece) ? 'w' : 'b';
+    }
+
+    function isSameColor(pieceA, pieceB){
+      if (!pieceA || !pieceB) return false;
+      return getPieceColor(pieceA) === getPieceColor(pieceB);
+    }
+
+    function squareToIndices(square){
+      const fileIdx = files.indexOf(square[0]);
+      const rankIdx = ranks.indexOf(square[1]);
+      return { fileIdx, rankIdx };
+    }
+
+    function isInsideBoard(rankIdx, fileIdx){
+      return rankIdx >= 0 && rankIdx < 8 && fileIdx >= 0 && fileIdx < 8;
+    }
+
+    function isPathClear(board, fromRank, fromFile, toRank, toFile){
+      const stepRank = Math.sign(toRank - fromRank);
+      const stepFile = Math.sign(toFile - fromFile);
+      let r = fromRank + stepRank;
+      let f = fromFile + stepFile;
+      while (r !== toRank || f !== toFile){
+        if (board[r][f]) return false;
+        r += stepRank;
+        f += stepFile;
+      }
+      return true;
+    }
+
+    function isLegalPieceMove(piece, fromSquare, toSquare, board){
+      if (!piece || fromSquare === toSquare) return false;
+      const { fileIdx: fromFile, rankIdx: fromRank } = squareToIndices(fromSquare);
+      const { fileIdx: toFile, rankIdx: toRank } = squareToIndices(toSquare);
+      if (!isInsideBoard(fromRank, fromFile) || !isInsideBoard(toRank, toFile)) return false;
+
+      const color = getPieceColor(piece);
+      const target = board[toRank]?.[toFile];
+      if (target && isSameColor(piece, target)) return false;
+
+      const deltaFile = toFile - fromFile;
+      const deltaRank = toRank - fromRank;
+      const absFile = Math.abs(deltaFile);
+      const absRank = Math.abs(deltaRank);
+      const upper = piece.toUpperCase();
+
+      if (upper === 'P'){
+        const dir = color === 'w' ? -1 : 1;
+        const startRank = color === 'w' ? 6 : 1;
+        if (deltaFile === 0){
+          if (deltaRank === dir && !target) return true;
+          if (fromRank === startRank && deltaRank === 2 * dir && !target){
+            const betweenRank = fromRank + dir;
+            if (!board[betweenRank]?.[fromFile]) return true;
+          }
+        } else if (absFile === 1 && deltaRank === dir){
+          if (target && !isSameColor(piece, target)) return true;
+        }
+        return false;
+      }
+
+      if (upper === 'N'){
+        return (absFile === 1 && absRank === 2) || (absFile === 2 && absRank === 1);
+      }
+
+      if (upper === 'B'){
+        return absFile === absRank && isPathClear(board, fromRank, fromFile, toRank, toFile);
+      }
+
+      if (upper === 'R'){
+        return (absFile === 0 || absRank === 0) && isPathClear(board, fromRank, fromFile, toRank, toFile);
+      }
+
+      if (upper === 'Q'){
+        const isDiagonal = absFile === absRank;
+        const isStraight = absFile === 0 || absRank === 0;
+        return (isDiagonal || isStraight) && isPathClear(board, fromRank, fromFile, toRank, toFile);
+      }
+
+      if (upper === 'K'){
+        return absFile <= 1 && absRank <= 1;
+      }
+
+      return false;
+    }
+
+    function findKing(color, board){
+      const king = color === 'w' ? 'K' : 'k';
+      for (let r = 0; r < 8; r++){
+        for (let f = 0; f < 8; f++){
+          if (board[r]?.[f] === king) return { rankIdx: r, fileIdx: f };
+        }
+      }
+      return null;
+    }
+
+    function isSquareAttacked(targetSquare, color, board){
+      const { fileIdx: targetFile, rankIdx: targetRank } = squareToIndices(targetSquare);
+      if (!isInsideBoard(targetRank, targetFile)) return false;
+      const opponentColor = color === 'w' ? 'b' : 'w';
+      for (let r = 0; r < 8; r++){
+        for (let f = 0; f < 8; f++){
+          const piece = board[r]?.[f];
+          if (!piece || getPieceColor(piece) !== opponentColor) continue;
+          const upper = piece.toUpperCase();
+          if (upper === 'P'){
+            const dir = opponentColor === 'w' ? -1 : 1;
+            if (targetRank === r + dir && Math.abs(targetFile - f) === 1) return true;
+            continue;
+          }
+          if (upper === 'N'){
+            const df = Math.abs(targetFile - f);
+            const dr = Math.abs(targetRank - r);
+            if ((df === 1 && dr === 2) || (df === 2 && dr === 1)) return true;
+            continue;
+          }
+          if (upper === 'K'){
+            if (Math.abs(targetFile - f) <= 1 && Math.abs(targetRank - r) <= 1) return true;
+            continue;
+          }
+          if (upper === 'B' || upper === 'Q'){
+            if (Math.abs(targetFile - f) === Math.abs(targetRank - r) && isPathClear(board, r, f, targetRank, targetFile)) return true;
+          }
+          if (upper === 'R' || upper === 'Q'){
+            const sameFile = targetFile === f;
+            const sameRank = targetRank === r;
+            if ((sameFile || sameRank) && isPathClear(board, r, f, targetRank, targetFile)) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function wouldLeaveKingInCheck(fromSquare, toSquare, piece){
+      const { fileIdx: fromFile, rankIdx: fromRank } = squareToIndices(fromSquare);
+      const { fileIdx: toFile, rankIdx: toRank } = squareToIndices(toSquare);
+      if (!isInsideBoard(fromRank, fromFile) || !isInsideBoard(toRank, toFile)) return true;
+      const simulated = boardState.map((row) => row.slice());
+      simulated[toRank][toFile] = piece;
+      simulated[fromRank][fromFile] = '';
+      const color = getPieceColor(piece);
+      const kingPos = findKing(color, simulated);
+      if (!kingPos) return false;
+      const kingSquare = `${files[kingPos.fileIdx]}${ranks[kingPos.rankIdx]}`;
+      return isSquareAttacked(kingSquare, color, simulated);
+    }
+
     function getPieceAt(square){
       const fileIdx = files.indexOf(square[0]);
       const rankIdx = ranks.indexOf(square[1]);
@@ -686,22 +842,62 @@
 
     function handleSquareClick(square){
       const piece = getPieceAt(square);
-      if (selectedSq && selectedSq !== square){
-        const fromPiece = getPieceAt(selectedSq);
-        if (fromPiece){
-          setPieceAt(square, fromPiece);
-          setPieceAt(selectedSq, '');
+      if (selectedSq){
+        if (selectedSq === square){
           selectedSq = null;
-          activeColor = activeColor === 'w' ? 'b' : 'w';
-          if (activeColor === 'w') fullmove += 1;
-          currentFen = boardToFen(boardState, activeColor, fullmove);
-          fenTextEl.textContent = currentFen;
+          setBoardStatus('Выбор фигуры отменён.');
           renderBoardFromFen(currentFen);
-          analyzePosition(true);
           return;
         }
+        const movingPiece = getPieceAt(selectedSq);
+        if (!movingPiece){
+          selectedSq = null;
+          renderBoardFromFen(currentFen);
+          return;
+        }
+        if (getPieceColor(movingPiece) !== activeColor){
+          setBoardStatus('Сейчас ход другого цвета.');
+          selectedSq = null;
+          renderBoardFromFen(currentFen);
+          return;
+        }
+        if (!isLegalPieceMove(movingPiece, selectedSq, square, boardState)){
+          if (piece && getPieceColor(piece) === activeColor){
+            selectedSq = square;
+            setBoardStatus('Выбрана другая фигура того же цвета.');
+          } else {
+            setBoardStatus('Такой ход не разрешён правилами.');
+          }
+          renderBoardFromFen(currentFen);
+          return;
+        }
+        if (wouldLeaveKingInCheck(selectedSq, square, movingPiece)){
+          setBoardStatus('Ход оставляет короля под боем.');
+          renderBoardFromFen(currentFen);
+          return;
+        }
+        setPieceAt(square, movingPiece);
+        setPieceAt(selectedSq, '');
+        selectedSq = null;
+        activeColor = activeColor === 'w' ? 'b' : 'w';
+        if (activeColor === 'w') fullmove += 1;
+        currentFen = boardToFen(boardState, activeColor, fullmove);
+        fenTextEl.textContent = currentFen;
+        renderBoardFromFen(currentFen);
+        analyzePosition(true);
+        setBoardStatus('Ход выполнен.');
+        return;
       }
-      selectedSq = piece ? square : null;
+      if (piece && getPieceColor(piece) === activeColor){
+        selectedSq = square;
+        setBoardStatus('Выбрана фигура для хода.');
+      } else if (piece){
+        setBoardStatus('Сейчас ход другого цвета.');
+        selectedSq = null;
+      } else {
+        setBoardStatus('Пустая клетка. Выберите фигуру.');
+        selectedSq = null;
+      }
       renderBoardFromFen(currentFen);
     }
 
@@ -711,6 +907,7 @@
       boardState = parsed.board;
       activeColor = parsed.active;
       fullmove = parsed.fullmove;
+      setBoardStatus(`Ход ${activeColor === 'w' ? 'белых' : 'чёрных'}. Выберите фигуру.`);
       fenTextEl.textContent = currentFen || '—';
       renderBoardCoords();
       renderBoardFromFen(currentFen);
