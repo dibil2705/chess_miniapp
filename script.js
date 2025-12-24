@@ -1481,17 +1481,7 @@ async function fetchRandomPuzzle(){
 function openAnalysisPage(){
   const fen = boardToFen(boardState);
   const url = `analysis.html?fen=${encodeURIComponent(fen)}`;
-  if (analysisFrameEl){
-    if (analysisFrameEl.dataset.loadedUrl !== url){
-      analysisFrameEl.src = url;
-      analysisFrameEl.dataset.loadedUrl = url;
-    }
-  }
-  if (analysisOverlayEl){
-    analysisOverlayEl.classList.add('active');
-    document.body.classList.add('no-scroll');
-    analysisOverlayEl.focus?.();
-  }
+  window.location.href = url;
 }
 
 function closeAnalysisOverlay(){
