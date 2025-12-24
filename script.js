@@ -45,7 +45,6 @@ let puzzleStartFen = null;
 let puzzlePlayerColor = null;
 let puzzleSolutionTargetFen = null;
 let puzzleLoading = false;
-let analysisWindow = null;
 
 function getExpectedMoveColor(moveIndex){
   const opponentColor = puzzlePlayerColor === 'w' ? 'b' : 'w';
@@ -74,6 +73,9 @@ const puzzleFeedbackEl = document.getElementById('puzzleFeedback');
 const puzzleOverlayEl = document.getElementById('puzzleOverlay');
 const puzzleOverlayTitleEl = document.getElementById('puzzleOverlayTitle');
 const puzzleOverlayActionsEl = document.getElementById('puzzleOverlayActions');
+const analysisOverlayEl = document.getElementById('analysisOverlay');
+const analysisFrameEl = document.getElementById('analysisFrame');
+const closeAnalysisBtn = document.getElementById('closeAnalysisBtn');
 
 const defaultTheme = {
   bg: '#111',
@@ -1479,12 +1481,24 @@ async function fetchRandomPuzzle(){
 function openAnalysisPage(){
   const fen = boardToFen(boardState);
   const url = `analysis.html?fen=${encodeURIComponent(fen)}`;
-  if (analysisWindow && !analysisWindow.closed){
-    analysisWindow.location.href = url;
-    analysisWindow.focus();
-  } else {
-    analysisWindow = window.open(url, '_blank');
+  if (analysisFrameEl){
+    if (analysisFrameEl.dataset.loadedUrl !== url){
+      analysisFrameEl.src = url;
+      analysisFrameEl.dataset.loadedUrl = url;
+    }
   }
+  if (analysisOverlayEl){
+    analysisOverlayEl.classList.add('active');
+    document.body.classList.add('no-scroll');
+    analysisOverlayEl.focus?.();
+  }
+}
+
+function closeAnalysisOverlay(){
+  if (analysisOverlayEl){
+    analysisOverlayEl.classList.remove('active');
+  }
+  document.body.classList.remove('no-scroll');
 }
 
 document.getElementById('puzzleBtn').addEventListener('click', () => {
@@ -1493,6 +1507,23 @@ document.getElementById('puzzleBtn').addEventListener('click', () => {
 
 if (analyzeBtn){
   analyzeBtn.addEventListener('click', openAnalysisPage);
+}
+
+if (closeAnalysisBtn){
+  closeAnalysisBtn.addEventListener('click', closeAnalysisOverlay);
+}
+
+if (analysisOverlayEl){
+  analysisOverlayEl.addEventListener('click', (event) => {
+    if (event.target === analysisOverlayEl){
+      closeAnalysisOverlay();
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && analysisOverlayEl.classList.contains('active')){
+      closeAnalysisOverlay();
+    }
+  });
 }
 
 promotionButtons.forEach(btn => {
