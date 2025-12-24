@@ -310,6 +310,45 @@
     .move-col.is-active::after{ opacity:1; box-shadow: inset 0 0 0 1px rgba(108,207,112,.45); }
     .move-col.is-empty{ opacity:.45; font-weight:500; }
     .history-empty{ opacity:.7; font-size:14px; padding:4px 0 2px; }
+    .promotion-overlay{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      padding: 20px;
+    }
+    .promotion-overlay.active{ display:flex; }
+    .promotion-dialog{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      max-width: 320px;
+      width: 100%;
+      box-shadow: 0 14px 36px rgba(0,0,0,.4);
+    }
+    .promotion-title{ margin: 0 0 12px 0; font-weight: 700; }
+    .promotion-grid{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+    }
+    .promotion-btn{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 12px;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .promotion-btn:active{ transform: translateY(1px); }
+    .promotion-icon{ width: 36px; height: 36px; }
   </style>
 </head>
 <body>
@@ -381,6 +420,30 @@
     </div>
   </div>
 
+  <div id="promotionOverlay" class="promotion-overlay" role="dialog" aria-modal="true" aria-label="Выбор фигуры для превращения">
+    <div class="promotion-dialog">
+      <div class="promotion-title">Превратить пешку в:</div>
+      <div class="promotion-grid">
+        <button class="promotion-btn" data-piece="q">
+          <img class="promotion-icon" alt="" src="icone/white/Chess_qlt45.svg" />
+          <span>Ферзь</span>
+        </button>
+        <button class="promotion-btn" data-piece="r">
+          <img class="promotion-icon" alt="" src="icone/white/Chess_rlt45.svg" />
+          <span>Ладья</span>
+        </button>
+        <button class="promotion-btn" data-piece="b">
+          <img class="promotion-icon" alt="" src="icone/white/Chess_blt45.svg" />
+          <span>Слон</span>
+        </button>
+        <button class="promotion-btn" data-piece="n">
+          <img class="promotion-icon" alt="" src="icone/white/Chess_nlt45.svg" />
+          <span>Конь</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const params = new URLSearchParams(window.location.search);
     const initialFen = params.get('fen');
@@ -431,6 +494,8 @@
     const ranksLeftEl = document.getElementById('ranksLeft');
     const evalFillEl = document.getElementById('evalFill');
     const evalLabelEl = document.getElementById('evalLabel');
+    const promotionOverlay = document.getElementById('promotionOverlay');
+    const promotionButtons = Array.from(document.querySelectorAll('.promotion-btn'));
 
     const ANALYZE_URL = 'http://127.0.0.1:8000/analyze';
     const EVAL_URL = 'http://127.0.0.1:8000/evaluate_move';
@@ -445,6 +510,28 @@
     let enPassantTarget = '-';
     let selectedSq = null;
     let possibleMoves = [];
+    let promotionState = null;
+
+    function setPromotionIcons(color){
+      const iconMap = color === 'w' ? WHITE_SVG : BLACK_SVG;
+      promotionButtons.forEach((btn) => {
+        const code = btn.dataset.piece;
+        const key = color === 'w' ? code.toUpperCase() : code;
+        const img = btn.querySelector('img');
+        if (img) img.src = iconMap[key] || '';
+      });
+    }
+
+    function openPromotionDialog(color){
+      if (!promotionOverlay) return;
+      setPromotionIcons(color);
+      promotionOverlay.classList.add('active');
+    }
+
+    function closePromotionDialog(){
+      if (!promotionOverlay) return;
+      promotionOverlay.classList.remove('active');
+    }
 
     function normalizeScore(line, perspective = activeColor){
       const side = perspective === 'b' ? 'b' : 'w';
@@ -1187,50 +1274,18 @@
           renderBoardFromFen(currentFen);
           return;
         }
-        const { fileIdx: fromFile, rankIdx: fromRank } = squareToIndices(selectedSq);
-        const { fileIdx: toFile, rankIdx: toRank } = squareToIndices(square);
-        const deltaFile = toFile - fromFile;
-        const upper = movingPiece.toUpperCase();
-        enPassantTarget = '-';
-        if (upper === 'K' && Math.abs(deltaFile) === 2){
-          const isKingside = deltaFile === 2;
-          const rookFrom = isKingside
-            ? (getPieceColor(movingPiece) === 'w' ? 'h1' : 'h8')
-            : (getPieceColor(movingPiece) === 'w' ? 'a1' : 'a8');
-          const rookTo = isKingside
-            ? (getPieceColor(movingPiece) === 'w' ? 'f1' : 'f8')
-            : (getPieceColor(movingPiece) === 'w' ? 'd1' : 'd8');
-          const rookPiece = getPieceAt(rookFrom);
-          if (rookPiece){
-            setPieceAt(rookTo, rookPiece);
-            setPieceAt(rookFrom, '');
-          }
+        const { rankIdx: fromRank } = squareToIndices(selectedSq);
+        const { rankIdx: toRank } = squareToIndices(square);
+        if (movingPiece.toUpperCase() === 'P' && (toRank === 0 || toRank === 7)){
+          promotionState = { fromSquare: selectedSq, toSquare: square, movingPiece };
+          selectedSq = null;
+          possibleMoves = [];
+          renderBoardFromFen(currentFen);
+          openPromotionDialog(getPieceColor(movingPiece));
+          setBoardStatus('Выберите фигуру для превращения.');
+          return;
         }
-        if (upper === 'P' && Math.abs(toRank - fromRank) === 2){
-          const dir = getPieceColor(movingPiece) === 'w' ? -1 : 1;
-          const epRank = fromRank + dir;
-          enPassantTarget = `${files[fromFile]}${ranks[epRank]}`;
-        }
-        if (upper === 'P' && (toRank === 0 || toRank === 7)){
-          const choice = prompt('Выберите фигуру для превращения (q, r, b, n)', 'q') || 'q';
-          const normalized = ['q','r','b','n'].includes(choice.toLowerCase()) ? choice.toLowerCase() : 'q';
-          const promoteTo = getPieceColor(movingPiece) === 'w' ? normalized.toUpperCase() : normalized;
-          setPieceAt(square, promoteTo);
-          setPieceAt(selectedSq, '');
-        } else {
-          setPieceAt(square, movingPiece);
-          setPieceAt(selectedSq, '');
-        }
-        updateCastlingRights(selectedSq, square, movingPiece, capturedPiece);
-        selectedSq = null;
-        possibleMoves = [];
-        activeColor = activeColor === 'w' ? 'b' : 'w';
-        if (activeColor === 'w') fullmove += 1;
-        currentFen = boardToFen(boardState, activeColor, fullmove);
-        fenTextEl.textContent = currentFen;
-        renderBoardFromFen(currentFen);
-        analyzePosition(true);
-        setBoardStatus('Ход выполнен.');
+        finalizeMove({ fromSquare: selectedSq, toSquare: square, movingPiece, capturedPiece });
         return;
       }
       if (piece && getPieceColor(piece) === activeColor){
@@ -1247,6 +1302,68 @@
         possibleMoves = [];
       }
       renderBoardFromFen(currentFen);
+    }
+
+    function finalizeMove({ fromSquare, toSquare, movingPiece, capturedPiece, promotionPiece = null }){
+      const { fileIdx: fromFile, rankIdx: fromRank } = squareToIndices(fromSquare);
+      const { fileIdx: toFile, rankIdx: toRank } = squareToIndices(toSquare);
+      const deltaFile = toFile - fromFile;
+      const upper = movingPiece.toUpperCase();
+
+      if (upper === 'K' && Math.abs(deltaFile) === 2){
+        const isKingside = deltaFile === 2;
+        const rookFrom = isKingside
+          ? (getPieceColor(movingPiece) === 'w' ? 'h1' : 'h8')
+          : (getPieceColor(movingPiece) === 'w' ? 'a1' : 'a8');
+        const rookTo = isKingside
+          ? (getPieceColor(movingPiece) === 'w' ? 'f1' : 'f8')
+          : (getPieceColor(movingPiece) === 'w' ? 'd1' : 'd8');
+        const rookPiece = getPieceAt(rookFrom);
+        if (rookPiece){
+          setPieceAt(rookTo, rookPiece);
+          setPieceAt(rookFrom, '');
+        }
+      }
+
+      if (upper === 'P' && Math.abs(toRank - fromRank) === 2){
+        const dir = getPieceColor(movingPiece) === 'w' ? -1 : 1;
+        const epRank = fromRank + dir;
+        enPassantTarget = `${files[fromFile]}${ranks[epRank]}`;
+      } else {
+        enPassantTarget = '-';
+      }
+
+      if (upper === 'P' && (toRank === 0 || toRank === 7)){
+        const normalized = ['q','r','b','n'].includes((promotionPiece || '').toLowerCase())
+          ? promotionPiece.toLowerCase()
+          : 'q';
+        const promoteTo = getPieceColor(movingPiece) === 'w' ? normalized.toUpperCase() : normalized;
+        setPieceAt(toSquare, promoteTo);
+        setPieceAt(fromSquare, '');
+      } else {
+        setPieceAt(toSquare, movingPiece);
+        setPieceAt(fromSquare, '');
+      }
+
+      updateCastlingRights(fromSquare, toSquare, movingPiece, capturedPiece);
+      selectedSq = null;
+      possibleMoves = [];
+      activeColor = activeColor === 'w' ? 'b' : 'w';
+      if (activeColor === 'w') fullmove += 1;
+      currentFen = boardToFen(boardState, activeColor, fullmove);
+      fenTextEl.textContent = currentFen;
+      renderBoardFromFen(currentFen);
+      analyzePosition(true);
+      setBoardStatus('Ход выполнен.');
+    }
+
+    function handlePromotionChoice(pieceCode){
+      if (!promotionState) return;
+      const { fromSquare, toSquare, movingPiece } = promotionState;
+      const capturedPiece = getPieceAt(toSquare);
+      promotionState = null;
+      closePromotionDialog();
+      finalizeMove({ fromSquare, toSquare, movingPiece, capturedPiece, promotionPiece: pieceCode });
     }
 
     function init(){
@@ -1271,6 +1388,9 @@
       if (historyUpBtn) historyUpBtn.addEventListener('click', () => scrollHistory('up'));
       if (historyDownBtn) historyDownBtn.addEventListener('click', () => scrollHistory('down'));
       if (historyLastBtn) historyLastBtn.addEventListener('click', () => scrollHistory('bottom'));
+      promotionButtons.forEach((btn) => {
+        btn.addEventListener('click', () => handlePromotionChoice(btn.dataset.piece));
+      });
       if (moveFromQuery){
         evaluateMove(moveFromQuery);
       }
