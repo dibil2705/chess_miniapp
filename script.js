@@ -45,6 +45,7 @@ let puzzleStartFen = null;
 let puzzlePlayerColor = null;
 let puzzleSolutionTargetFen = null;
 let puzzleLoading = false;
+let analysisWindow = null;
 
 function getExpectedMoveColor(moveIndex){
   const opponentColor = puzzlePlayerColor === 'w' ? 'b' : 'w';
@@ -1478,7 +1479,12 @@ async function fetchRandomPuzzle(){
 function openAnalysisPage(){
   const fen = boardToFen(boardState);
   const url = `analysis.html?fen=${encodeURIComponent(fen)}`;
-  window.open(url, '_blank');
+  if (analysisWindow && !analysisWindow.closed){
+    analysisWindow.location.href = url;
+    analysisWindow.focus();
+  } else {
+    analysisWindow = window.open(url, '_blank');
+  }
 }
 
 document.getElementById('puzzleBtn').addEventListener('click', () => {
