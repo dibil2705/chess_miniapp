@@ -212,27 +212,58 @@
     }
     .history-head{
       display:flex;
-      align-items:baseline;
+      align-items:flex-start;
       justify-content:space-between;
       gap:12px;
       width:100%;
     }
-    .history-head .status{ margin:0; font-size:12px; opacity:.7; }
-    .analysis-history{ display:flex; gap:10px; overflow-x:auto; padding:0 0 6px; margin:0; width:100%; }
-    .analysis-history::-webkit-scrollbar{ height:8px; }
+    .history-head .status{ margin:2px 0 0 0; font-size:12px; opacity:.7; }
+    .history-controls{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+      align-items:center;
+    }
+    .history-btn{
+      width:38px;
+      height:36px;
+      display:grid;
+      place-items:center;
+      padding:0;
+      border-radius:8px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.08);
+      color:var(--text);
+      cursor:pointer;
+      font-size:16px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+      transition: background .15s ease, transform .1s ease;
+    }
+    .history-btn:active{ transform: translateY(1px); }
+    .history-btn:disabled{ opacity:.45; cursor:not-allowed; }
+    .analysis-history{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      overflow-y:auto;
+      padding:4px 4px 8px 0;
+      margin:0;
+      width:100%;
+      max-height:360px;
+      scroll-behavior:smooth;
+    }
+    .analysis-history::-webkit-scrollbar{ width:8px; }
     .analysis-history::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.2); border-radius:999px; }
     .analysis-history::-webkit-scrollbar-track{ background:rgba(255,255,255,.06); }
     .history-card{
-      flex:0 0 auto;
-      min-width: 220px;
       background: rgba(0,0,0,.35);
       border:1px solid var(--border);
       border-radius:10px;
       padding:10px;
       box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
-      scroll-snap-align:start;
     }
-    .history-meta{ font-size:13px; opacity:.8; margin-bottom:6px; }
+    .history-meta{ font-size:13px; opacity:.8; margin-bottom:6px; display:flex; justify-content:space-between; gap:8px; align-items:center; }
     .history-empty{ opacity:.7; font-size:14px; padding:4px 0 2px; }
   </style>
 </head>
@@ -263,7 +294,13 @@
           <div class="history-head">
             <div>
               <strong>История анализа</strong>
-              <div class="status">Последние 10 изменений позиции.</div>
+              <div class="status">Новые записи добавляются внизу. История растёт по мере анализов.</div>
+            </div>
+            <div class="history-controls" aria-label="Управление историей">
+              <button class="history-btn" id="historyFirstBtn" title="К началу" aria-label="Прокрутить к началу">⏮</button>
+              <button class="history-btn" id="historyUpBtn" title="Чуть выше" aria-label="Прокрутить вверх">⌃</button>
+              <button class="history-btn" id="historyDownBtn" title="Чуть ниже" aria-label="Прокрутить вниз">⌄</button>
+              <button class="history-btn" id="historyLastBtn" title="В конец" aria-label="Прокрутить в конец">⏭</button>
             </div>
           </div>
           <div id="analysisHistory" class="analysis-history" aria-live="polite" aria-atomic="true"></div>
@@ -326,6 +363,10 @@
     const analysisListEl = document.getElementById('analysisList');
     const analysisHistoryEl = document.getElementById('analysisHistory');
     const historyEmptyEl = document.getElementById('historyEmpty');
+    const historyFirstBtn = document.getElementById('historyFirstBtn');
+    const historyUpBtn = document.getElementById('historyUpBtn');
+    const historyDownBtn = document.getElementById('historyDownBtn');
+    const historyLastBtn = document.getElementById('historyLastBtn');
     const refreshBtn = document.getElementById('refreshBtn');
     const moveInput = document.getElementById('moveInput');
     const evaluateBtn = document.getElementById('evaluateBtn');
@@ -679,17 +720,23 @@
     function renderHistory(){
       if (!analysisHistoryEl || !historyEmptyEl) return;
       analysisHistoryEl.innerHTML = '';
+      updateHistoryControlsEnabled();
       if (!analysisHistory.length){
         historyEmptyEl.style.display = 'block';
         return;
       }
       historyEmptyEl.style.display = 'none';
-      analysisHistory.forEach((item) => {
+      analysisHistory.forEach((item, idx) => {
         const card = document.createElement('div');
         card.className = 'history-card';
         const meta = document.createElement('div');
         meta.className = 'history-meta';
-        meta.textContent = item.createdAt.toLocaleTimeString();
+        const label = document.createElement('span');
+        label.textContent = `#${idx + 1} • ${item.createdAt.toLocaleTimeString()}`;
+        const depth = document.createElement('span');
+        depth.textContent = `${item.lines.length} линий`;
+        meta.appendChild(label);
+        meta.appendChild(depth);
         card.appendChild(meta);
         const fenRow = document.createElement('div');
         fenRow.innerHTML = `<strong>FEN</strong>: <span class="mono">${item.fen}</span>`;
@@ -704,14 +751,41 @@
         });
         analysisHistoryEl.appendChild(card);
       });
+      requestAnimationFrame(() => {
+        analysisHistoryEl.scrollTop = analysisHistoryEl.scrollHeight;
+      });
     }
 
     function pushAnalysisHistory(fenValue, lines){
       if (!analysisHistoryEl) return;
       const entry = { fen: fenValue, createdAt: new Date(), lines: lines?.slice(0,3) || [] };
-      analysisHistory.unshift(entry);
-      analysisHistory.splice(10);
+      analysisHistory.push(entry);
+      const MAX_HISTORY = 200;
+      if (analysisHistory.length > MAX_HISTORY){
+        analysisHistory.splice(0, analysisHistory.length - MAX_HISTORY);
+      }
       renderHistory();
+    }
+
+    function updateHistoryControlsEnabled(){
+      const disabled = !analysisHistory.length;
+      [historyFirstBtn, historyUpBtn, historyDownBtn, historyLastBtn].forEach((btn) => {
+        if (btn) btn.disabled = disabled;
+      });
+    }
+
+    function scrollHistory(where){
+      if (!analysisHistoryEl) return;
+      const step = 140;
+      if (where === 'top'){
+        analysisHistoryEl.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (where === 'bottom'){
+        analysisHistoryEl.scrollTo({ top: analysisHistoryEl.scrollHeight, behavior: 'smooth' });
+      } else if (where === 'up'){
+        analysisHistoryEl.scrollBy({ top: -step, behavior: 'smooth' });
+      } else if (where === 'down'){
+        analysisHistoryEl.scrollBy({ top: step, behavior: 'smooth' });
+      }
     }
 
     function setBoardStatus(message){
@@ -1062,6 +1136,7 @@
       castlingRights = parsed.rights || '-';
       enPassantTarget = parsed.ep || '-';
       setBoardStatus(`Ход ${activeColor === 'w' ? 'белых' : 'чёрных'}. Выберите фигуру.`);
+      updateHistoryControlsEnabled();
       fenTextEl.textContent = currentFen || '—';
       renderBoardCoords();
       renderBoardFromFen(currentFen);
@@ -1070,6 +1145,10 @@
       refreshBtn.addEventListener('click', () => analyzePosition(true));
       evaluateBtn.addEventListener('click', () => evaluateMove(moveInput.value.trim()));
       window.addEventListener('message', handleIncomingMove);
+      if (historyFirstBtn) historyFirstBtn.addEventListener('click', () => scrollHistory('top'));
+      if (historyUpBtn) historyUpBtn.addEventListener('click', () => scrollHistory('up'));
+      if (historyDownBtn) historyDownBtn.addEventListener('click', () => scrollHistory('down'));
+      if (historyLastBtn) historyLastBtn.addEventListener('click', () => scrollHistory('bottom'));
       if (moveFromQuery){
         evaluateMove(moveFromQuery);
       }
