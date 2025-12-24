@@ -834,8 +834,9 @@
 
     function pushAnalysisHistory(fenValue, lines){
       if (!analysisHistoryEl) return;
-      const pv = lines?.[0]?.pv_san || '';
-      const tokens = pv.split(' ').filter(Boolean);
+      const pvRaw = lines?.[0]?.pv_san;
+      const pv = Array.isArray(pvRaw) ? pvRaw.join(' ') : (typeof pvRaw === 'string' ? pvRaw : '');
+      const tokens = pv.split(/\s+/).filter(Boolean);
       const white = tokens[0] || '—';
       const black = tokens[1] || '—';
       const entry = { fen: fenValue, createdAt: new Date(), lines: lines?.slice(0,3) || [], moves: { white, black }, active: activeColor };
