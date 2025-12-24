@@ -446,6 +446,24 @@
     let selectedSq = null;
     let possibleMoves = [];
 
+    function normalizeScore(line, perspective = activeColor){
+      const side = perspective === 'b' ? 'b' : 'w';
+      if (!line) return { cp: 0, label: '0.0', mate: null };
+
+      const rawMate = line?.mate;
+      if (rawMate !== undefined && rawMate !== null){
+        const signedMate = side === 'w' ? rawMate : -rawMate;
+        const cpEquivalent = signedMate > 0 ? 900 : -900;
+        const mateLabelPrefix = signedMate > 0 ? '' : '-';
+        return { cp: cpEquivalent, label: `${mateLabelPrefix}M${Math.abs(signedMate)}`, mate: signedMate };
+      }
+
+      const rawCp = Number(line?.score_cp);
+      if (Number.isNaN(rawCp)) return { cp: 0, label: '0.0', mate: null };
+      const signedCp = side === 'w' ? rawCp : -rawCp;
+      return { cp: signedCp, label: (signedCp / 100).toFixed(2), mate: null };
+    }
+
     function renderAnalysisLines(lines = [], { fromCache = false } = {}){
       analysisListEl.innerHTML = '';
       if (!lines.length){
@@ -460,9 +478,10 @@
         const li = document.createElement('li');
         const title = document.createElement('div');
         title.innerHTML = `<strong>#${idx + 1}</strong> ${line.best_move_uci || '—'}`;
-        const scoreText = line.mate !== undefined && line.mate !== null
-          ? `Мат за ${line.mate}`
-          : (line.score_cp !== undefined && line.score_cp !== null ? `${(Number(line.score_cp) / 100).toFixed(2)} cp` : '—');
+        const { label, mate } = normalizeScore(line);
+        const scoreText = mate !== null
+          ? `Мат за ${Math.abs(mate)} (${mate > 0 ? 'белые' : 'чёрные'})`
+          : `${label} cp`;
         const score = document.createElement('div');
         score.innerHTML = `<span class="mono">${scoreText}</span>`;
         const pv = document.createElement('div');
@@ -692,17 +711,7 @@
 
     function updateEvalBar(line){
       if (!evalFillEl || !evalLabelEl) return;
-      const mate = line?.mate;
-      let cp = Number(line?.score_cp);
-      let label = '0.0';
-      if (mate !== undefined && mate !== null){
-        label = `M${mate}`;
-        cp = mate > 0 ? 900 : -900;
-      } else if (!Number.isNaN(cp)){
-        label = (cp / 100).toFixed(1);
-      } else {
-        cp = 0;
-      }
+      const { cp, label } = normalizeScore(line);
       const normalized = 1 / (1 + Math.exp(-cp / 200));
       const percent = Math.round(normalized * 100);
       evalFillEl.style.height = `${percent}%`;
