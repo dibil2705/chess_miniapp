@@ -271,24 +271,6 @@
     .analysis-history::-webkit-scrollbar{ width:8px; }
     .analysis-history::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.2); border-radius:999px; }
     .analysis-history::-webkit-scrollbar-track{ background:rgba(255,255,255,.06); }
-    .history-slider{
-      display:none;
-      grid-template-columns: 1fr auto;
-      align-items:center;
-      gap:10px;
-      padding: 0 2px;
-    }
-    .history-slider input[type="range"]{
-      width:100%;
-      accent-color:#6ccf70;
-    }
-    .history-slider-label{
-      font-size:13px;
-      opacity:.8;
-      white-space:nowrap;
-      min-width:62px;
-      text-align:right;
-    }
     .move-row{
       display:grid;
       grid-template-columns: 42px 1fr 1fr;
@@ -413,10 +395,6 @@
           <div class="history-body">
             <div id="analysisHistory" class="analysis-history" aria-live="polite" aria-atomic="true"></div>
             <div id="historyEmpty" class="history-empty">Начните делать ходы, и они появятся здесь.</div>
-            <div class="history-slider" id="historySliderWrap" aria-label="Прокрутка истории">
-              <input id="historySlider" type="range" min="1" max="1" value="1" step="1" aria-label="Навигация по истории ходов" />
-              <div class="history-slider-label" id="historySliderLabel">1 / 1</div>
-            </div>
           </div>
         </div>
       </div>
@@ -500,9 +478,6 @@
     const analysisListEl = document.getElementById('analysisList');
     const analysisHistoryEl = document.getElementById('analysisHistory');
     const historyEmptyEl = document.getElementById('historyEmpty');
-    const historySliderWrap = document.getElementById('historySliderWrap');
-    const historySlider = document.getElementById('historySlider');
-    const historySliderLabel = document.getElementById('historySliderLabel');
     const priorityWrapEl = document.getElementById('priorityWrap');
     const priorityMovesEl = document.getElementById('priorityMoves');
     const historyFirstBtn = document.getElementById('historyFirstBtn');
@@ -927,7 +902,6 @@
       updateHistoryControlsEnabled();
       if (!analysisHistory.length){
         historyEmptyEl.style.display = 'block';
-        updateHistorySlider();
         return;
       }
       historyEmptyEl.style.display = 'none';
@@ -967,22 +941,6 @@
           if (targetRow) targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
       }
-      updateHistorySlider();
-    }
-
-    function updateHistorySlider(){
-      if (!historySliderWrap || !historySlider || !historySliderLabel) return;
-      if (!analysisHistory.length){
-        historySliderWrap.style.display = 'none';
-        return;
-      }
-      const shouldShow = analysisHistory.length > 1;
-      historySliderWrap.style.display = shouldShow ? 'grid' : 'none';
-      const currentIndex = historyCursor === -1 ? analysisHistory.length : historyCursor + 1;
-      historySlider.max = String(analysisHistory.length);
-      historySlider.value = String(currentIndex);
-      historySlider.disabled = !shouldShow;
-      historySliderLabel.textContent = `${currentIndex} / ${analysisHistory.length}`;
     }
 
     function pushAnalysisHistory(fenValue, lines){
@@ -1444,15 +1402,6 @@
       if (historyUpBtn) historyUpBtn.addEventListener('click', () => scrollHistory('up'));
       if (historyDownBtn) historyDownBtn.addEventListener('click', () => scrollHistory('down'));
       if (historyLastBtn) historyLastBtn.addEventListener('click', () => scrollHistory('bottom'));
-      if (historySlider) historySlider.addEventListener('input', (event) => {
-        const value = Number(event.target.value);
-        if (!Number.isFinite(value) || !analysisHistory.length) return;
-        const targetIndex = Math.min(Math.max(value - 1, 0), analysisHistory.length - 1);
-        if (targetIndex === historyCursor) return;
-        historyCursor = targetIndex;
-        renderHistory({ scrollToCursor: true });
-        loadHistoryPosition(historyCursor);
-      });
       promotionButtons.forEach((btn) => {
         btn.addEventListener('click', () => handlePromotionChoice(btn.dataset.piece));
       });
