@@ -173,18 +173,30 @@
       justify-content:center;
       line-height: 1;
       pointer-events: none;
+      position: relative;
+      z-index: 1;
     }
     .piece img{ width: 140.712%; height: 140.712%; display:block; user-select:none; -webkit-user-select:none; }
-    .selected{ outline: 3px solid rgba(255,255,255,.6); }
-    .move-dot{
+    .sq.selected{ outline: 3px solid rgba(255,255,255,.4); outline-offset:-3px; }
+    .sq .move-dot{
       position:absolute;
-      width:32%;
-      height:32%;
+      width:18%;
+      height:18%;
       border-radius:50%;
-      background:rgba(255,255,255,.35);
-      border:4px solid rgba(0,0,0,.25);
-      box-shadow:0 0 0 4px rgba(0,0,0,.15);
+      background:rgba(0,0,0,.35);
       pointer-events:none;
+    }
+    .sq.light .move-dot{ background: rgba(0,0,0,.5); }
+    .sq.dark .move-dot{ background: rgba(255,255,255,.5); }
+    .sq .capture-ring{
+      position: absolute;
+      inset: 8%;
+      border-radius: 10px;
+      box-shadow:
+        inset 0 0 0 3px rgba(255,64,64,.55),
+        inset 0 0 0 8px rgba(255,64,64,.25);
+      pointer-events: none;
+      z-index: 0;
     }
     .info-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
     .history-bar{
@@ -337,6 +349,8 @@
     let boardState = [];
     let activeColor = 'w';
     let fullmove = 1;
+    let castlingRights = '-';
+    let enPassantTarget = '-';
     let selectedSq = null;
     let possibleMoves = [];
 
@@ -423,7 +437,9 @@
       const board = fenToBoard(fenStr);
       const active = parts[1] === 'b' ? 'b' : 'w';
       const moveNumber = Number(parts[5]) || 1;
-      return { board, active, fullmove: moveNumber };
+      const rights = parts[2] || '-';
+      const ep = parts[3] || '-';
+      return { board, active, fullmove: moveNumber, rights, ep };
     }
 
     function boardToFen(board, active = 'w', moveNumber = 1){
@@ -442,7 +458,9 @@
         return res;
       });
       const placement = rows.join('/');
-      return `${placement} ${active} - - 0 ${moveNumber}`;
+      const rights = castlingRights && castlingRights !== '' ? castlingRights : '-';
+      const ep = enPassantTarget && enPassantTarget !== '' ? enPassantTarget : '-';
+      return `${placement} ${active} ${rights} ${ep} 0 ${moveNumber}`;
     }
 
     function renderBoardCoords(){
@@ -465,6 +483,7 @@
       if (!boardSquaresEl) return;
       boardSquaresEl.innerHTML = '';
       const grid = fenToBoard(fenStr);
+      const selectedPiece = selectedSq ? getPieceAt(selectedSq) : '';
       grid.forEach((row, rowIdx) => {
         row.forEach((cell, colIdx) => {
           const sq = document.createElement('div');
@@ -484,9 +503,16 @@
             sq.appendChild(piece);
           }
           if (possibleMoves.includes(coord)){
-            const dot = document.createElement('div');
-            dot.className = 'move-dot';
-            sq.appendChild(dot);
+            const targetPiece = boardState[rowIdx]?.[colIdx] || '';
+            if (targetPiece && selectedPiece && getPieceColor(targetPiece) !== getPieceColor(selectedPiece)){
+              const ring = document.createElement('div');
+              ring.className = 'capture-ring';
+              sq.appendChild(ring);
+            } else {
+              const dot = document.createElement('div');
+              dot.className = 'move-dot';
+              sq.appendChild(dot);
+            }
           }
           boardSquaresEl.appendChild(sq);
         });
@@ -712,6 +738,11 @@
       return rankIdx >= 0 && rankIdx < 8 && fileIdx >= 0 && fileIdx < 8;
     }
 
+    function hasCastlingRight(ch){
+      if (!castlingRights || castlingRights === '-') return false;
+      return castlingRights.includes(ch);
+    }
+
     function isPathClear(board, fromRank, fromFile, toRank, toFile){
       const stepRank = Math.sign(toRank - fromRank);
       const stepFile = Math.sign(toFile - fromFile);
@@ -775,7 +806,28 @@
       }
 
       if (upper === 'K'){
-        return absFile <= 1 && absRank <= 1;
+        if (absFile <= 1 && absRank <= 1) return true;
+        if (deltaRank === 0 && Math.abs(deltaFile) === 2){
+          const homeRank = color === 'w' ? 7 : 0;
+          if (fromFile !== 4 || fromRank !== homeRank) return false;
+          const isKingside = deltaFile === 2;
+          const rookFile = isKingside ? 7 : 0;
+          const rookPiece = board[homeRank]?.[rookFile];
+          if (!rookPiece || getPieceColor(rookPiece) !== color || rookPiece.toUpperCase() !== 'R') return false;
+          const rightChar = color === 'w' ? (isKingside ? 'K' : 'Q') : (isKingside ? 'k' : 'q');
+          if (!hasCastlingRight(rightChar)) return false;
+          const pathFiles = isKingside ? [5,6] : [3,2,1];
+          for (const f of pathFiles){
+            if (board[homeRank]?.[f]) return false;
+          }
+          const kingSquares = isKingside ? [4,5,6] : [4,3,2];
+          for (const f of kingSquares){
+            const sq = `${files[f]}${ranks[homeRank]}`;
+            if (isSquareAttacked(sq, color, board)) return false;
+          }
+          return true;
+        }
+        return false;
       }
 
       return false;
@@ -840,6 +892,31 @@
       if (!kingPos) return false;
       const kingSquare = `${files[kingPos.fileIdx]}${ranks[kingPos.rankIdx]}`;
       return isSquareAttacked(kingSquare, color, simulated);
+    }
+
+    function updateCastlingRights(fromSquare, toSquare, movingPiece, capturedPiece){
+      if (!movingPiece) return;
+      const upper = movingPiece.toUpperCase();
+      if (upper === 'K'){
+        if (getPieceColor(movingPiece) === 'w'){
+          castlingRights = castlingRights.replace(/K|Q/g, '');
+        } else {
+          castlingRights = castlingRights.replace(/k|q/g, '');
+        }
+      }
+      if (upper === 'R'){
+        if (fromSquare === 'h1' || toSquare === 'h1') castlingRights = castlingRights.replace(/K/g, '');
+        if (fromSquare === 'a1' || toSquare === 'a1') castlingRights = castlingRights.replace(/Q/g, '');
+        if (fromSquare === 'h8' || toSquare === 'h8') castlingRights = castlingRights.replace(/k/g, '');
+        if (fromSquare === 'a8' || toSquare === 'a8') castlingRights = castlingRights.replace(/q/g, '');
+      }
+      if (capturedPiece && capturedPiece.toUpperCase() === 'R'){
+        if (toSquare === 'h1') castlingRights = castlingRights.replace(/K/g, '');
+        if (toSquare === 'a1') castlingRights = castlingRights.replace(/Q/g, '');
+        if (toSquare === 'h8') castlingRights = castlingRights.replace(/k/g, '');
+        if (toSquare === 'a8') castlingRights = castlingRights.replace(/q/g, '');
+      }
+      if (!castlingRights.length) castlingRights = '-';
     }
 
     function getPieceAt(square){
@@ -907,14 +984,48 @@
           renderBoardFromFen(currentFen);
           return;
         }
+        const capturedPiece = getPieceAt(square);
         if (wouldLeaveKingInCheck(selectedSq, square, movingPiece)){
           setBoardStatus('Ход оставляет короля под боем.');
           possibleMoves = [];
           renderBoardFromFen(currentFen);
           return;
         }
-        setPieceAt(square, movingPiece);
-        setPieceAt(selectedSq, '');
+        const { fileIdx: fromFile, rankIdx: fromRank } = squareToIndices(selectedSq);
+        const { fileIdx: toFile, rankIdx: toRank } = squareToIndices(square);
+        const deltaFile = toFile - fromFile;
+        const upper = movingPiece.toUpperCase();
+        enPassantTarget = '-';
+        if (upper === 'K' && Math.abs(deltaFile) === 2){
+          const isKingside = deltaFile === 2;
+          const rookFrom = isKingside
+            ? (getPieceColor(movingPiece) === 'w' ? 'h1' : 'h8')
+            : (getPieceColor(movingPiece) === 'w' ? 'a1' : 'a8');
+          const rookTo = isKingside
+            ? (getPieceColor(movingPiece) === 'w' ? 'f1' : 'f8')
+            : (getPieceColor(movingPiece) === 'w' ? 'd1' : 'd8');
+          const rookPiece = getPieceAt(rookFrom);
+          if (rookPiece){
+            setPieceAt(rookTo, rookPiece);
+            setPieceAt(rookFrom, '');
+          }
+        }
+        if (upper === 'P' && Math.abs(toRank - fromRank) === 2){
+          const dir = getPieceColor(movingPiece) === 'w' ? -1 : 1;
+          const epRank = fromRank + dir;
+          enPassantTarget = `${files[fromFile]}${ranks[epRank]}`;
+        }
+        if (upper === 'P' && (toRank === 0 || toRank === 7)){
+          const choice = prompt('Выберите фигуру для превращения (q, r, b, n)', 'q') || 'q';
+          const normalized = ['q','r','b','n'].includes(choice.toLowerCase()) ? choice.toLowerCase() : 'q';
+          const promoteTo = getPieceColor(movingPiece) === 'w' ? normalized.toUpperCase() : normalized;
+          setPieceAt(square, promoteTo);
+          setPieceAt(selectedSq, '');
+        } else {
+          setPieceAt(square, movingPiece);
+          setPieceAt(selectedSq, '');
+        }
+        updateCastlingRights(selectedSq, square, movingPiece, capturedPiece);
         selectedSq = null;
         possibleMoves = [];
         activeColor = activeColor === 'w' ? 'b' : 'w';
@@ -948,6 +1059,8 @@
       boardState = parsed.board;
       activeColor = parsed.active;
       fullmove = parsed.fullmove;
+      castlingRights = parsed.rights || '-';
+      enPassantTarget = parsed.ep || '-';
       setBoardStatus(`Ход ${activeColor === 'w' ? 'белых' : 'чёрных'}. Выберите фигуру.`);
       fenTextEl.textContent = currentFen || '—';
       renderBoardCoords();
