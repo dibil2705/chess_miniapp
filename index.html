@@ -398,6 +398,64 @@
     .promotion-btn:active{ transform: translateY(1px); }
     .promotion-icon{ width: 36px; height: 36px; }
 
+    /* Analysis overlay */
+    .analysis-overlay{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.75);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      z-index: 3000;
+      backdrop-filter: blur(2px);
+    }
+    .analysis-overlay.active{ display: flex; }
+    .analysis-dialog{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 16px 44px rgba(0,0,0,.55);
+      width: min(1180px, 100%);
+      height: min(96vh, 960px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .analysis-header{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .analysis-title{
+      margin: 0;
+      font-size: 18px;
+      font-weight: 800;
+    }
+    .analysis-close{
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.25);
+    }
+    .analysis-close:active{ transform: translateY(1px); }
+    .analysis-frame{
+      flex: 1;
+      width: 100%;
+      border: 0;
+      background: #000;
+    }
+    body.no-scroll{ overflow: hidden; }
+
     /* Compact view helpers */
     @media (max-width: 768px){
       body{ padding:8px 10px 14px 10px; }
@@ -501,6 +559,16 @@
           <span>Конь</span>
         </button>
       </div>
+    </div>
+  </div>
+
+  <div id="analysisOverlay" class="analysis-overlay" role="dialog" aria-modal="true" aria-label="Анализ позиции">
+    <div class="analysis-dialog">
+      <div class="analysis-header">
+        <h3 class="analysis-title">Анализ позиции</h3>
+        <button id="closeAnalysisBtn" class="analysis-close" type="button">Закрыть</button>
+      </div>
+      <iframe id="analysisFrame" class="analysis-frame" title="Stockfish анализ" loading="lazy"></iframe>
     </div>
   </div>
 
