@@ -204,15 +204,15 @@
       background: linear-gradient(180deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.03) 100%);
       border:1px solid var(--border);
       border-radius:12px;
-      padding:10px 12px 6px;
+      padding:12px 12px 10px;
       box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 8px 22px rgba(0,0,0,.35);
       display:flex;
       flex-direction:column;
-      gap:8px;
+      gap:10px;
     }
     .history-head{
       display:flex;
-      align-items:flex-start;
+      align-items:center;
       justify-content:space-between;
       gap:12px;
       width:100%;
@@ -242,12 +242,26 @@
     }
     .history-btn:active{ transform: translateY(1px); }
     .history-btn:disabled{ opacity:.45; cursor:not-allowed; }
+    .priority-wrap{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:8px 10px;
+      background:rgba(0,0,0,.25);
+    }
+    .priority-title{ font-weight:700; font-size:13px; opacity:.85; }
+    .priority-moves{ display:flex; flex-direction:column; gap:6px; }
+    .priority-item{ display:flex; flex-direction:column; gap:2px; padding:8px 10px; border-radius:8px; background:rgba(255,255,255,.04); border:1px solid var(--border); }
+    .priority-move{ font-weight:700; letter-spacing:0.3px; }
+    .priority-pv{ font-size:13px; opacity:.85; }
     .analysis-history{
       display:flex;
       flex-direction:column;
-      gap:10px;
+      gap:6px;
       overflow-y:auto;
-      padding:4px 4px 8px 0;
+      padding:4px 4px 6px 0;
       margin:0;
       width:100%;
       max-height:360px;
@@ -256,14 +270,45 @@
     .analysis-history::-webkit-scrollbar{ width:8px; }
     .analysis-history::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.2); border-radius:999px; }
     .analysis-history::-webkit-scrollbar-track{ background:rgba(255,255,255,.06); }
-    .history-card{
+    .move-row{
+      display:grid;
+      grid-template-columns: 42px 1fr 1fr;
+      align-items:stretch;
       background: rgba(0,0,0,.35);
       border:1px solid var(--border);
       border-radius:10px;
-      padding:10px;
+      overflow:hidden;
       box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
     }
-    .history-meta{ font-size:13px; opacity:.8; margin-bottom:6px; display:flex; justify-content:space-between; gap:8px; align-items:center; }
+    .move-num{
+      display:grid;
+      place-items:center;
+      font-weight:700;
+      font-size:14px;
+      background:rgba(255,255,255,.04);
+      border-right:1px solid var(--border);
+      min-width:42px;
+    }
+    .move-col{
+      padding:8px 10px;
+      font-weight:600;
+      display:flex;
+      align-items:center;
+      min-height:36px;
+      position:relative;
+    }
+    .move-col::after{
+      content:'';
+      position:absolute;
+      inset:0;
+      background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+      opacity:0;
+      transition:opacity .12s ease, box-shadow .12s ease;
+      z-index:0;
+    }
+    .move-col span{ position:relative; z-index:1; }
+    .move-col.is-active::after{ opacity:1; box-shadow: inset 0 0 0 1px rgba(108,207,112,.45); }
+    .move-col.is-empty{ opacity:.45; font-weight:500; }
     .history-empty{ opacity:.7; font-size:14px; padding:4px 0 2px; }
   </style>
 </head>
@@ -293,18 +338,22 @@
         <div class="history-bar">
           <div class="history-head">
             <div>
-              <strong>История анализа</strong>
-              <div class="status">Новые записи добавляются внизу. История растёт по мере анализов.</div>
+              <strong>Новые записи</strong>
+              <div class="status">Отображаются ходы белых и чёрных. Навигация стрелками.</div>
             </div>
             <div class="history-controls" aria-label="Управление историей">
-              <button class="history-btn" id="historyFirstBtn" title="К началу" aria-label="Прокрутить к началу">⏮</button>
-              <button class="history-btn" id="historyUpBtn" title="Чуть выше" aria-label="Прокрутить вверх">⌃</button>
-              <button class="history-btn" id="historyDownBtn" title="Чуть ниже" aria-label="Прокрутить вниз">⌄</button>
-              <button class="history-btn" id="historyLastBtn" title="В конец" aria-label="Прокрутить в конец">⏭</button>
+              <button class="history-btn" id="historyFirstBtn" title="К началу" aria-label="К началу">⏮</button>
+              <button class="history-btn" id="historyUpBtn" title="Назад" aria-label="Шаг назад">◀</button>
+              <button class="history-btn" id="historyDownBtn" title="Вперёд" aria-label="Шаг вперёд">▶</button>
+              <button class="history-btn" id="historyLastBtn" title="В конец" aria-label="В конец">⏭</button>
             </div>
           </div>
+          <div class="priority-wrap" id="priorityWrap">
+            <div class="priority-title">Приоритетные ходы</div>
+            <div id="priorityMoves" class="priority-moves"></div>
+          </div>
           <div id="analysisHistory" class="analysis-history" aria-live="polite" aria-atomic="true"></div>
-          <div id="historyEmpty" class="history-empty">История появится после анализа позиции.</div>
+          <div id="historyEmpty" class="history-empty">Начните делать ходы, и они появятся здесь.</div>
         </div>
       </div>
 
@@ -363,6 +412,8 @@
     const analysisListEl = document.getElementById('analysisList');
     const analysisHistoryEl = document.getElementById('analysisHistory');
     const historyEmptyEl = document.getElementById('historyEmpty');
+    const priorityWrapEl = document.getElementById('priorityWrap');
+    const priorityMovesEl = document.getElementById('priorityMoves');
     const historyFirstBtn = document.getElementById('historyFirstBtn');
     const historyUpBtn = document.getElementById('historyUpBtn');
     const historyDownBtn = document.getElementById('historyDownBtn');
@@ -423,8 +474,35 @@
         analysisListEl.appendChild(li);
       });
       statusEl.textContent = fromCache ? 'Показан кешированный анализ (до 10 секунд).' : 'Анализ обновлён.';
+      updatePriorityMoves(lines);
       updateArrow(lines?.[0]);
       updateEvalBar(lines?.[0]);
+    }
+
+    function updatePriorityMoves(lines = []){
+      if (!priorityWrapEl || !priorityMovesEl) return;
+      priorityMovesEl.innerHTML = '';
+      const top = lines.slice(0,3);
+      if (!top.length){
+        const empty = document.createElement('div');
+        empty.className = 'priority-item';
+        empty.textContent = 'Нет приоритетных ходов';
+        priorityMovesEl.appendChild(empty);
+        return;
+      }
+      top.forEach((line, idx) => {
+        const item = document.createElement('div');
+        item.className = 'priority-item';
+        const move = document.createElement('div');
+        move.className = 'priority-move mono';
+        move.textContent = `${idx + 1}. ${line.best_move_uci || '—'}`;
+        const pv = document.createElement('div');
+        pv.className = 'priority-pv mono';
+        pv.textContent = line.pv_san || '—';
+        item.appendChild(move);
+        item.appendChild(pv);
+        priorityMovesEl.appendChild(item);
+      });
     }
 
     function renderMoveResult(data){
@@ -727,29 +805,27 @@
       }
       historyEmptyEl.style.display = 'none';
       analysisHistory.forEach((item, idx) => {
-        const card = document.createElement('div');
-        card.className = 'history-card';
-        const meta = document.createElement('div');
-        meta.className = 'history-meta';
-        const label = document.createElement('span');
-        label.textContent = `#${idx + 1} • ${item.createdAt.toLocaleTimeString()}`;
-        const depth = document.createElement('span');
-        depth.textContent = `${item.lines.length} линий`;
-        meta.appendChild(label);
-        meta.appendChild(depth);
-        card.appendChild(meta);
-        const fenRow = document.createElement('div');
-        fenRow.innerHTML = `<strong>FEN</strong>: <span class="mono">${item.fen}</span>`;
-        card.appendChild(fenRow);
-        item.lines.forEach((line, idx) => {
-          const row = document.createElement('div');
-          const scoreText = line.mate !== undefined && line.mate !== null
-            ? `Мат за ${line.mate}`
-            : (line.score_cp !== undefined && line.score_cp !== null ? `${(Number(line.score_cp) / 100).toFixed(2)} cp` : '—');
-          row.innerHTML = `<strong>#${idx + 1}</strong> ${line.best_move_uci || '—'} — <span class="mono">${scoreText}</span>`;
-          card.appendChild(row);
-        });
-        analysisHistoryEl.appendChild(card);
+        const row = document.createElement('div');
+        row.className = 'move-row';
+        const moveNum = document.createElement('div');
+        moveNum.className = 'move-num';
+        moveNum.textContent = idx + 1;
+        const whiteMove = document.createElement('div');
+        const blackMove = document.createElement('div');
+        whiteMove.className = 'move-col';
+        blackMove.className = 'move-col';
+        const white = item.moves?.white || '—';
+        const black = item.moves?.black || '—';
+        whiteMove.innerHTML = `<span>${white}</span>`;
+        blackMove.innerHTML = `<span>${black}</span>`;
+        if (item.active === 'w') whiteMove.classList.add('is-active');
+        if (item.active === 'b') blackMove.classList.add('is-active');
+        if (white === '—') whiteMove.classList.add('is-empty');
+        if (black === '—') blackMove.classList.add('is-empty');
+        row.appendChild(moveNum);
+        row.appendChild(whiteMove);
+        row.appendChild(blackMove);
+        analysisHistoryEl.appendChild(row);
       });
       requestAnimationFrame(() => {
         analysisHistoryEl.scrollTop = analysisHistoryEl.scrollHeight;
@@ -758,7 +834,11 @@
 
     function pushAnalysisHistory(fenValue, lines){
       if (!analysisHistoryEl) return;
-      const entry = { fen: fenValue, createdAt: new Date(), lines: lines?.slice(0,3) || [] };
+      const pv = lines?.[0]?.pv_san || '';
+      const tokens = pv.split(' ').filter(Boolean);
+      const white = tokens[0] || '—';
+      const black = tokens[1] || '—';
+      const entry = { fen: fenValue, createdAt: new Date(), lines: lines?.slice(0,3) || [], moves: { white, black }, active: activeColor };
       analysisHistory.push(entry);
       const MAX_HISTORY = 200;
       if (analysisHistory.length > MAX_HISTORY){
@@ -775,17 +855,49 @@
     }
 
     function scrollHistory(where){
-      if (!analysisHistoryEl) return;
-      const step = 140;
+      if (!analysisHistoryEl || !analysisHistory.length) return;
       if (where === 'top'){
         analysisHistoryEl.scrollTo({ top: 0, behavior: 'smooth' });
-      } else if (where === 'bottom'){
-        analysisHistoryEl.scrollTo({ top: analysisHistoryEl.scrollHeight, behavior: 'smooth' });
-      } else if (where === 'up'){
-        analysisHistoryEl.scrollBy({ top: -step, behavior: 'smooth' });
-      } else if (where === 'down'){
-        analysisHistoryEl.scrollBy({ top: step, behavior: 'smooth' });
+        return;
       }
+      if (where === 'bottom'){
+        analysisHistoryEl.scrollTo({ top: analysisHistoryEl.scrollHeight, behavior: 'smooth' });
+        return;
+      }
+      const visible = Array.from(analysisHistoryEl.children);
+      const step = where === 'up' ? -1 : 1;
+      const currentIndex = visible.findIndex((row) => row.querySelector('.move-col.is-active'));
+      let nextIndex = currentIndex === -1 ? (step > 0 ? 0 : visible.length - 1) : currentIndex + step;
+      nextIndex = Math.min(Math.max(nextIndex, 0), visible.length - 1);
+      visible.forEach((row) => {
+        row.querySelectorAll('.move-col').forEach((col) => col.classList.remove('is-active'));
+      });
+      const targetRow = visible[nextIndex];
+      if (targetRow){
+        const targetCols = targetRow.querySelectorAll('.move-col');
+        const activeCol = step > 0 ? (targetCols[1] || targetCols[0]) : (targetCols[2] || targetCols[1] || targetCols[0]);
+        if (activeCol) activeCol.classList.add('is-active');
+        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        loadHistoryPosition(nextIndex);
+      }
+    }
+
+    function loadHistoryPosition(index){
+      const item = analysisHistory[index];
+      if (!item) return;
+      currentFen = item.fen;
+      const parsed = parseFenState(currentFen);
+      boardState = parsed.board;
+      activeColor = parsed.active;
+      fullmove = parsed.fullmove;
+      castlingRights = parsed.rights || '-';
+      enPassantTarget = parsed.ep || '-';
+      renderBoardFromFen(currentFen);
+      fenTextEl.textContent = currentFen;
+      setBoardStatus(`Ход ${activeColor === 'w' ? 'белых' : 'чёрных'}.`);
+      updateArrow(item.lines?.[0]);
+      updateEvalBar(item.lines?.[0]);
+      updatePriorityMoves(item.lines || []);
     }
 
     function setBoardStatus(message){
