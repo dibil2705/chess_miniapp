@@ -176,6 +176,16 @@
     }
     .piece img{ width: 140.712%; height: 140.712%; display:block; user-select:none; -webkit-user-select:none; }
     .selected{ outline: 3px solid rgba(255,255,255,.6); }
+    .move-dot{
+      position:absolute;
+      width:32%;
+      height:32%;
+      border-radius:50%;
+      background:rgba(255,255,255,.35);
+      border:4px solid rgba(0,0,0,.25);
+      box-shadow:0 0 0 4px rgba(0,0,0,.15);
+      pointer-events:none;
+    }
     .info-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
     .history-bar{
       width:100%;
@@ -328,6 +338,7 @@
     let activeColor = 'w';
     let fullmove = 1;
     let selectedSq = null;
+    let possibleMoves = [];
 
     function renderAnalysisLines(lines = [], { fromCache = false } = {}){
       analysisListEl.innerHTML = '';
@@ -471,6 +482,11 @@
             piece.className = `piece ${isWhite ? 'white' : 'black'}`;
             piece.appendChild(img);
             sq.appendChild(piece);
+          }
+          if (possibleMoves.includes(coord)){
+            const dot = document.createElement('div');
+            dot.className = 'move-dot';
+            sq.appendChild(dot);
           }
           boardSquaresEl.appendChild(sq);
         });
@@ -840,11 +856,27 @@
       boardState[rankIdx][fileIdx] = value;
     }
 
+    function calculateLegalMoves(fromSquare){
+      const piece = getPieceAt(fromSquare);
+      if (!piece || getPieceColor(piece) !== activeColor) return [];
+      const moves = [];
+      for (let r = 0; r < 8; r++){
+        for (let f = 0; f < 8; f++){
+          const targetSquare = `${files[f]}${ranks[r]}`;
+          if (!isLegalPieceMove(piece, fromSquare, targetSquare, boardState)) continue;
+          if (wouldLeaveKingInCheck(fromSquare, targetSquare, piece)) continue;
+          moves.push(targetSquare);
+        }
+      }
+      return moves;
+    }
+
     function handleSquareClick(square){
       const piece = getPieceAt(square);
       if (selectedSq){
         if (selectedSq === square){
           selectedSq = null;
+          possibleMoves = [];
           setBoardStatus('Выбор фигуры отменён.');
           renderBoardFromFen(currentFen);
           return;
@@ -852,33 +884,39 @@
         const movingPiece = getPieceAt(selectedSq);
         if (!movingPiece){
           selectedSq = null;
+          possibleMoves = [];
           renderBoardFromFen(currentFen);
           return;
         }
         if (getPieceColor(movingPiece) !== activeColor){
           setBoardStatus('Сейчас ход другого цвета.');
           selectedSq = null;
+          possibleMoves = [];
           renderBoardFromFen(currentFen);
           return;
         }
         if (!isLegalPieceMove(movingPiece, selectedSq, square, boardState)){
           if (piece && getPieceColor(piece) === activeColor){
             selectedSq = square;
+            possibleMoves = calculateLegalMoves(square);
             setBoardStatus('Выбрана другая фигура того же цвета.');
           } else {
             setBoardStatus('Такой ход не разрешён правилами.');
+            possibleMoves = [];
           }
           renderBoardFromFen(currentFen);
           return;
         }
         if (wouldLeaveKingInCheck(selectedSq, square, movingPiece)){
           setBoardStatus('Ход оставляет короля под боем.');
+          possibleMoves = [];
           renderBoardFromFen(currentFen);
           return;
         }
         setPieceAt(square, movingPiece);
         setPieceAt(selectedSq, '');
         selectedSq = null;
+        possibleMoves = [];
         activeColor = activeColor === 'w' ? 'b' : 'w';
         if (activeColor === 'w') fullmove += 1;
         currentFen = boardToFen(boardState, activeColor, fullmove);
@@ -890,13 +928,16 @@
       }
       if (piece && getPieceColor(piece) === activeColor){
         selectedSq = square;
+        possibleMoves = calculateLegalMoves(square);
         setBoardStatus('Выбрана фигура для хода.');
       } else if (piece){
         setBoardStatus('Сейчас ход другого цвета.');
         selectedSq = null;
+        possibleMoves = [];
       } else {
         setBoardStatus('Пустая клетка. Выберите фигуру.');
         selectedSq = null;
+        possibleMoves = [];
       }
       renderBoardFromFen(currentFen);
     }
