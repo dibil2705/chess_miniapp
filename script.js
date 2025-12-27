@@ -25,8 +25,8 @@ const START_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 
 const tg = window.Telegram?.WebApp;
 
-const moveSound = new Audio('audio/chess-move.mp3');
-const checkSound = new Audio('audio/chess-check.mp3');
+const moveSound = new Audio('audio/chess-move.ogg');
+const checkSound = new Audio('audio/chess-check.ogg');
 const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
 
 let flipped = false;
