@@ -840,16 +840,33 @@
       return data;
     }
 
-    async function analyzePosition(force = false){
+    async function analyzePosition(options = {}){
+      const {
+        force = false,
+        attachToHistory = true,
+        targetRowIndex = null
+      } = typeof options === 'object' && options !== null ? options : {};
       if (!currentFen){
         statusEl.textContent = 'FEN не передан. Вернитесь на главную и откройте анализ заново.';
         return;
       }
 
+      const targetRow = Number.isInteger(targetRowIndex) ? analysisHistory[targetRowIndex] : null;
+      const existingLines = targetRow?.lines || [];
+      if (existingLines.length && !force){
+        renderAnalysisLines(existingLines, { fromCache: true });
+        return;
+      }
+
       const cached = analyzeCache.get(currentFen);
       const now = Date.now();
-      if (!force && cached && now - cached.timestamp < CACHE_TTL_MS){
-        renderAnalysisLines(cached.data?.lines || [], { fromCache: true });
+      const cacheValid = !force && cached && now - cached.timestamp < CACHE_TTL_MS;
+      const cachedLines = cacheValid ? (cached.data?.lines || cached.data?.analysis || []) : [];
+      if (cacheValid && cachedLines.length){
+        if (targetRow){
+          targetRow.lines = cachedLines.slice(0, 3);
+        }
+        renderAnalysisLines(cachedLines, { fromCache: true });
         return;
       }
 
@@ -858,9 +875,15 @@
       try {
         const payload = { fen: currentFen, movetime_ms: 250, multipv: 3, side: 'turn' };
         const data = await fetchJson(ANALYZE_URL, payload);
+        const lines = data?.lines || data?.analysis || [];
         analyzeCache.set(currentFen, { timestamp: now, data });
-        renderAnalysisLines(data?.lines || data?.analysis || [], { fromCache: false });
-        pushAnalysisHistory(currentFen, data?.lines || data?.analysis || []);
+        if (targetRow){
+          targetRow.lines = lines.slice(0, 3);
+        }
+        renderAnalysisLines(lines, { fromCache: false });
+        if (attachToHistory){
+          pushAnalysisHistory(currentFen, lines);
+        }
       } catch (err){
         statusEl.textContent = `Ошибка анализа: ${err.message}`;
         analysisListEl.innerHTML = '';
@@ -1125,6 +1148,10 @@
       updateArrow(row?.lines?.[0]);
       updateEvalBar(row?.lines?.[0]);
       updatePriorityMoves(row?.lines || []);
+      renderAnalysisLines(row?.lines || []);
+      if (!row?.lines?.length){
+        analyzePosition({ attachToHistory: false, targetRowIndex: ply.rowIndex });
+      }
     }
 
     function setBoardStatus(message){
@@ -1483,7 +1510,7 @@
       currentFen = boardToFen(boardState, activeColor, fullmove);
       fenTextEl.textContent = currentFen;
       renderBoardFromFen(currentFen);
-      analyzePosition(true);
+      analyzePosition({ force: true });
       setBoardStatus('Ход выполнен.');
     }
 
@@ -1511,8 +1538,20 @@
       renderBoardFromFen(currentFen);
       hydrateHistoryFromStorage();
       moveInput.value = moveFromQuery;
-      analyzePosition();
-      refreshBtn.addEventListener('click', () => analyzePosition(true));
+      const currentRowIndex = historyCursor >= 0 ? historyPlies[historyCursor]?.rowIndex : null;
+      const shouldAttachToHistory = !analysisHistory.length;
+      analyzePosition({
+        attachToHistory: shouldAttachToHistory,
+        targetRowIndex: shouldAttachToHistory ? null : currentRowIndex
+      });
+      refreshBtn.addEventListener('click', () => {
+        const targetRowIndex = historyCursor >= 0 ? historyPlies[historyCursor]?.rowIndex : null;
+        analyzePosition({
+          force: true,
+          attachToHistory: targetRowIndex === null,
+          targetRowIndex
+        });
+      });
       evaluateBtn.addEventListener('click', () => evaluateMove(moveInput.value.trim()));
       window.addEventListener('message', handleIncomingMove);
       if (historyFirstBtn) historyFirstBtn.addEventListener('click', () => scrollHistory('top'));
