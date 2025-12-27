@@ -455,6 +455,7 @@
     const params = new URLSearchParams(window.location.search);
     const initialFen = params.get('fen');
     const moveFromQuery = params.get('move') || '';
+    const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
 
     const files = ['a','b','c','d','e','f','g','h'];
     const ranks = ['8','7','6','5','4','3','2','1'];
@@ -898,6 +899,61 @@
         moveInput.value = data.move_uci;
         evaluateMove(data.move_uci);
       }
+    }
+
+    function readStoredMoveHistory(){
+      try {
+        const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch (err){
+        console.warn('Не удалось прочитать историю ходов', err);
+        return null;
+      }
+    }
+
+    function hydrateHistoryFromStorage(){
+      const stored = readStoredMoveHistory();
+      if (!stored || !Array.isArray(stored.moves) || !stored.moves.length) return;
+      const startFen = stored.startFen || currentFen || initialFen;
+      analysisHistory.length = 0;
+      historyCursor = -1;
+      let lastFen = startFen;
+
+      stored.moves.forEach((move, idx) => {
+        const text = move?.san || move?.uci || '—';
+        const fenForMove = move?.fen || lastFen;
+        const rowIdx = Math.floor(idx / 2);
+        if (!analysisHistory[rowIdx]){
+          analysisHistory[rowIdx] = {
+            fen: lastFen,
+            createdAt: move?.createdAt ? new Date(move.createdAt) : new Date(),
+            lines: [],
+            moves: { white: '—', black: '—' },
+            active: lastFen?.split(' ')[1] === 'b' ? 'b' : 'w'
+          };
+        }
+        if (idx % 2 === 0){
+          analysisHistory[rowIdx].moves.white = text;
+        } else {
+          analysisHistory[rowIdx].moves.black = text;
+        }
+        analysisHistory[rowIdx].fen = fenForMove;
+        analysisHistory[rowIdx].active = fenForMove?.split(' ')[1] === 'b' ? 'b' : 'w';
+        lastFen = fenForMove;
+      });
+
+      historyCursor = analysisHistory.length - 1;
+      currentFen = lastFen || currentFen;
+      const parsed = parseFenState(currentFen);
+      boardState = parsed.board;
+      activeColor = parsed.active;
+      fullmove = parsed.fullmove;
+      castlingRights = parsed.rights || '-';
+      enPassantTarget = parsed.ep || '-';
+      fenTextEl.textContent = currentFen || '—';
+      renderBoardFromFen(currentFen);
+      renderHistory({ scrollToCursor: true });
     }
 
     function renderHistory(options = {}){
@@ -1404,6 +1460,7 @@
       fenTextEl.textContent = currentFen || '—';
       renderBoardCoords();
       renderBoardFromFen(currentFen);
+      hydrateHistoryFromStorage();
       moveInput.value = moveFromQuery;
       analyzePosition();
       refreshBtn.addEventListener('click', () => analyzePosition(true));
