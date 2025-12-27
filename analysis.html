@@ -511,6 +511,7 @@
     const CACHE_TTL_MS = 10_000;
     const analyzeCache = new Map();
     const analysisHistory = [];
+    const historyPlies = [];
     let historyCursor = -1;
     let currentFen = initialFen;
     let boardState = [];
@@ -912,6 +913,38 @@
       }
     }
 
+    function rebuildHistoryPlies({ preserveCursor = false } = {}){
+      const prevKey = preserveCursor && historyCursor >= 0 && historyPlies[historyCursor]
+        ? `${historyPlies[historyCursor].rowIndex}-${historyPlies[historyCursor].side}`
+        : null;
+      historyPlies.length = 0;
+      analysisHistory.forEach((item, idx) => {
+        const whiteText = item.moves?.white || '—';
+        const blackText = item.moves?.black || '—';
+        if (whiteText !== '—' && item.fens?.white){
+          historyPlies.push({ rowIndex: idx, side: 'white', fen: item.fens.white });
+        }
+        if (blackText !== '—' && item.fens?.black){
+          historyPlies.push({ rowIndex: idx, side: 'black', fen: item.fens.black });
+        }
+      });
+      if (!historyPlies.length){
+        historyCursor = -1;
+        return;
+      }
+      if (prevKey){
+        const newIdx = historyPlies.findIndex((ply) => `${ply.rowIndex}-${ply.side}` === prevKey);
+        if (newIdx !== -1){
+          historyCursor = newIdx;
+          return;
+        }
+      }
+      historyCursor = Math.min(historyCursor, historyPlies.length - 1);
+      if (historyCursor === -1 || Number.isNaN(historyCursor)){
+        historyCursor = historyPlies.length - 1;
+      }
+    }
+
     function hydrateHistoryFromStorage(){
       const stored = readStoredMoveHistory();
       if (!stored || !Array.isArray(stored.moves) || !stored.moves.length) return;
@@ -930,21 +963,26 @@
             createdAt: move?.createdAt ? new Date(move.createdAt) : new Date(),
             lines: [],
             moves: { white: '—', black: '—' },
+            fens: { white: null, black: null },
             active: lastFen?.split(' ')[1] === 'b' ? 'b' : 'w'
           };
         }
         if (idx % 2 === 0){
           analysisHistory[rowIdx].moves.white = text;
+          analysisHistory[rowIdx].fens.white = fenForMove;
         } else {
           analysisHistory[rowIdx].moves.black = text;
+          analysisHistory[rowIdx].fens.black = fenForMove;
         }
         analysisHistory[rowIdx].fen = fenForMove;
         analysisHistory[rowIdx].active = fenForMove?.split(' ')[1] === 'b' ? 'b' : 'w';
         lastFen = fenForMove;
       });
 
-      historyCursor = analysisHistory.length - 1;
-      currentFen = lastFen || currentFen;
+      rebuildHistoryPlies();
+      historyCursor = historyPlies.length ? historyPlies.length - 1 : -1;
+      const lastCursorFen = historyCursor >= 0 ? historyPlies[historyCursor]?.fen : null;
+      currentFen = lastCursorFen || lastFen || currentFen;
       const parsed = parseFenState(currentFen);
       boardState = parsed.board;
       activeColor = parsed.active;
@@ -954,6 +992,7 @@
       fenTextEl.textContent = currentFen || '—';
       renderBoardFromFen(currentFen);
       renderHistory({ scrollToCursor: true });
+      loadHistoryPosition(historyCursor);
     }
 
     function renderHistory(options = {}){
@@ -961,15 +1000,16 @@
       if (!analysisHistoryEl || !historyEmptyEl) return;
       analysisHistoryEl.innerHTML = '';
       updateHistoryControlsEnabled();
-      if (!analysisHistory.length){
+      if (!historyPlies.length || !analysisHistory.length){
         historyEmptyEl.style.display = 'block';
         return;
       }
       historyEmptyEl.style.display = 'none';
-      if (historyCursor === -1 && analysisHistory.length){
-        historyCursor = analysisHistory.length - 1;
+      if (historyCursor === -1 && historyPlies.length){
+        historyCursor = historyPlies.length - 1;
       }
-      historyCursor = Math.min(historyCursor, analysisHistory.length - 1);
+      historyCursor = Math.min(historyCursor, historyPlies.length - 1);
+      const currentPly = historyCursor >= 0 ? historyPlies[historyCursor] : null;
       analysisHistory.forEach((item, idx) => {
         const row = document.createElement('div');
         row.className = 'move-row';
@@ -986,19 +1026,19 @@
         blackMove.innerHTML = `<span>${black}</span>`;
         if (white === '—') whiteMove.classList.add('is-empty');
         if (black === '—') blackMove.classList.add('is-empty');
-        if (idx === historyCursor){
+        if (currentPly && idx === currentPly.rowIndex){
           row.classList.add('is-current');
-          if (item.active === 'w') whiteMove.classList.add('is-active');
-          if (item.active === 'b') blackMove.classList.add('is-active');
+          if (currentPly.side === 'white') whiteMove.classList.add('is-active');
+          if (currentPly.side === 'black') blackMove.classList.add('is-active');
         }
         row.appendChild(moveNum);
         row.appendChild(whiteMove);
         row.appendChild(blackMove);
         analysisHistoryEl.appendChild(row);
       });
-      if (scrollToCursor && historyCursor >= 0 && historyBodyEl){
+      if (scrollToCursor && currentPly && historyBodyEl){
         requestAnimationFrame(() => {
-          const targetRow = analysisHistoryEl.children[historyCursor];
+          const targetRow = analysisHistoryEl.children[currentPly.rowIndex];
           if (targetRow){
             const targetOffset = Math.max(
               targetRow.offsetTop - (historyBodyEl.clientHeight / 2) + (targetRow.clientHeight / 2),
@@ -1017,8 +1057,17 @@
       const tokens = pv.split(/\s+/).filter(Boolean);
       const white = tokens[0] || '—';
       const black = tokens[1] || '—';
-      const entry = { fen: fenValue, createdAt: new Date(), lines: lines?.slice(0,3) || [], moves: { white, black }, active: activeColor };
-      const wasAtTail = historyCursor === -1 || historyCursor === analysisHistory.length - 1;
+      const entry = {
+        fen: fenValue,
+        createdAt: new Date(),
+        lines: lines?.slice(0,3) || [],
+        moves: { white, black },
+        fens: { white: null, black: null },
+        active: activeColor
+      };
+      const lastMover = activeColor === 'w' ? 'black' : 'white';
+      entry.fens[lastMover] = fenValue;
+      const wasAtTail = historyCursor === -1 || historyCursor === historyPlies.length - 1;
       analysisHistory.push(entry);
       const MAX_HISTORY = 200;
       if (analysisHistory.length > MAX_HISTORY){
@@ -1028,42 +1077,42 @@
           historyCursor = Math.max(historyCursor - removed, 0);
         }
       }
-      if (!analysisHistory.length){
-        historyCursor = -1;
-      } else if (wasAtTail || historyCursor === -1){
-        historyCursor = analysisHistory.length - 1;
-      } else {
-        historyCursor = Math.min(historyCursor, analysisHistory.length - 1);
+      rebuildHistoryPlies({ preserveCursor: wasAtTail });
+      if (wasAtTail || historyCursor === -1){
+        historyCursor = historyPlies.length ? historyPlies.length - 1 : -1;
       }
       renderHistory({ scrollToCursor: false });
     }
 
     function updateHistoryControlsEnabled(){
-      const disabled = !analysisHistory.length;
+      const disabled = !historyPlies.length;
       [historyFirstBtn, historyUpBtn, historyDownBtn, historyLastBtn].forEach((btn) => {
         if (btn) btn.disabled = disabled;
       });
     }
 
     function scrollHistory(where){
-      if (!analysisHistoryEl || !analysisHistory.length) return;
-      if (historyCursor === -1) historyCursor = analysisHistory.length - 1;
+      if (!analysisHistoryEl || !historyPlies.length) return;
+      if (historyCursor === -1) historyCursor = historyPlies.length - 1;
       if (where === 'top'){
         historyCursor = 0;
       } else if (where === 'bottom'){
-        historyCursor = analysisHistory.length - 1;
+        historyCursor = historyPlies.length - 1;
       } else {
         const step = where === 'up' ? -1 : 1;
-        historyCursor = Math.min(Math.max(historyCursor + step, 0), analysisHistory.length - 1);
+        historyCursor = Math.min(Math.max(historyCursor + step, 0), historyPlies.length - 1);
       }
       renderHistory({ scrollToCursor: true });
       loadHistoryPosition(historyCursor);
     }
 
     function loadHistoryPosition(index){
-      const item = analysisHistory[index];
-      if (!item) return;
-      currentFen = item.fen;
+      const ply = historyPlies[index];
+      if (!ply) return;
+      const row = analysisHistory[ply.rowIndex];
+      const fenForPly = ply.fen || row?.fen;
+      if (!fenForPly) return;
+      currentFen = fenForPly;
       const parsed = parseFenState(currentFen);
       boardState = parsed.board;
       activeColor = parsed.active;
@@ -1073,9 +1122,9 @@
       renderBoardFromFen(currentFen);
       fenTextEl.textContent = currentFen;
       setBoardStatus(`Ход ${activeColor === 'w' ? 'белых' : 'чёрных'}.`);
-      updateArrow(item.lines?.[0]);
-      updateEvalBar(item.lines?.[0]);
-      updatePriorityMoves(item.lines || []);
+      updateArrow(row?.lines?.[0]);
+      updateEvalBar(row?.lines?.[0]);
+      updatePriorityMoves(row?.lines || []);
     }
 
     function setBoardStatus(message){
