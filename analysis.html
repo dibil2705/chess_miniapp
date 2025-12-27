@@ -484,6 +484,7 @@
     const historyEmptyEl = document.getElementById('historyEmpty');
     const priorityWrapEl = document.getElementById('priorityWrap');
     const priorityMovesEl = document.getElementById('priorityMoves');
+    const historyBodyEl = document.querySelector('.history-body');
     const historyFirstBtn = document.getElementById('historyFirstBtn');
     const historyUpBtn = document.getElementById('historyUpBtn');
     const historyDownBtn = document.getElementById('historyDownBtn');
@@ -939,10 +940,16 @@
         row.appendChild(blackMove);
         analysisHistoryEl.appendChild(row);
       });
-      if (scrollToCursor && historyCursor >= 0){
+      if (scrollToCursor && historyCursor >= 0 && historyBodyEl){
         requestAnimationFrame(() => {
           const targetRow = analysisHistoryEl.children[historyCursor];
-          if (targetRow) targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (targetRow){
+            const targetOffset = Math.max(
+              targetRow.offsetTop - (historyBodyEl.clientHeight / 2) + (targetRow.clientHeight / 2),
+              0
+            );
+            historyBodyEl.scrollTo({ top: targetOffset, behavior: 'smooth' });
+          }
         });
       }
     }
