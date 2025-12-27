@@ -27,6 +27,7 @@ const tg = window.Telegram?.WebApp;
 
 const moveSound = new Audio('audio/chess-move.mp3');
 const checkSound = new Audio('audio/chess-check.mp3');
+const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
 
 let flipped = false;
 let boardState = fenToBoard(START_FEN);
@@ -45,6 +46,8 @@ let puzzleStartFen = null;
 let puzzlePlayerColor = null;
 let puzzleSolutionTargetFen = null;
 let puzzleLoading = false;
+let moveHistory = [];
+let historyStartFen = START_FEN;
 
 function getExpectedMoveColor(moveIndex){
   const opponentColor = puzzlePlayerColor === 'w' ? 'b' : 'w';
@@ -210,6 +213,7 @@ function loadPositionFromFen(fen){
   boardState = parsed.board;
   activeColor = parsed.active;
   castlingRights = parsed.castling;
+  resetMoveHistory(fen);
   const hasSolution = puzzleSolutionMoves.length > 0;
   puzzlePlayerColor = parsed.active;
   puzzleMode = hasSolution;
@@ -249,6 +253,46 @@ function getCastlingFen(){
   if (castlingRights.b.K) out += 'k';
   if (castlingRights.b.Q) out += 'q';
   return out || '-';
+}
+
+function persistMoveHistory(){
+  try{
+    const payload = { startFen: historyStartFen, moves: moveHistory };
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(payload));
+  } catch (err){
+    console.warn('Не удалось сохранить историю ходов', err);
+  }
+}
+
+function resetMoveHistory(startFen){
+  historyStartFen = startFen || boardToFen(boardState);
+  moveHistory = [];
+  persistMoveHistory();
+}
+
+function recordMoveToHistory({ fromR, fromC, toR, toC, promotionPiece = null, fenBefore, fenAfter }){
+  if (!fenAfter) return;
+  const fromSq = coordToNotation(fromR, fromC);
+  const toSq = coordToNotation(toR, toC);
+  const promo = promotionPiece ? promotionPiece.toLowerCase() : '';
+  const uci = `${fromSq}${toSq}${promo}`;
+  let san = null;
+  if (typeof Chess === 'function'){
+    try{
+      const chess = new Chess(fenBefore || historyStartFen);
+      const move = chess.move({ from: fromSq, to: toSq, promotion: promo || undefined });
+      san = move?.san || null;
+    } catch (err){
+      console.warn('Не удалось сконвертировать ход в SAN', err);
+    }
+  }
+  moveHistory.push({
+    san: san || uci,
+    uci,
+    fen: fenAfter,
+    active: fenAfter.split(' ')[1] === 'b' ? 'b' : 'w'
+  });
+  persistMoveHistory();
 }
 
 function coordToDisplay(r,c){
@@ -1063,6 +1107,7 @@ function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null }){
     return;
   }
 
+  const fenBefore = boardToFen(boardState);
   const pieceToPlace = promotionPiece || piece;
   updateCastlingRights(fromR, fromC, toR, toC, piece);
 
@@ -1080,6 +1125,8 @@ function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null }){
   }
 
   activeColor = activeColor === 'w' ? 'b' : 'w';
+  const fenAfter = boardToFen(boardState);
+  recordMoveToHistory({ fromR, fromC, toR, toC, promotionPiece, fenBefore, fenAfter });
   playMoveAudio();
   resetSelection();
   render();
@@ -1522,5 +1569,6 @@ promotionButtons.forEach(btn => {
 
 preventZoom();
 initTelegram();
+resetMoveHistory(boardToFen(boardState));
 render();
 fetchRandomPuzzle();
