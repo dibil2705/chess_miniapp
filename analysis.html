@@ -512,6 +512,8 @@
     const analyzeCache = new Map();
     const analysisHistory = [];
     const historyPlies = [];
+    const moveSound = new Audio('audio/chess-move.ogg');
+    const checkSound = new Audio('audio/chess-check.ogg');
     let historyCursor = -1;
     let currentFen = initialFen;
     let boardState = [];
@@ -1334,6 +1336,51 @@
       return isSquareAttacked(kingSquare, color, simulated);
     }
 
+    function isKingInCheck(color){
+      const kingPos = findKing(color, boardState);
+      if (!kingPos) return false;
+      const kingSquare = `${files[kingPos.fileIdx]}${ranks[kingPos.rankIdx]}`;
+      return isSquareAttacked(kingSquare, color, boardState);
+    }
+
+    function playerHasLegalMoves(color){
+      for (let r = 0; r < 8; r++){
+        for (let f = 0; f < 8; f++){
+          const piece = boardState[r]?.[f];
+          if (!piece || getPieceColor(piece) !== color) continue;
+          const fromSquare = `${files[f]}${ranks[r]}`;
+          for (let tr = 0; tr < 8; tr++){
+            for (let tf = 0; tf < 8; tf++){
+              const toSquare = `${files[tf]}${ranks[tr]}`;
+              if (!isLegalPieceMove(piece, fromSquare, toSquare, boardState)) continue;
+              if (wouldLeaveKingInCheck(fromSquare, toSquare, piece)) continue;
+              return true;
+            }
+          }
+        }
+      }
+      return false;
+    }
+
+    function playSound(sound){
+      if (!sound) return;
+      try {
+        sound.currentTime = 0;
+        sound.play().catch(() => {});
+      } catch (_) {}
+    }
+
+    function playMoveAudio(){
+      const inCheck = isKingInCheck(activeColor);
+      const hasMoves = playerHasLegalMoves(activeColor);
+      const isMate = inCheck && !hasMoves;
+      if (isMate || inCheck){
+        playSound(checkSound);
+      } else {
+        playSound(moveSound);
+      }
+    }
+
     function updateCastlingRights(fromSquare, toSquare, movingPiece, capturedPiece){
       if (!movingPiece) return;
       const upper = movingPiece.toUpperCase();
@@ -1510,6 +1557,7 @@
       currentFen = boardToFen(boardState, activeColor, fullmove);
       fenTextEl.textContent = currentFen;
       renderBoardFromFen(currentFen);
+      playMoveAudio();
       analyzePosition({ force: true });
       setBoardStatus('Ход выполнен.');
     }
