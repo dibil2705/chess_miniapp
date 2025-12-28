@@ -80,6 +80,7 @@ const puzzleOverlayActionsEl = document.getElementById('puzzleOverlayActions');
 const analysisOverlayEl = document.getElementById('analysisOverlay');
 const analysisFrameEl = document.getElementById('analysisFrame');
 const closeAnalysisBtn = document.getElementById('closeAnalysisBtn');
+const settingsDetailsEl = document.querySelector('.floating-settings details');
 
 const defaultTheme = {
   bg: '#111',
@@ -1635,6 +1636,14 @@ if (analysisOverlayEl){
     if (event.key === 'Escape' && analysisOverlayEl.classList.contains('active')){
       closeAnalysisOverlay();
     }
+  });
+}
+
+if (settingsDetailsEl){
+  document.addEventListener('click', (event) => {
+    if (!settingsDetailsEl.open) return;
+    if (settingsDetailsEl.contains(event.target)) return;
+    settingsDetailsEl.removeAttribute('open');
   });
 }
 
