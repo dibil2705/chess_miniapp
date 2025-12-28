@@ -485,9 +485,18 @@
 
     .floating-settings{
       position: fixed;
-      top: 12px;
-      right: 12px;
+      top: 6px;
+      right: 10px;
       z-index: 5000;
+      display: grid;
+      justify-items: end;
+      align-items: start;
+    }
+    .floating-settings details{
+      display: grid;
+      justify-items: end;
+      align-items: start;
+      gap: 8px;
     }
     .floating-settings summary{
       list-style: none;
@@ -513,7 +522,7 @@
     }
     .settings-panel{
       min-width: 260px;
-      margin-top: 8px;
+      margin-top: 0;
       padding: 12px 14px;
       border-radius: 12px;
       border: 1px solid rgba(255,255,255,.08);
