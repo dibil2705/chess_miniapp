@@ -52,8 +52,6 @@
     .actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
     .btn{ cursor:pointer; border:1px solid var(--border); background:rgba(255,255,255,.08); color:var(--text); padding:10px 14px; border-radius:10px; font-weight:600; }
     .btn:disabled{ opacity:.5; cursor:not-allowed; }
-    .field{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
-    .field input{ flex:1 1 240px; padding:10px; border-radius:10px; border:1px solid var(--border); background:rgba(0,0,0,.35); color:var(--text); }
     .mono{
       font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
       word-break: break-word;
@@ -304,6 +302,21 @@
       overflow:hidden;
       box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
     }
+    .board-meta{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:flex-start;
+      width:100%;
+    }
+    .analysis-status{
+      flex:1 1 240px;
+      margin:0;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid var(--border);
+      background:rgba(0,0,0,.25);
+    }
     .move-num{
       display:grid;
       place-items:center;
@@ -392,11 +405,17 @@
           <div id="ranksLeft" class="coord-ranks"></div>
           <div id="board" class="board" aria-label="Доска для визуализации позиции">
             <svg id="boardArrows" class="board-arrows" viewBox="0 0 800 800"></svg>
-            <div id="boardSquares" class="board-squares"></div>
+          <div id="boardSquares" class="board-squares"></div>
           </div>
           <div id="filesBottom" class="coord-files"></div>
         </div>
-        <div class="status mono" id="boardFen"></div>
+        <div class="board-meta">
+          <div class="priority-wrap" id="boardPriorityWrap">
+            <div class="priority-title">Приоритетные ходы</div>
+            <div id="boardPriorityMoves" class="priority-moves"></div>
+          </div>
+          <div class="analysis-status" id="analysisStatus">Готовимся к анализу...</div>
+        </div>
         <div class="status" id="boardStatus">Выберите фигуру текущего цвета, чтобы сделать ход.</div>
         <div class="history-bar">
           <div class="history-head">
@@ -431,17 +450,6 @@
           <p id="engineStatus" class="status">Готовимся к анализу...</p>
           <ul id="analysisList" class="list" aria-live="polite" aria-atomic="true"></ul>
         </div>
-
-        <div class="panel">
-          <h3 style="margin:0">Проверка хода</h3>
-          <p class="status">Введите ход в формате UCI или передайте его из основной доски.</p>
-          <div class="field">
-            <input id="moveInput" type="text" inputmode="text" autocomplete="off" placeholder="Например: e2e4" />
-            <button class="btn" id="evaluateBtn">Проверить</button>
-          </div>
-          <div id="moveStatus" class="status" style="margin-top:8px"></div>
-          <ul id="moveDetails" class="list"></ul>
-        </div>
       </div>
     </div>
   </div>
@@ -473,7 +481,6 @@
   <script>
     const params = new URLSearchParams(window.location.search);
     const initialFen = params.get('fen');
-    const moveFromQuery = params.get('move') || '';
     const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
 
     const files = ['a','b','c','d','e','f','g','h'];
@@ -510,13 +517,11 @@
     const historyDownBtn = document.getElementById('historyDownBtn');
     const historyLastBtn = document.getElementById('historyLastBtn');
     const refreshBtn = document.getElementById('refreshBtn');
-    const moveInput = document.getElementById('moveInput');
-    const evaluateBtn = document.getElementById('evaluateBtn');
-    const moveStatusEl = document.getElementById('moveStatus');
-    const moveDetailsEl = document.getElementById('moveDetails');
     const boardSquaresEl = document.getElementById('boardSquares');
     const arrowsEl = document.getElementById('boardArrows');
-    const boardFenEl = document.getElementById('boardFen');
+    const boardPriorityWrapEl = document.getElementById('boardPriorityWrap');
+    const boardPriorityMovesEl = document.getElementById('boardPriorityMoves');
+    const analysisStatusEl = document.getElementById('analysisStatus');
     const boardStatusEl = document.getElementById('boardStatus');
     const filesBottomEl = document.getElementById('filesBottom');
     const ranksLeftEl = document.getElementById('ranksLeft');
@@ -524,9 +529,12 @@
     const evalLabelEl = document.getElementById('evalLabel');
     const promotionOverlay = document.getElementById('promotionOverlay');
     const promotionButtons = Array.from(document.querySelectorAll('.promotion-btn'));
+    const priorityTargets = [
+      { wrap: priorityWrapEl, list: priorityMovesEl },
+      { wrap: boardPriorityWrapEl, list: boardPriorityMovesEl }
+    ].filter((item) => item.wrap && item.list);
 
     const ANALYZE_URL = 'http://127.0.0.1:8000/analyze';
-    const EVAL_URL = 'http://127.0.0.1:8000/evaluate_move';
     const CACHE_TTL_MS = 10_000;
     const analyzeCache = new Map();
     const analysisHistory = [];
@@ -563,6 +571,11 @@
     function closePromotionDialog(){
       if (!promotionOverlay) return;
       promotionOverlay.classList.remove('active');
+    }
+
+    function setAnalysisStatus(text){
+      if (statusEl) statusEl.textContent = text;
+      if (analysisStatusEl) analysisStatusEl.textContent = text;
     }
 
     function normalizeScore(line, perspective = activeColor){
@@ -611,61 +624,40 @@
         li.appendChild(pv);
         analysisListEl.appendChild(li);
       });
-      statusEl.textContent = fromCache ? 'Показан кешированный анализ (до 10 секунд).' : 'Анализ обновлён.';
+      setAnalysisStatus(fromCache ? 'Показан кешированный анализ (до 10 секунд).' : 'Анализ обновлён.');
       updatePriorityMoves(lines);
       updateArrow(lines?.[0]);
       updateEvalBar(lines?.[0]);
     }
 
     function updatePriorityMoves(lines = []){
-      if (!priorityWrapEl || !priorityMovesEl) return;
-      priorityMovesEl.innerHTML = '';
+      priorityTargets.forEach(({ list }) => {
+        list.innerHTML = '';
+      });
       const top = lines.slice(0,3);
       if (!top.length){
-        const empty = document.createElement('div');
-        empty.className = 'priority-item';
-        empty.textContent = 'Нет приоритетных ходов';
-        priorityMovesEl.appendChild(empty);
+        priorityTargets.forEach(({ list }) => {
+          const empty = document.createElement('div');
+          empty.className = 'priority-item';
+          empty.textContent = 'Нет приоритетных ходов';
+          list.appendChild(empty);
+        });
         return;
       }
       top.forEach((line, idx) => {
-        const item = document.createElement('div');
-        item.className = 'priority-item';
-        const move = document.createElement('div');
-        move.className = 'priority-move mono';
-        move.textContent = `${idx + 1}. ${line.best_move_uci || '—'}`;
-        const pv = document.createElement('div');
-        pv.className = 'priority-pv mono';
-        pv.textContent = line.pv_san || '—';
-        item.appendChild(move);
-        item.appendChild(pv);
-        priorityMovesEl.appendChild(item);
-      });
-    }
-
-    function renderMoveResult(data){
-      moveDetailsEl.innerHTML = '';
-      if (!data){
-        moveStatusEl.textContent = 'Нет данных по ходу.';
-        return;
-      }
-      moveStatusEl.textContent = `Оценка: ${data.label || '—'}`;
-      const rows = [
-        { label: 'Дельта (cp)', value: data.delta_cp },
-        { label: 'Лучший ход', value: data.best_move_uci },
-        { label: 'Лучшая линия', value: data.best_line?.pv_san },
-        { label: 'Линия после хода', value: data.after_line?.pv_san },
-      ];
-      rows.forEach((row) => {
-        const li = document.createElement('li');
-        const title = document.createElement('div');
-        title.innerHTML = `<strong>${row.label}</strong>`;
-        const value = document.createElement('div');
-        value.textContent = row.value !== undefined && row.value !== null ? row.value : '—';
-        value.classList.add('mono');
-        li.appendChild(title);
-        li.appendChild(value);
-        moveDetailsEl.appendChild(li);
+        priorityTargets.forEach(({ list }) => {
+          const item = document.createElement('div');
+          item.className = 'priority-item';
+          const move = document.createElement('div');
+          move.className = 'priority-move mono';
+          move.textContent = `${idx + 1}. ${line.best_move_uci || '—'}`;
+          const pv = document.createElement('div');
+          pv.className = 'priority-pv mono';
+          pv.textContent = line.pv_san || '—';
+          item.appendChild(move);
+          item.appendChild(pv);
+          list.appendChild(item);
+        });
       });
     }
 
@@ -778,7 +770,6 @@
         const sqEl = boardSquaresEl.querySelector(`[data-square="${selectedSq}"]`);
         if (sqEl) sqEl.classList.add('selected');
       }
-      if (boardFenEl) boardFenEl.textContent = fenStr || 'FEN не передан';
     }
 
     function uciToCoords(uci){
@@ -868,7 +859,7 @@
         targetRowIndex = null
       } = typeof options === 'object' && options !== null ? options : {};
       if (!currentFen){
-        statusEl.textContent = 'FEN не передан. Вернитесь на главную и откройте анализ заново.';
+        setAnalysisStatus('FEN не передан. Вернитесь на главную и откройте анализ заново.');
         return;
       }
 
@@ -891,7 +882,7 @@
         return;
       }
 
-      statusEl.textContent = 'Запрашиваем анализ у сервера...';
+      setAnalysisStatus('Запрашиваем анализ у сервера...');
       refreshBtn.disabled = true;
       try {
         const payload = { fen: currentFen, movetime_ms: 250, multipv: 3, side: 'turn' };
@@ -906,43 +897,10 @@
           pushAnalysisHistory(currentFen, lines);
         }
       } catch (err){
-        statusEl.textContent = `Ошибка анализа: ${err.message}`;
+        setAnalysisStatus(`Ошибка анализа: ${err.message}`);
         analysisListEl.innerHTML = '';
       } finally {
         refreshBtn.disabled = false;
-      }
-    }
-
-    async function evaluateMove(moveUci){
-      if (!currentFen){
-        moveStatusEl.textContent = 'FEN не передан. Вернитесь на главную и откройте анализ заново.';
-        return;
-      }
-      if (!moveUci){
-        moveStatusEl.textContent = 'Введите ход в формате UCI.';
-        return;
-      }
-
-      moveStatusEl.textContent = 'Отправляем ход на проверку...';
-      evaluateBtn.disabled = true;
-      try {
-        const payload = { fen: currentFen, move_uci: moveUci, movetime_ms: 250, side: 'turn' };
-        const data = await fetchJson(EVAL_URL, payload);
-        renderMoveResult(data);
-      } catch (err){
-        moveStatusEl.textContent = `Ошибка проверки: ${err.message}`;
-        moveDetailsEl.innerHTML = '';
-      } finally {
-        evaluateBtn.disabled = false;
-      }
-    }
-
-    function handleIncomingMove(event){
-      const data = event?.data;
-      if (!data || typeof data !== 'object') return;
-      if (data.type === 'evaluate-move' && data.move_uci){
-        moveInput.value = data.move_uci;
-        evaluateMove(data.move_uci);
       }
     }
 
@@ -1604,7 +1562,7 @@
       renderBoardCoords();
       renderBoardFromFen(currentFen);
       hydrateHistoryFromStorage();
-      moveInput.value = moveFromQuery;
+      setAnalysisStatus(statusEl?.textContent || 'Готовимся к анализу...');
       const currentRowIndex = historyCursor >= 0 ? historyPlies[historyCursor]?.rowIndex : null;
       const shouldAttachToHistory = !analysisHistory.length;
       analyzePosition({
@@ -1619,8 +1577,6 @@
           targetRowIndex
         });
       });
-      evaluateBtn.addEventListener('click', () => evaluateMove(moveInput.value.trim()));
-      window.addEventListener('message', handleIncomingMove);
       if (historyFirstBtn) historyFirstBtn.addEventListener('click', () => scrollHistory('top'));
       if (historyUpBtn) historyUpBtn.addEventListener('click', () => scrollHistory('up'));
       if (historyDownBtn) historyDownBtn.addEventListener('click', () => scrollHistory('down'));
@@ -1628,9 +1584,6 @@
       promotionButtons.forEach((btn) => {
         btn.addEventListener('click', () => handlePromotionChoice(btn.dataset.piece));
       });
-      if (moveFromQuery){
-        evaluateMove(moveFromQuery);
-      }
     }
 
     init();
