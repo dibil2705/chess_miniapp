@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Stockfish анализ</title>
+  <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
   <style>
     :root{
       --dark:#769656;
@@ -260,6 +261,10 @@
       box-shadow: 0 10px 30px rgba(0,0,0,.35);
       backdrop-filter: inherit;
     }
+    .history-btn .iconify{
+      font-size: clamp(22px, 6vw, 30px);
+      color: currentColor;
+    }
     .history-btn:active{ transform: translateY(1px); }
     .history-btn:disabled{ opacity:.45; cursor:not-allowed; }
     @media (max-width: 520px){
@@ -437,10 +442,18 @@
               <div class="status">Отображаются ходы белых и чёрных. Навигация стрелками.</div>
             </div>
             <div class="history-controls" aria-label="Управление историей">
-              <button class="history-btn" id="historyFirstBtn" title="К началу" aria-label="К началу">⏮</button>
-              <button class="history-btn" id="historyUpBtn" title="Назад" aria-label="Шаг назад">◀</button>
-              <button class="history-btn" id="historyDownBtn" title="Вперёд" aria-label="Шаг вперёд">▶</button>
-              <button class="history-btn" id="historyLastBtn" title="В конец" aria-label="В конец">⏭</button>
+              <button class="history-btn" id="historyFirstBtn" title="К началу" aria-label="К началу">
+                <span class="iconify" data-icon="mdi:page-first" aria-hidden="true"></span>
+              </button>
+              <button class="history-btn" id="historyUpBtn" title="Назад" aria-label="Шаг назад">
+                <span class="iconify" data-icon="mdi:chevron-left" aria-hidden="true"></span>
+              </button>
+              <button class="history-btn" id="historyDownBtn" title="Вперёд" aria-label="Шаг вперёд">
+                <span class="iconify" data-icon="mdi:chevron-right" aria-hidden="true"></span>
+              </button>
+              <button class="history-btn" id="historyLastBtn" title="В конец" aria-label="В конец">
+                <span class="iconify" data-icon="mdi:page-last" aria-hidden="true"></span>
+              </button>
             </div>
           </div>
           <div class="priority-wrap" id="priorityWrap">
