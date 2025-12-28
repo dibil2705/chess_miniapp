@@ -1288,7 +1288,9 @@ function render(){
     }
   }
 
-  fenOutEl.textContent = boardToFen(boardState);
+  if (fenOutEl){
+    fenOutEl.textContent = boardToFen(boardState);
+  }
   updateStatus();
   updatePuzzleStatus();
 }
