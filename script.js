@@ -81,6 +81,7 @@ const analysisOverlayEl = document.getElementById('analysisOverlay');
 const analysisFrameEl = document.getElementById('analysisFrame');
 const closeAnalysisBtn = document.getElementById('closeAnalysisBtn');
 const settingsDetailsEl = document.querySelector('.floating-settings details');
+const boardTitleEl = document.getElementById('boardTitle');
 
 const defaultTheme = {
   bg: '#111',
@@ -1648,6 +1649,13 @@ if (settingsDetailsEl){
 
   // Use capture phase to react even if inner elements stop propagation (e.g., chess pieces).
   document.addEventListener('pointerdown', handleOutsideSettingsClick, true);
+
+  if (boardTitleEl){
+    boardTitleEl.addEventListener('click', () => {
+      if (!settingsDetailsEl.open) return;
+      settingsDetailsEl.removeAttribute('open');
+    });
+  }
 }
 
 promotionButtons.forEach(btn => {
