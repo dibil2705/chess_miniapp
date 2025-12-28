@@ -29,7 +29,13 @@
       display:grid;
       gap:14px;
     }
-    .layout{ display:flex; flex-direction:column; gap:14px; align-items:stretch; }
+    .layout{ display:flex; flex-direction:column; gap:14px; align-items:stretch; border:none; }
+    .top-bar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
     .panel{
       padding:14px;
       border-radius:12px;
@@ -370,9 +376,9 @@
 </head>
 <body>
   <div class="wrap">
-    <div>
+    <div class="top-bar">
       <h2>Stockfish анализ позиции</h2>
-      <p class="status">Окно анализа открывается из главной доски и использует переданный FEN.</p>
+      <a class="btn" href="index.html">Назад</a>
     </div>
 
     <div class="layout">
