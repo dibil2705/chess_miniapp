@@ -8,6 +8,7 @@
   <title>Chess Board</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0/chess.min.js"></script>
+  <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
   <style>
     :root{
       --dark:#769656;
@@ -481,9 +482,78 @@
     .collapsible .collapsible-body{ padding: 0 14px 14px 14px; display:grid; gap: 8px; }
     .chevron{ font-size: 18px; opacity: .7; transition: transform .2s ease; }
     details[open] .chevron{ transform: rotate(180deg); }
+
+    .floating-settings{
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 5000;
+    }
+    .floating-settings summary{
+      list-style: none;
+      cursor: pointer;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.12);
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 10px 26px rgba(0,0,0,.35);
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .floating-settings summary::-webkit-details-marker{ display:none; }
+    .floating-settings summary:hover{
+      transform: translateY(-1px);
+      box-shadow: 0 12px 30px rgba(0,0,0,.4);
+    }
+    .floating-settings .iconify{
+      font-size: 24px;
+      color: var(--text);
+      opacity: .92;
+    }
+    .settings-panel{
+      min-width: 260px;
+      margin-top: 8px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      box-shadow: 0 14px 36px rgba(0,0,0,.4);
+    }
+    .settings-panel .info-title{
+      margin: 0 0 10px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .settings-panel .info-title .iconify{
+      font-size: 18px;
+    }
   </style>
 </head>
 <body>
+  <div class="floating-settings" aria-label="Панель настроек">
+    <details>
+      <summary aria-label="Открыть панель настроек">
+        <span class="iconify" data-icon="mdi:cog-outline" aria-hidden="true"></span>
+      </summary>
+      <div class="settings-panel" role="region" aria-label="Информация о позиции">
+        <div class="info-title">
+          <span class="iconify" data-icon="mdi:chess-king" aria-hidden="true"></span>
+          <span>Позиция</span>
+        </div>
+        <div class="collapsible-body" style="padding:0; display:grid; gap:8px;">
+          <div>
+            <div class="hint" style="margin:0 0 4px 0; opacity:.9;">FEN</div>
+            <div id="fenOut" class="mono" style="word-break: break-all;"></div>
+          </div>
+          <div id="status" class="hint" style="margin-top:2px;"></div>
+        </div>
+      </div>
+    </details>
+  </div>
+
   <div class="wrap">
     <h2 style="margin:0 0 10px 0;">Chess Board</h2>
 
@@ -506,17 +576,6 @@
     </div>
 
     <div class="info-grid">
-      <details class="panel collapsible" open>
-        <summary>
-          <span>FEN</span>
-          <span class="chevron">⌄</span>
-        </summary>
-        <div class="collapsible-body">
-          <div id="fenOut" class="mono" style="word-break: break-all;"></div>
-          <div id="status" class="hint" style="margin-top:6px;"></div>
-        </div>
-      </details>
-
       <details class="panel collapsible">
         <summary>
           <span>Задача</span>
