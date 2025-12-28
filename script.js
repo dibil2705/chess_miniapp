@@ -1640,11 +1640,14 @@ if (analysisOverlayEl){
 }
 
 if (settingsDetailsEl){
-  document.addEventListener('click', (event) => {
+  const handleOutsideSettingsClick = (event) => {
     if (!settingsDetailsEl.open) return;
     if (settingsDetailsEl.contains(event.target)) return;
     settingsDetailsEl.removeAttribute('open');
-  });
+  };
+
+  // Use capture phase to react even if inner elements stop propagation (e.g., chess pieces).
+  document.addEventListener('pointerdown', handleOutsideSettingsClick, true);
 }
 
 promotionButtons.forEach(btn => {
