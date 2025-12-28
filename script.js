@@ -28,6 +28,7 @@ const tg = window.Telegram?.WebApp;
 const moveSound = new Audio('audio/chess-move.ogg');
 const checkSound = new Audio('audio/chess-check.ogg');
 const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
+const PUZZLE_STORAGE_KEY = 'chess-miniapp-current-puzzle';
 
 let flipped = false;
 let boardState = fenToBoard(START_FEN);
@@ -208,22 +209,30 @@ function parseFenState(fen){
   return { board, active, castling };
 }
 
-function loadPositionFromFen(fen){
+function loadPositionFromFen(fen, options = {}){
+  const { preservePuzzleProgress = false } = options;
   const parsed = parseFenState(fen);
   boardState = parsed.board;
   activeColor = parsed.active;
   castlingRights = parsed.castling;
   resetMoveHistory(fen);
   const hasSolution = puzzleSolutionMoves.length > 0;
-  puzzlePlayerColor = parsed.active;
-  puzzleMode = hasSolution;
-  puzzleSolved = false;
+  if (!preservePuzzleProgress){
+    puzzlePlayerColor = parsed.active;
+    puzzleMode = hasSolution;
+    puzzleSolved = false;
+    puzzleMoveIndex = 0;
+  } else {
+    puzzleMode = puzzleMode && hasSolution;
+    puzzlePlayerColor = puzzlePlayerColor || parsed.active;
+  }
   promotionState = null;
   resetSelection();
   closePromotionDialog();
   closePuzzleOverlay();
   render();
   updatePuzzleStatus();
+  persistPuzzleState();
 }
 
 function boardToFen(b){
@@ -253,6 +262,29 @@ function getCastlingFen(){
   if (castlingRights.b.K) out += 'k';
   if (castlingRights.b.Q) out += 'q';
   return out || '-';
+}
+
+function persistPuzzleState(){
+  try{
+    const payload = {
+      puzzleData,
+      puzzleMode,
+      puzzleSolutionMoves,
+      puzzleMoveIndex,
+      puzzleSolved,
+      puzzleStartFen,
+      puzzlePlayerColor,
+      puzzleSolutionTargetFen,
+      boardFen: boardToFen(boardState),
+      castlingRights,
+      activeColor,
+      moveHistory,
+      historyStartFen
+    };
+    localStorage.setItem(PUZZLE_STORAGE_KEY, JSON.stringify(payload));
+  } catch (err){
+    console.warn('Не удалось сохранить состояние задачи', err);
+  }
 }
 
 function persistMoveHistory(){
@@ -1131,6 +1163,7 @@ function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null }){
   resetSelection();
   render();
   attemptAutoOpponentMove();
+  persistPuzzleState();
 }
 
 function handlePromotionChoice(pieceCode){
@@ -1528,6 +1561,7 @@ async function fetchRandomPuzzle(){
 function openAnalysisPage(){
   const fen = boardToFen(boardState);
   const url = `analysis.html?fen=${encodeURIComponent(fen)}`;
+  persistPuzzleState();
   window.location.href = url;
 }
 
@@ -1536,6 +1570,45 @@ function closeAnalysisOverlay(){
     analysisOverlayEl.classList.remove('active');
   }
   document.body.classList.remove('no-scroll');
+}
+
+function hydratePuzzleState(){
+  try{
+    const raw = localStorage.getItem(PUZZLE_STORAGE_KEY);
+    if (!raw) return false;
+    const saved = JSON.parse(raw);
+    if (!saved?.puzzleData || !saved?.boardFen) return false;
+
+    updatePuzzleInfoDisplay(saved.puzzleData);
+    const parsed = parseFenState(saved.boardFen);
+    boardState = parsed.board;
+    activeColor = parsed.active;
+    castlingRights = parsed.castling;
+    historyStartFen = saved.historyStartFen || saved.boardFen;
+    moveHistory = Array.isArray(saved.moveHistory) ? saved.moveHistory : [];
+    persistMoveHistory();
+    puzzleSolutionMoves = Array.isArray(saved.puzzleSolutionMoves) && saved.puzzleSolutionMoves.length
+      ? saved.puzzleSolutionMoves
+      : puzzleSolutionMoves;
+    puzzleMoveIndex = Number.isInteger(saved.puzzleMoveIndex) ? saved.puzzleMoveIndex : 0;
+    puzzleSolved = !!saved.puzzleSolved;
+    puzzleMode = !!saved.puzzleMode && puzzleSolutionMoves.length > 0;
+    puzzleStartFen = saved.puzzleStartFen || puzzleStartFen;
+    puzzlePlayerColor = saved.puzzlePlayerColor || parsed.active;
+    puzzleSolutionTargetFen = saved.puzzleSolutionTargetFen || puzzleSolutionTargetFen;
+    puzzleLoading = false;
+    promotionState = null;
+    resetSelection();
+    closePromotionDialog();
+    closePuzzleOverlay();
+    render();
+    updatePuzzleStatus();
+    persistPuzzleState();
+    return true;
+  } catch (err){
+    console.warn('Не удалось восстановить задачу', err);
+    return false;
+  }
 }
 
 document.getElementById('puzzleBtn').addEventListener('click', () => {
@@ -1569,6 +1642,9 @@ promotionButtons.forEach(btn => {
 
 preventZoom();
 initTelegram();
-resetMoveHistory(boardToFen(boardState));
-render();
-fetchRandomPuzzle();
+const restoredPuzzle = hydratePuzzleState();
+if (!restoredPuzzle){
+  resetMoveHistory(boardToFen(boardState));
+  render();
+  fetchRandomPuzzle();
+}
