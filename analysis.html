@@ -13,14 +13,22 @@
       --border:rgba(255,255,255,.12);
       --text:#fff;
     }
+    *, *::before, *::after{ box-sizing: border-box; }
     body{
       margin:0;
       padding:16px;
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       background:var(--bg);
       color:var(--text);
+      overflow-x:hidden;
     }
-    .wrap{ max-width: 1180px; margin:0 auto; display:grid; gap:14px; }
+    .wrap{
+      max-width: 1180px;
+      width: min(1180px, 100%);
+      margin:0 auto;
+      display:grid;
+      gap:14px;
+    }
     .layout{ display:flex; flex-direction:column; gap:14px; align-items:stretch; }
     .panel{
       padding:14px;
@@ -39,7 +47,11 @@
     .btn:disabled{ opacity:.5; cursor:not-allowed; }
     .field{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
     .field input{ flex:1 1 240px; padding:10px; border-radius:10px; border:1px solid var(--border); background:rgba(0,0,0,.35); color:var(--text); }
-    .mono{ font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace; }
+    .mono{
+      font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
 
     /* board */
     .board-panel{ display:grid; gap:12px; justify-items:center; }
