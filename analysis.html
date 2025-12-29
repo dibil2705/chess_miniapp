@@ -324,11 +324,6 @@
       font-size:28px;
       flex-shrink:0;
     }
-    .priority-piece-icon.small{
-      width:32px;
-      height:32px;
-      font-size:22px;
-    }
     .priority-move{
       font-weight:800;
       letter-spacing:0.3px;
@@ -343,16 +338,6 @@
       opacity:.9;
       line-height:1.4;
     }
-    .priority-pv-icons{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      flex-wrap:wrap;
-      color:#cfe0f7;
-      font-weight:700;
-    }
-    .priority-sep{ color:rgba(255,255,255,.65); font-weight:700; }
-    .priority-mate{ font-weight:800; }
     .history-body{
       display:grid;
       gap:10px;
@@ -517,10 +502,6 @@
               </button>
             </div>
           </div>
-          <div class="priority-wrap" id="priorityWrap">
-            <div class="priority-title">Приоритетные ходы</div>
-            <div id="priorityMoves" class="priority-moves"></div>
-          </div>
           <div class="history-body">
             <div id="analysisHistory" class="analysis-history" aria-live="polite" aria-atomic="true"></div>
             <div id="historyEmpty" class="history-empty">Начните делать ходы, и они появятся здесь.</div>
@@ -585,8 +566,6 @@
     const analysisListEl = document.getElementById('analysisList');
     const analysisHistoryEl = document.getElementById('analysisHistory');
     const historyEmptyEl = document.getElementById('historyEmpty');
-    const priorityWrapEl = document.getElementById('priorityWrap');
-    const priorityMovesEl = document.getElementById('priorityMoves');
     const historyBodyEl = document.querySelector('.history-body');
     const historyFirstBtn = document.getElementById('historyFirstBtn');
     const historyUpBtn = document.getElementById('historyUpBtn');
@@ -606,7 +585,6 @@
     const promotionOverlay = document.getElementById('promotionOverlay');
     const promotionButtons = Array.from(document.querySelectorAll('.promotion-btn'));
     const priorityTargets = [
-      { wrap: priorityWrapEl, list: priorityMovesEl },
       { wrap: boardPriorityWrapEl, list: boardPriorityMovesEl }
     ].filter((item) => item.wrap && item.list);
 
@@ -734,38 +712,12 @@
       }
     }
 
-    function createPieceIcon(iconName, size = 'default'){
+    function createPieceIcon(iconName){
       const span = document.createElement('span');
-      span.className = `iconify priority-piece-icon${size === 'small' ? ' small' : ''}`;
+      span.className = 'iconify priority-piece-icon';
       span.dataset.icon = iconName;
       span.setAttribute('aria-hidden', 'true');
       return span;
-    }
-
-    function buildPvIconsRow(pvSan){
-      const normalizedPvSan = normalizeTokenToString(pvSan);
-      const tokens = normalizedPvSan.split(/,\s*/).filter(Boolean);
-      const hasMate = normalizedPvSan.includes('#');
-      if (!tokens.length && !hasMate) return null;
-      const row = document.createElement('div');
-      row.className = 'priority-pv-icons';
-      tokens.forEach((token, idx) => {
-        const icon = createPieceIcon(getPieceIconName(token), 'small');
-        row.appendChild(icon);
-        if (idx < tokens.length - 1){
-          const sep = document.createElement('span');
-          sep.className = 'priority-sep';
-          sep.textContent = '+';
-          row.appendChild(sep);
-        }
-      });
-      if (hasMate){
-        const mate = document.createElement('span');
-        mate.className = 'priority-sep priority-mate';
-        mate.textContent = '#';
-        row.appendChild(mate);
-      }
-      return row;
     }
 
     function updatePriorityMoves(lines = []){
@@ -807,11 +759,8 @@
           pv.className = 'priority-pv mono';
           pv.textContent = line.pv_san || '—';
 
-          const pvIcons = buildPvIconsRow(line.pv_san);
-
           item.appendChild(head);
           item.appendChild(pv);
-          if (pvIcons) item.appendChild(pvIcons);
           list.appendChild(item);
         });
       });
