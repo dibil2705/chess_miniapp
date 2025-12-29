@@ -1006,6 +1006,7 @@ function updatePuzzleFeedback(state, message = '', options = {}){
 
   const wrapper = document.createElement('div');
   wrapper.className = 'puzzle-feedback-row';
+  const shouldRenderRow = state !== 'solved';
 
   const icon = document.createElement('span');
   icon.className = 'puzzle-indicator';
@@ -1036,14 +1037,16 @@ function updatePuzzleFeedback(state, message = '', options = {}){
   } else if (state === 'solved'){
     icon.textContent = '✓';
     wrapper.classList.add('success', 'solved');
-    text.textContent = message || 'ЗАДАЧА РЕШЕНА';
-    overlayTitle = text.textContent;
+    text.textContent = message || '';
+    overlayTitle = options.overlayTitle || message || 'Задача решена';
   } else {
     return;
   }
 
-  wrapper.prepend(icon);
-  wrapper.append(text);
+  if (shouldRenderRow){
+    wrapper.prepend(icon);
+    wrapper.append(text);
+  }
 
   if (showActions){
     const retryBtn = document.createElement('button');
@@ -1067,7 +1070,9 @@ function updatePuzzleFeedback(state, message = '', options = {}){
     overlayActions = [retryBtn, newBtn];
   }
 
-  puzzleFeedbackEl.appendChild(wrapper);
+  if (shouldRenderRow){
+    puzzleFeedbackEl.appendChild(wrapper);
+  }
 
   if (overlayTitle || overlayActions.length){
     openPuzzleOverlay({
@@ -1090,7 +1095,7 @@ function isAtSolutionPosition(){
   return expectedPlacement === currentPlacement;
 }
 
-function finalizePuzzleSolved(message = 'ЗАДАЧА РЕШЕНА'){
+function finalizePuzzleSolved(message = ''){
   puzzleLockedAfterError = false;
   puzzleSolved = true;
   puzzleMoveIndex = puzzleSolutionMoves.length;
@@ -1134,7 +1139,7 @@ function verifyPuzzleMove(moveKey){
         return false;
       }
       puzzleSolved = true;
-      updatePuzzleFeedback('solved', 'ЗАДАЧА РЕШЕНА', { withActions: true });
+      updatePuzzleFeedback('solved', '', { withActions: true });
       updatePuzzleStatus();
     } else {
       const who = isPlayerMove ? 'Ваш ход принят' : 'Соперник ответил';
