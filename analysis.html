@@ -674,33 +674,81 @@
       return fallback;
     }
 
-    function getLineScoreSide(line, fallback = null){
+    function getLineScoreSide(line, fallback = null, fallbackFen = null){
       const rawToken = line?.score_side || line?.side || line?.turn || line?.active || line?.move_color;
       const token = normalizeSideToken(rawToken, null);
       if (token === 'b' || token === 'w') return token;
-      const fenToken = line?.fen || line?.line_fen || line?.position_fen;
+      const fenToken = line?.fen || line?.line_fen || line?.position_fen || fallbackFen;
       if (fenToken){
         return getFenActiveColor(fenToken);
       }
       return normalizeSideToken(fallback, 'w') || 'w';
     }
 
+    function coerceNumber(value){
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    }
+
+    function extractCp(line){
+      const score = line?.score && typeof line.score === 'object' ? line.score : null;
+      const candidates = [
+        score?.cp,
+        score?.centipawns,
+        line?.score_cp,
+        line?.cp
+      ];
+      for (const candidate of candidates){
+        const num = coerceNumber(candidate);
+        if (num !== null) return num;
+      }
+      return null;
+    }
+
+    function extractMate(line){
+      const score = line?.score && typeof line.score === 'object' ? line.score : null;
+      const candidates = [line?.mate, score?.mate, score?.mate_in];
+      for (const candidate of candidates){
+        const num = coerceNumber(candidate);
+        if (num !== null) return num;
+      }
+      return null;
+    }
+
+    function normalizeAnalysisLines(lines, fenContext = null, sideFallback = null){
+      const baseFen = fenContext || currentFen;
+      const defaultSide = normalizeSideToken(sideFallback, null) || getFenActiveColor(baseFen);
+      if (!Array.isArray(lines)) return [];
+      return lines.map((line) => {
+        const positionFen = line?.position_fen || line?.line_fen || line?.fen || baseFen;
+        const normalizedSide = getLineScoreSide(line, defaultSide, positionFen);
+        const cpValue = extractCp(line);
+        const mateValue = extractMate(line);
+        const normalized = { ...(line || {}) };
+        normalized.position_fen = positionFen;
+        normalized.score_side = normalizedSide;
+        if (cpValue !== null) normalized.score_cp = cpValue;
+        if (mateValue !== null) normalized.mate = mateValue;
+        return normalized;
+      });
+    }
+
     function normalizeScore(line, perspective){
       const desiredSide = (perspective || evaluationPerspective || 'w') === 'b' ? 'b' : 'w';
-      const scoreSide = getLineScoreSide(line, desiredSide);
+      const scoreSide = getLineScoreSide(line, desiredSide, line?.position_fen);
       const direction = scoreSide === desiredSide ? 1 : -1;
       if (!line) return { cp: 0, label: '0.0', mate: null };
 
-      const rawMate = line?.mate;
-      if (rawMate !== undefined && rawMate !== null){
+      const rawMate = extractMate(line);
+      if (rawMate !== null){
         const signedMate = rawMate * direction;
         const cpEquivalent = signedMate > 0 ? 900 : -900;
         const mateLabelPrefix = signedMate > 0 ? '' : '-';
         return { cp: cpEquivalent, label: `${mateLabelPrefix}M${Math.abs(signedMate)}`, mate: signedMate };
       }
 
-      const rawCp = Number(line?.score_cp ?? line?.cp);
-      if (Number.isNaN(rawCp)) return { cp: 0, label: '0.0', mate: null };
+      const rawCp = extractCp(line);
+      if (rawCp === null) return { cp: 0, label: '0.0', mate: null };
       const signedCp = rawCp * direction;
       return { cp: signedCp, label: (signedCp / 100).toFixed(2), mate: null };
     }
@@ -1100,8 +1148,12 @@
 
       const targetRow = Number.isInteger(targetRowIndex) ? analysisHistory[targetRowIndex] : null;
       const existingLines = targetRow?.lines || [];
+      const fenSide = getFenActiveColor(currentFen);
+      const normalizeForCurrent = (lines) => normalizeAnalysisLines(lines, currentFen, fenSide);
       if (existingLines.length && !force){
-        renderAnalysisLines(existingLines, { fromCache: true });
+        const normalizedExisting = normalizeForCurrent(existingLines);
+        if (targetRow) targetRow.lines = normalizedExisting;
+        renderAnalysisLines(normalizedExisting, { fromCache: true });
         return;
       }
 
@@ -1111,9 +1163,12 @@
       const cachedLines = cacheValid ? (cached.data?.lines || cached.data?.analysis || []) : [];
       if (cacheValid && cachedLines.length){
         if (targetRow){
-          targetRow.lines = cachedLines.slice(0, 3);
+          const normalizedCached = normalizeForCurrent(cachedLines).slice(0, 3);
+          targetRow.lines = normalizedCached;
+          renderAnalysisLines(normalizedCached, { fromCache: true });
+          return;
         }
-        renderAnalysisLines(cachedLines, { fromCache: true });
+        renderAnalysisLines(normalizeForCurrent(cachedLines), { fromCache: true });
         return;
       }
 
@@ -1123,13 +1178,15 @@
         const payload = { fen: currentFen, movetime_ms: 250, multipv: 3, side: 'turn' };
         const data = await fetchJson(ANALYZE_URL, payload);
         const lines = data?.lines || data?.analysis || [];
-        analyzeCache.set(currentFen, { timestamp: now, data });
+        const normalizedLines = normalizeForCurrent(lines);
+        const cachePayload = { ...data, lines: normalizedLines };
+        analyzeCache.set(currentFen, { timestamp: now, data: cachePayload });
         if (targetRow){
-          targetRow.lines = lines.slice(0, 3);
+          targetRow.lines = normalizedLines.slice(0, 3);
         }
-        renderAnalysisLines(lines, { fromCache: false });
+        renderAnalysisLines(normalizedLines, { fromCache: false });
         if (attachToHistory){
-          pushAnalysisHistory(currentFen, lines);
+          pushAnalysisHistory(currentFen, normalizedLines);
         }
       } catch (err){
         setAnalysisStatus(`Ошибка анализа: ${err.message}`);
@@ -1360,11 +1417,13 @@
       if (fenTextEl) fenTextEl.textContent = currentFen;
       setBoardStatus(`Ход ${activeColor === 'w' ? 'белых' : 'чёрных'}.`);
       const viewColor = evaluationPerspective || getFenActiveColor(currentFen);
-      updateArrow(row?.lines?.[0]);
-      updateEvalBar(row?.lines?.[0], viewColor);
-      updatePriorityMoves(row?.lines || [], viewColor);
-      renderAnalysisLines(row?.lines || [], { perspective: viewColor });
-      if (!row?.lines?.length){
+      const normalizedLines = normalizeAnalysisLines(row?.lines || [], currentFen, activeColor);
+      if (row) row.lines = normalizedLines;
+      updateArrow(normalizedLines?.[0]);
+      updateEvalBar(normalizedLines?.[0], viewColor);
+      updatePriorityMoves(normalizedLines || [], viewColor);
+      renderAnalysisLines(normalizedLines || [], { perspective: viewColor });
+      if (!normalizedLines?.length){
         analyzePosition({ attachToHistory: false, targetRowIndex: ply.rowIndex });
       }
     }
