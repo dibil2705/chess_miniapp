@@ -18,7 +18,7 @@
 
     body{
       margin:0;
-      padding:16px 12px 20px;
+      padding:72px 12px 20px;
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       background:var(--bg);
       color:var(--text);
@@ -45,8 +45,11 @@
       letter-spacing: 0.6px;
     }
     .back-btn{
-      padding:9px 11px;
-      border-radius:10px;
+      position: fixed;
+      top: 14px;
+      right: 12px;
+      padding:10px 12px;
+      border-radius:12px;
       border: 1px solid rgba(255,255,255,.18);
       background: linear-gradient(145deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
       color:#fff;
@@ -57,6 +60,7 @@
       gap: 8px;
       text-decoration: none;
       width: fit-content;
+      z-index: 20;
     }
     .back-btn:active{ transform: translateY(1px); }
 
@@ -181,16 +185,16 @@
 
     .palette-grid{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+      gap: 8px;
     }
     .palette-card{
       background: rgba(255,255,255,.04);
       border: 1px solid rgba(255,255,255,.08);
       border-radius: 10px;
-      padding: 10px;
+      padding: 8px;
       display: grid;
-      gap: 8px;
+      gap: 6px;
       box-shadow: 0 10px 28px rgba(0,0,0,.25);
     }
     .palette-preview{
@@ -198,7 +202,7 @@
       grid-template-columns: repeat(2, 1fr);
       grid-template-rows: repeat(2, 1fr);
       gap: 0;
-      border-radius: 8px;
+      border-radius: 7px;
       overflow: hidden;
       aspect-ratio: 1 / 1;
       box-shadow: inset 0 0 0 1px rgba(0,0,0,.4);
@@ -207,6 +211,7 @@
     .palette-name{
       margin: 0;
       font-weight: 700;
+      font-size: 14px;
     }
     .hint{
       opacity:.8;
@@ -256,14 +261,6 @@
     @media (max-width: 560px){
       header{ align-items: flex-start; }
       .title{ padding-right: 92px; }
-      .back-btn{
-        position: absolute;
-        top: 0;
-        right: 0;
-        width: auto;
-        justify-content: center;
-        min-height: 40px;
-      }
     }
   </style>
 </head>
@@ -273,7 +270,7 @@
       <h1 class="title">Настройки</h1>
       <a class="back-btn" href="index.html">
         <span class="iconify" data-icon="mdi:chevron-left" aria-hidden="true"></span>
-        Назад к доске
+        Назад
       </a>
     </header>
 

@@ -990,7 +990,7 @@ function restartCurrentPuzzle(){
 }
 
 function updatePuzzleFeedback(state, message = '', options = {}){
-  const { withActions = false } = options;
+  const showActions = options.withActions ?? (state === 'wrong' || state === 'solved');
   if (!puzzleFeedbackEl) return;
   closePuzzleOverlay();
   puzzleFeedbackEl.className = 'puzzle-feedback';
@@ -1037,7 +1037,7 @@ function updatePuzzleFeedback(state, message = '', options = {}){
   wrapper.prepend(icon);
   wrapper.append(text);
 
-  if (withActions){
+  if (showActions){
     const retryBtn = document.createElement('button');
     retryBtn.type = 'button';
     retryBtn.className = 'promotion-btn';
@@ -1068,6 +1068,25 @@ function updatePuzzleFeedback(state, message = '', options = {}){
       variant: state === 'solved' ? 'solved' : ''
     });
   }
+}
+
+function resetPuzzleBoardToStart(){
+  if (!puzzleStartFen) return;
+  loadPositionFromFen(puzzleStartFen);
+}
+
+function isAtSolutionPosition(){
+  if (!puzzleSolutionTargetFen) return false;
+  const expectedPlacement = puzzleSolutionTargetFen.split(' ')[0];
+  const currentPlacement = boardToFen(boardState).split(' ')[0];
+  return expectedPlacement === currentPlacement;
+}
+
+function finalizePuzzleSolved(message = 'ЗАДАЧА РЕШЕНА'){
+  puzzleSolved = true;
+  puzzleMoveIndex = puzzleSolutionMoves.length;
+  updatePuzzleFeedback('solved', message, { withActions: true });
+  updatePuzzleStatus();
 }
 
 function ensureSolvedFeedbackVisible(message = 'Задача решена.'){
@@ -1116,9 +1135,8 @@ function verifyPuzzleMove(moveKey){
 
   puzzleSolved = false;
   puzzleMoveIndex = 0;
+  resetPuzzleBoardToStart();
   updatePuzzleFeedback('wrong', `Ожидался ход ${expectedMove}.`, { withActions: true });
-  resetSelection();
-  render();
   return false;
 }
 
@@ -1186,6 +1204,9 @@ function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null }){
   playMoveAudio();
   resetSelection();
   render();
+  if (!puzzleSolved && isAtSolutionPosition()){
+    finalizePuzzleSolved('Позиция решения достигнута.');
+  }
   attemptAutoOpponentMove();
   persistPuzzleState();
 }
