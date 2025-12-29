@@ -33,14 +33,12 @@
     .layout{ display:flex; flex-direction:column; gap:14px; align-items:stretch; border:none; }
     .top-bar{
       display:flex;
-      align-items:center;
-      justify-content:space-between;
+      flex-direction:column;
+      align-items:flex-start;
       gap:10px;
     }
     .back-btn{
-      position: fixed;
-      top: 14px;
-      right: 12px;
+      position: relative;
       padding:10px 12px;
       border-radius:12px;
       border: 1px solid rgba(255,255,255,.18);
@@ -296,6 +294,24 @@
     }
     .history-btn:active{ transform: translateY(1px); }
     .history-btn:disabled{ opacity:.45; cursor:not-allowed; }
+    @media (max-width: 640px){
+      .wrap{ padding: 0; width: 100%; max-width: none; }
+      body{ padding-left: 10px; padding-right: 0; }
+      .board-panel{ justify-items: stretch; }
+      .board-wrapper{
+        width: 100%;
+        margin: 0;
+        grid-template-columns: 18px 26px 1fr;
+        grid-template-rows: 1fr auto;
+        grid-template-areas:
+          "cp ranks board"
+          "cp ranks files";
+        column-gap: 6px;
+        row-gap: 6px;
+      }
+      .coord-ranks{ justify-items: start; padding-right: 0; }
+      .coord-files{ padding: 0; }
+    }
     @media (max-width: 520px){
       .history-controls{
         padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
@@ -500,11 +516,11 @@
 <body>
   <div class="wrap">
     <div class="top-bar">
-      <h2>Stockfish анализ позиции</h2>
       <a class="back-btn" href="index.html">
         <span class="iconify" data-icon="mdi:chevron-left" aria-hidden="true"></span>
         Назад
       </a>
+      <h2>Stockfish анализ позиции</h2>
     </div>
 
     <div class="layout">
@@ -585,7 +601,14 @@
   <script>
     const params = new URLSearchParams(window.location.search);
     const initialFen = params.get('fen');
+    const PALETTE_STORAGE_KEY = 'chess-miniapp-board-palette';
     const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
+    const boardPalettes = {
+      default: { dark: '#769656', light: '#eeeed2' },
+      coffee: { dark: '#8b5e3c', light: '#d7c9aa' },
+      sea: { dark: '#466b8a', light: '#e9ddc5' },
+      warm: { dark: '#b83c3c', light: '#f0e7d8' }
+    };
 
     const files = ['a','b','c','d','e','f','g','h'];
     const ranks = ['8','7','6','5','4','3','2','1'];
@@ -655,6 +678,32 @@
     let selectedSq = null;
     let possibleMoves = [];
     let promotionState = null;
+
+    function getBoardPalette(name){
+      return boardPalettes[name] || boardPalettes.default;
+    }
+
+    function loadPalettePreference(){
+      const stored = localStorage.getItem(PALETTE_STORAGE_KEY);
+      return boardPalettes[stored] ? stored : 'default';
+    }
+
+    function applyBoardPalette(name){
+      const palette = getBoardPalette(name);
+      const root = document.documentElement;
+      root.style.setProperty('--dark', palette.dark);
+      root.style.setProperty('--light', palette.light);
+    }
+
+    function initBoardPalette(){
+      applyBoardPalette(loadPalettePreference());
+      window.addEventListener('storage', (event) => {
+        if (event.key === PALETTE_STORAGE_KEY){
+          applyBoardPalette(loadPalettePreference());
+        }
+      });
+    }
+    initBoardPalette();
 
     function setPromotionIcons(color){
       const iconMap = color === 'w' ? WHITE_SVG : BLACK_SVG;
