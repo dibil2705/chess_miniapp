@@ -51,7 +51,6 @@ let puzzleLoading = false;
 let moveHistory = [];
 let historyStartFen = START_FEN;
 let soundEnabled = loadSoundPreference();
-let pendingWrongMoveReset = false;
 
 function getExpectedMoveColor(moveIndex){
   const opponentColor = puzzlePlayerColor === 'w' ? 'b' : 'w';
@@ -1106,7 +1105,7 @@ function verifyPuzzleMove(moveKey){
         return false;
       }
       puzzleSolved = true;
-      updatePuzzleFeedback('solved', 'ЗАДАЧА РЕШЕНА');
+      updatePuzzleFeedback('solved', 'ЗАДАЧА РЕШЕНА', { withActions: true });
       updatePuzzleStatus();
     } else {
       const who = isPlayerMove ? 'Ваш ход принят' : 'Соперник ответил';
@@ -1118,8 +1117,9 @@ function verifyPuzzleMove(moveKey){
   puzzleSolved = false;
   puzzleMoveIndex = 0;
   updatePuzzleFeedback('wrong', `Ожидался ход ${expectedMove}.`, { withActions: true });
-  pendingWrongMoveReset = true;
-  return true;
+  resetSelection();
+  render();
+  return false;
 }
 
 function updateCastlingRights(fromR, fromC, toR, toC, piece){
@@ -1186,11 +1186,6 @@ function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null }){
   playMoveAudio();
   resetSelection();
   render();
-  if (pendingWrongMoveReset){
-    pendingWrongMoveReset = false;
-    setTimeout(() => restartCurrentPuzzle(), 0);
-    return;
-  }
   attemptAutoOpponentMove();
   persistPuzzleState();
 }
@@ -1217,7 +1212,6 @@ function performMove(fromR, fromC, toR, toC){
 }
 
 function attemptAutoOpponentMove(){
-  if (pendingWrongMoveReset) return;
   if (!puzzleMode || puzzleSolved) return;
   if (!puzzleSolutionMoves.length) return;
   if (puzzleMoveIndex >= puzzleSolutionMoves.length) return;
