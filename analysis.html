@@ -648,8 +648,12 @@
       if (analysisStatusEl) analysisStatusEl.textContent = text;
     }
 
-    function normalizeScore(line, perspective = activeColor){
-      const side = perspective === 'b' ? 'b' : 'w';
+    function getFenActiveColor(fenStr){
+      return fenStr?.split(' ')[1] === 'b' ? 'b' : 'w';
+    }
+
+    function normalizeScore(line, perspective){
+      const side = (perspective || activeColor) === 'b' ? 'b' : 'w';
       if (!line) return { cp: 0, label: '0.0', mate: null };
 
       const rawMate = line?.mate;
@@ -666,7 +670,8 @@
       return { cp: signedCp, label: (signedCp / 100).toFixed(2), mate: null };
     }
 
-    function renderAnalysisLines(lines = [], { fromCache = false } = {}){
+    function renderAnalysisLines(lines = [], { fromCache = false, perspective = null } = {}){
+      const viewColor = perspective || getFenActiveColor(currentFen);
       if (analysisListEl){
         analysisListEl.innerHTML = '';
       }
@@ -677,7 +682,7 @@
           analysisListEl.appendChild(empty);
         }
         updateArrow(null);
-        updateEvalBar(null);
+        updateEvalBar(null, viewColor);
         return;
       }
       if (analysisListEl){
@@ -685,7 +690,7 @@
           const li = document.createElement('li');
           const title = document.createElement('div');
           title.innerHTML = `<strong>#${idx + 1}</strong> ${line.best_move_uci || '—'}`;
-          const { label, mate } = normalizeScore(line);
+          const { label, mate } = normalizeScore(line, viewColor);
           const scoreText = mate !== null
             ? `Мат за ${Math.abs(mate)} (${mate > 0 ? 'белые' : 'чёрные'})`
             : `${label} cp`;
@@ -701,9 +706,9 @@
         });
       }
       setAnalysisStatus(fromCache ? 'Показан кешированный анализ (до 10 секунд).' : 'Анализ обновлён.');
-      updatePriorityMoves(lines);
+      updatePriorityMoves(lines, viewColor);
       updateArrow(lines?.[0]);
-      updateEvalBar(lines?.[0]);
+      updateEvalBar(lines?.[0], viewColor);
     }
 
     function normalizeTokenToString(token){
@@ -736,8 +741,8 @@
       return span;
     }
 
-    function formatPriorityScore(line){
-      const { label, mate } = normalizeScore(line);
+    function formatPriorityScore(line, perspective){
+      const { label, mate } = normalizeScore(line, perspective);
       if (mate !== null){
         const side = mate > 0 ? 'белых' : 'чёрных';
         return `Мат за ${Math.abs(mate)} (${side})`;
@@ -780,12 +785,13 @@
       }
       const capturedPiece = getPieceAt(to);
       const promotionPiece = parsePromotionFromUci(line.best_move_uci);
-      const scoreLabel = formatPriorityScore(line);
+      const scoreLabel = formatPriorityScore(line, activeColor);
       finalizeMove({ fromSquare: from, toSquare: to, movingPiece, capturedPiece, promotionPiece });
       setBoardStatus(`Выполнен приоритетный ход (${scoreLabel}).`);
     }
 
-    function updatePriorityMoves(lines = []){
+    function updatePriorityMoves(lines = [], perspective = null){
+      const viewColor = perspective || getFenActiveColor(currentFen);
       priorityTargets.forEach(({ list }) => {
         list.innerHTML = '';
       });
@@ -822,7 +828,7 @@
 
           const score = document.createElement('div');
           score.className = 'priority-score mono';
-          score.textContent = formatPriorityScore(line);
+          score.textContent = formatPriorityScore(line, viewColor);
           head.appendChild(score);
 
           const pv = document.createElement('div');
@@ -1004,9 +1010,10 @@
       arrowsEl.appendChild(marker);
     }
 
-    function updateEvalBar(line){
+    function updateEvalBar(line, perspective = null){
       if (!evalFillEl || !evalLabelEl) return;
-      const { cp, label } = normalizeScore(line);
+      const viewColor = perspective || getFenActiveColor(currentFen);
+      const { cp, label } = normalizeScore(line, viewColor);
       const normalized = 1 / (1 + Math.exp(-cp / 200));
       const percent = Math.round(normalized * 100);
       evalFillEl.style.height = `${percent}%`;
@@ -1309,10 +1316,11 @@
       renderBoardFromFen(currentFen);
       if (fenTextEl) fenTextEl.textContent = currentFen;
       setBoardStatus(`Ход ${activeColor === 'w' ? 'белых' : 'чёрных'}.`);
+      const viewColor = getFenActiveColor(currentFen);
       updateArrow(row?.lines?.[0]);
-      updateEvalBar(row?.lines?.[0]);
-      updatePriorityMoves(row?.lines || []);
-      renderAnalysisLines(row?.lines || []);
+      updateEvalBar(row?.lines?.[0], viewColor);
+      updatePriorityMoves(row?.lines || [], viewColor);
+      renderAnalysisLines(row?.lines || [], { perspective: viewColor });
       if (!row?.lines?.length){
         analyzePosition({ attachToHistory: false, targetRowIndex: ply.rowIndex });
       }
