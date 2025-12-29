@@ -710,7 +710,12 @@
       const candidates = [line?.mate, score?.mate, score?.mate_in];
       for (const candidate of candidates){
         const num = coerceNumber(candidate);
-        if (num !== null) return num;
+        if (num === null) continue;
+        // Значение «0» по mate иногда приходит как заглушка от движка, что означает
+        // отсутствие мата. Чтобы не показывать «Мат за 0» при обычных позициях,
+        // игнорируем такие значения и продолжаем поиск реального mate.
+        if (num === 0) continue;
+        return num;
       }
       return null;
     }
