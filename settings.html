@@ -223,7 +223,7 @@
     .palette-name{
       margin: 0;
       font-weight: 700;
-      font-size: calc(13px * var(--palette-scale));
+      font-size: clamp(13px, 4vw, 15px);
     }
     .hint{
       opacity:.8;
@@ -318,15 +318,6 @@
           </div>
           <p class="palette-name">Основная</p>
         </div>
-        <div class="palette-card" data-palette="classic" role="button" tabindex="0" aria-pressed="false" aria-label="Классическая зелёная палитра">
-          <div class="palette-preview" aria-hidden="true">
-            <span style="background:#8cb369;"></span>
-            <span style="background:#f2ead3;"></span>
-            <span style="background:#f2ead3;"></span>
-            <span style="background:#8cb369;"></span>
-          </div>
-          <p class="palette-name">Классика</p>
-        </div>
         <div class="palette-card" data-palette="coffee" role="button" tabindex="0" aria-pressed="false" aria-label="Кофейная палитра">
           <div class="palette-preview" aria-hidden="true">
             <span style="background:#d7c9aa;"></span>
@@ -371,7 +362,7 @@
         <div class="settings-panel" role="region" aria-label="Телеграм канал">
           <div class="info-title">Телеграм канал</div>
           <a class="contact-link" href="https://t.me/chesspolyana" target="_blank" rel="noreferrer noopener">@chesspolyana</a>
-          <p class="hint">Сообщество на красной поляне</p>
+          <p class="hint">Сообщество на Красной Поляне</p>
         </div>
       </div>
     </div>
@@ -418,7 +409,6 @@
     };
     const boardPalettes = {
       default: { dark: '#769656', light: '#eeeed2' },
-      classic: { dark: '#8cb369', light: '#f2ead3' },
       coffee: { dark: '#8b5e3c', light: '#d7c9aa' },
       sea: { dark: '#466b8a', light: '#e9ddc5' },
       warm: { dark: '#b83c3c', light: '#f0e7d8' }

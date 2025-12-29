@@ -98,7 +98,6 @@ const defaultTheme = {
 };
 const boardPalettes = {
   default: { dark: '#769656', light: '#eeeed2' },
-  classic: { dark: '#8cb369', light: '#f2ead3' },
   coffee: { dark: '#8b5e3c', light: '#d7c9aa' },
   sea: { dark: '#466b8a', light: '#e9ddc5' },
   warm: { dark: '#b83c3c', light: '#f0e7d8' }
