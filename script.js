@@ -29,6 +29,7 @@ const moveSound = new Audio('audio/chess-move.ogg');
 const checkSound = new Audio('audio/chess-check.ogg');
 const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
 const PUZZLE_STORAGE_KEY = 'chess-miniapp-current-puzzle';
+const SOUND_STORAGE_KEY = 'chess-miniapp-sound-enabled';
 
 let flipped = false;
 let boardState = fenToBoard(START_FEN);
@@ -49,6 +50,7 @@ let puzzleSolutionTargetFen = null;
 let puzzleLoading = false;
 let moveHistory = [];
 let historyStartFen = START_FEN;
+let soundEnabled = loadSoundPreference();
 
 function getExpectedMoveColor(moveIndex){
   const opponentColor = puzzlePlayerColor === 'w' ? 'b' : 'w';
@@ -113,6 +115,12 @@ function preventZoom(){
   ['gesturestart', 'gesturechange', 'gestureend'].forEach((type) => {
     document.addEventListener(type, (event) => event.preventDefault());
   });
+}
+
+function loadSoundPreference(){
+  const stored = localStorage.getItem(SOUND_STORAGE_KEY);
+  if (stored === null) return true;
+  return stored !== 'false' && stored !== '0';
 }
 
 function applyTelegramTheme(){
@@ -564,7 +572,7 @@ function playerHasLegalMoves(color){
 }
 
 function playSound(sound){
-  if (!sound) return;
+  if (!soundEnabled || !sound) return;
   try {
     sound.currentTime = 0;
     sound.play().catch(() => {});
@@ -676,14 +684,18 @@ function formatPublishTime(ts){
 function updatePuzzleInfoDisplay(data){
   puzzleData = data;
   puzzleStartFen = data?.fen || null;
-  puzzleTitleEl.textContent = data?.title || '';
-  puzzleUrlEl.textContent = data?.url || '';
-  puzzleUrlEl.href = data?.url || '#';
-  puzzlePublishEl.textContent = data?.publish_time ? formatPublishTime(data.publish_time) : '';
-  puzzleFenEl.textContent = data?.fen || '';
-  puzzlePgnEl.textContent = data?.pgn || '';
-  puzzleImageEl.textContent = data?.image || '';
-  puzzleImageEl.href = data?.image || '#';
+  if (puzzleTitleEl) puzzleTitleEl.textContent = data?.title || '';
+  if (puzzleUrlEl){
+    puzzleUrlEl.textContent = data?.url || '';
+    puzzleUrlEl.href = data?.url || '#';
+  }
+  if (puzzlePublishEl) puzzlePublishEl.textContent = data?.publish_time ? formatPublishTime(data.publish_time) : '';
+  if (puzzleFenEl) puzzleFenEl.textContent = data?.fen || '';
+  if (puzzlePgnEl) puzzlePgnEl.textContent = data?.pgn || '';
+  if (puzzleImageEl){
+    puzzleImageEl.textContent = data?.image || '';
+    puzzleImageEl.href = data?.image || '#';
+  }
   const solution = parseSolutionMovesFromPgn(data?.pgn || '', puzzleStartFen);
   puzzleSolutionMoves = solution.moves;
   puzzleSolutionTargetFen = solution.finalFen;
@@ -1673,6 +1685,12 @@ if (settingsDetailsEl){
     });
   }
 }
+
+window.addEventListener('storage', (event) => {
+  if (event.key === SOUND_STORAGE_KEY){
+    soundEnabled = loadSoundPreference();
+  }
+});
 
 promotionButtons.forEach(btn => {
   btn.addEventListener('click', () => handlePromotionChoice(btn.dataset.piece));

@@ -212,6 +212,40 @@
       font-size: 13px;
       margin: 0;
     }
+    .sound-row{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .sound-copy{ display: grid; gap: 4px; }
+    .icon-toggle{
+      width: 54px;
+      height: 54px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: linear-gradient(145deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
+      color: #fff;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      box-shadow: 0 10px 24px rgba(0,0,0,.25);
+      transition: background .2s ease, transform .1s ease;
+    }
+    .icon-toggle:active{ transform: translateY(1px); }
+    .icon-toggle .iconify{ font-size: 24px; }
+    .icon-toggle .volume-off{ display: none; }
+    .icon-toggle.muted .volume-on{ display: none; }
+    .icon-toggle.muted .volume-off{ display: inline-flex; }
+    .contact-link{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+      color: #4ced8c;
+      text-decoration: none;
+    }
+    .contact-link:hover{ text-decoration: underline; }
 
     @media (max-width: 560px){
       header{ flex-direction: column; align-items: flex-start; }
@@ -229,34 +263,21 @@
       </a>
     </header>
 
-    <p class="hint">Здесь собраны сохранённые данные задачи и визуальные настройки. Панель можно раскрывать и сворачивать как в FAQ.</p>
-
-    <details class="collapsible" open>
-      <summary>
-        <span class="section-title">
-          <span class="iconify" data-icon="mdi:clipboard-text-outline" aria-hidden="true"></span>
-          Данные задачи
-        </span>
-        <span class="chevron" aria-hidden="true">⌃</span>
-      </summary>
-      <div class="collapsible-body">
-        <div class="settings-panel" role="region" aria-label="Данные задачи">
-          <div class="info-title">
-            <span class="iconify" data-icon="mdi:clipboard-text-outline" aria-hidden="true"></span>
-            <span>Задача</span>
-          </div>
-          <div class="settings-puzzle-grid">
-            <div><b>title:</b> <span id="puzzleTitle" class="mono"></span></div>
-            <div><b>url:</b> <a id="puzzleUrl" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
-            <div><b>publish_time:</b> <span id="puzzlePublish" class="mono"></span></div>
-            <div><b>fen:</b> <span id="puzzleFen" class="mono" style="word-break: break-all;"></span></div>
-            <div><b>pgn:</b> <span id="puzzlePgn" class="mono" style="word-break: break-all;"></span></div>
-            <div><b>image:</b> <a id="puzzleImage" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
-          </div>
-          <div id="puzzleFeedback" class="puzzle-feedback"></div>
+    <div class="info-block sound-block">
+      <div class="sound-row">
+        <div class="sound-copy">
+          <h3 class="section-title">
+            <span class="iconify" data-icon="mdi:volume-high" aria-hidden="true"></span>
+            Звук
+          </h3>
+          <p class="hint" id="soundToggleStatus">Включен</p>
         </div>
+        <button id="soundToggle" class="icon-toggle" type="button" aria-pressed="true" aria-label="Отключить звук">
+          <span class="iconify volume-on" data-icon="mdi:volume-high" aria-hidden="true"></span>
+          <span class="iconify volume-off" data-icon="mdi:volume-off" aria-hidden="true"></span>
+        </button>
       </div>
-    </details>
+    </div>
 
     <div class="info-block">
       <h3 class="section-title">
@@ -303,10 +324,44 @@
         </div>
       </div>
     </div>
+
+    <div class="info-block">
+      <h3 class="section-title">
+        <span class="iconify" data-icon="mdi:telegram" aria-hidden="true"></span>
+        Связь с разработчиком
+      </h3>
+      <a class="contact-link" href="https://t.me/Niktooo27" target="_blank" rel="noreferrer noopener">
+        <span class="iconify" data-icon="mdi:send-circle-outline" aria-hidden="true"></span>
+        @Niktooo27
+      </a>
+    </div>
+
+    <div class="info-block">
+      <h3 class="section-title">
+        <span class="iconify" data-icon="mdi:clipboard-text-outline" aria-hidden="true"></span>
+        Данные задачи
+      </h3>
+      <div class="settings-panel" role="region" aria-label="Данные задачи">
+        <div class="info-title">
+          <span class="iconify" data-icon="mdi:clipboard-text-outline" aria-hidden="true"></span>
+          <span>Задача</span>
+        </div>
+        <div class="settings-puzzle-grid">
+          <div><b>title:</b> <span id="puzzleTitle" class="mono"></span></div>
+          <div><b>url:</b> <a id="puzzleUrl" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
+          <div><b>publish_time:</b> <span id="puzzlePublish" class="mono"></span></div>
+          <div><b>fen:</b> <span id="puzzleFen" class="mono" style="word-break: break-all;"></span></div>
+          <div><b>pgn:</b> <span id="puzzlePgn" class="mono" style="word-break: break-all;"></span></div>
+          <div><b>image:</b> <a id="puzzleImage" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
+        </div>
+        <div id="puzzleFeedback" class="puzzle-feedback"></div>
+      </div>
+    </div>
   </div>
 
   <script>
     const tg = window.Telegram?.WebApp;
+    const SOUND_STORAGE_KEY = 'chess-miniapp-sound-enabled';
     const defaultTheme = {
       bg: '#111',
       panel: 'rgba(255,255,255,.06)',
@@ -334,6 +389,38 @@
       tg.expand();
       applyTelegramTheme();
       tg.onEvent('themeChanged', applyTelegramTheme);
+    }
+
+    function loadSoundPreference(){
+      const stored = localStorage.getItem(SOUND_STORAGE_KEY);
+      if (stored === null) return true;
+      return stored !== 'false' && stored !== '0';
+    }
+
+    function saveSoundPreference(enabled){
+      localStorage.setItem(SOUND_STORAGE_KEY, enabled ? 'true' : 'false');
+    }
+
+    function updateSoundToggleUI(enabled){
+      const toggle = document.getElementById('soundToggle');
+      const status = document.getElementById('soundToggleStatus');
+      if (!toggle || !status) return;
+      toggle.classList.toggle('muted', !enabled);
+      toggle.setAttribute('aria-pressed', String(enabled));
+      toggle.setAttribute('aria-label', enabled ? 'Отключить звук' : 'Включить звук');
+      status.textContent = enabled ? 'Включен' : 'Выключен';
+    }
+
+    function initSoundToggle(){
+      const toggle = document.getElementById('soundToggle');
+      if (!toggle) return;
+      let enabled = loadSoundPreference();
+      updateSoundToggleUI(enabled);
+      toggle.addEventListener('click', () => {
+        enabled = !enabled;
+        saveSoundPreference(enabled);
+        updateSoundToggleUI(enabled);
+      });
     }
 
     function formatPublishTime(value){
@@ -403,6 +490,7 @@
     }
 
     initTelegram();
+    initSoundToggle();
     hydratePuzzle();
   </script>
 </body>
