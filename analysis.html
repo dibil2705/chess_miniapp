@@ -178,6 +178,15 @@
     }
     .light{ background:var(--light); }
     .dark{ background:var(--dark); }
+    .sq.king-check::after{
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 50%, rgba(255,64,64,.45), rgba(255,64,64,0));
+      box-shadow: inset 0 0 0 1px rgba(255,64,64,.25), 0 0 12px rgba(255,64,64,.55);
+      pointer-events: none;
+      z-index: 0;
+    }
     .piece{
       width: auto;
       height: auto;
@@ -924,6 +933,10 @@
       if (!boardSquaresEl) return;
       boardSquaresEl.innerHTML = '';
       const grid = fenToBoard(fenStr);
+      const whiteKingPos = findKing('w', boardState);
+      const blackKingPos = findKing('b', boardState);
+      const whiteInCheck = !!(whiteKingPos && isKingInCheck('w'));
+      const blackInCheck = !!(blackKingPos && isKingInCheck('b'));
       const selectedPiece = selectedSq ? getPieceAt(selectedSq) : '';
       grid.forEach((row, rowIdx) => {
         row.forEach((cell, colIdx) => {
@@ -933,6 +946,10 @@
           sq.className = `sq ${isLight ? 'light' : 'dark'}`;
           sq.dataset.square = coord;
           sq.addEventListener('click', () => handleSquareClick(coord));
+          if ((whiteInCheck && whiteKingPos?.rankIdx === rowIdx && whiteKingPos?.fileIdx === colIdx)
+            || (blackInCheck && blackKingPos?.rankIdx === rowIdx && blackKingPos?.fileIdx === colIdx)){
+            sq.classList.add('king-check');
+          }
           if (cell){
             const piece = document.createElement('div');
             const img = document.createElement('img');
