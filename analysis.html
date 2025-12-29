@@ -278,18 +278,81 @@
     .priority-wrap{
       display:flex;
       flex-direction:column;
-      gap:6px;
-      align-items:center;
-      text-align:center;
+      gap:10px;
+      align-items:stretch;
+      text-align:left;
       border:none;
       padding:0;
       background:none;
+      width:100%;
     }
-    .priority-title{ font-weight:700; font-size:13px; opacity:1; }
-    .priority-moves{ display:flex; flex-direction:column; gap:6px; align-items:center; }
-    .priority-item{ display:flex; flex-direction:column; gap:2px; padding:0; border-radius:0; background:none; border:none; }
-    .priority-move{ font-weight:700; letter-spacing:0.3px; }
-    .priority-pv{ font-size:13px; opacity:1; }
+    .priority-title{
+      font-weight:800;
+      font-size:18px;
+      opacity:1;
+      letter-spacing:0.3px;
+    }
+    .priority-moves{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap:12px;
+      width:100%;
+    }
+    .priority-item{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      padding:14px;
+      border-radius:12px;
+      background: linear-gradient(180deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.01) 100%);
+      border:1px solid var(--border);
+    }
+    .priority-head{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .priority-piece-icon{
+      display:grid;
+      place-items:center;
+      width:38px;
+      height:38px;
+      border-radius:10px;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.12);
+      color:#cfe0f7;
+      font-size:28px;
+      flex-shrink:0;
+    }
+    .priority-piece-icon.small{
+      width:32px;
+      height:32px;
+      font-size:22px;
+    }
+    .priority-move{
+      font-weight:800;
+      letter-spacing:0.3px;
+      font-size:18px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+    }
+    .priority-index{ color:#cfe0f7; }
+    .priority-pv{
+      font-size:14px;
+      opacity:.9;
+      line-height:1.4;
+    }
+    .priority-pv-icons{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      color:#cfe0f7;
+      font-weight:700;
+    }
+    .priority-sep{ color:rgba(255,255,255,.65); font-weight:700; }
+    .priority-mate{ font-weight:800; }
     .history-body{
       display:grid;
       gap:10px;
@@ -321,11 +384,11 @@
     .board-meta{
       display:flex;
       flex-direction:column;
-      align-items:center;
-      justify-content:center;
+      align-items:flex-start;
+      justify-content:flex-start;
       gap:8px;
       width:100%;
-      text-align:center;
+      text-align:left;
     }
     .analysis-status{
       margin:0;
@@ -649,6 +712,54 @@
       updateEvalBar(lines?.[0]);
     }
 
+    function getPieceIconName(token = ''){
+      const clean = (token || '').trim();
+      if (!clean) return 'mdi:chess-pawn';
+      if (/^o-o/i.test(clean)) return 'mdi:castle';
+      const first = clean[0].toUpperCase();
+      switch (first){
+        case 'K': return 'mdi:chess-king';
+        case 'Q': return 'mdi:chess-queen';
+        case 'R': return 'mdi:chess-rook';
+        case 'B': return 'mdi:chess-bishop';
+        case 'N': return 'mdi:chess-knight';
+        default: return 'mdi:chess-pawn';
+      }
+    }
+
+    function createPieceIcon(iconName, size = 'default'){
+      const span = document.createElement('span');
+      span.className = `iconify priority-piece-icon${size === 'small' ? ' small' : ''}`;
+      span.dataset.icon = iconName;
+      span.setAttribute('aria-hidden', 'true');
+      return span;
+    }
+
+    function buildPvIconsRow(pvSan){
+      const tokens = (pvSan || '').split(/,\s*/).filter(Boolean);
+      const hasMate = (pvSan || '').includes('#');
+      if (!tokens.length && !hasMate) return null;
+      const row = document.createElement('div');
+      row.className = 'priority-pv-icons';
+      tokens.forEach((token, idx) => {
+        const icon = createPieceIcon(getPieceIconName(token), 'small');
+        row.appendChild(icon);
+        if (idx < tokens.length - 1){
+          const sep = document.createElement('span');
+          sep.className = 'priority-sep';
+          sep.textContent = '+';
+          row.appendChild(sep);
+        }
+      });
+      if (hasMate){
+        const mate = document.createElement('span');
+        mate.className = 'priority-sep priority-mate';
+        mate.textContent = '#';
+        row.appendChild(mate);
+      }
+      return row;
+    }
+
     function updatePriorityMoves(lines = []){
       priorityTargets.forEach(({ list }) => {
         list.innerHTML = '';
@@ -657,7 +768,7 @@
       if (!top.length){
         priorityTargets.forEach(({ list }) => {
           const empty = document.createElement('div');
-          empty.className = 'priority-item';
+          empty.className = 'priority-item mono';
           empty.textContent = 'Нет приоритетных ходов';
           list.appendChild(empty);
         });
@@ -667,14 +778,32 @@
         priorityTargets.forEach(({ list }) => {
           const item = document.createElement('div');
           item.className = 'priority-item';
-          const move = document.createElement('div');
-          move.className = 'priority-move mono';
-          move.textContent = `${idx + 1}. ${line.best_move_uci || '—'}`;
+
+          const head = document.createElement('div');
+          head.className = 'priority-head';
+          const icon = createPieceIcon(getPieceIconName(line.pv_san || line.best_move_uci || ''));
+          const title = document.createElement('div');
+          title.className = 'priority-move';
+          const index = document.createElement('span');
+          index.className = 'priority-index';
+          index.textContent = `${idx + 1}.`;
+          const moveText = document.createElement('span');
+          moveText.className = 'priority-move-text mono';
+          moveText.textContent = line.best_move_uci || '—';
+          title.appendChild(index);
+          title.appendChild(moveText);
+          head.appendChild(icon);
+          head.appendChild(title);
+
           const pv = document.createElement('div');
           pv.className = 'priority-pv mono';
           pv.textContent = line.pv_san || '—';
-          item.appendChild(move);
+
+          const pvIcons = buildPvIconsRow(line.pv_san);
+
+          item.appendChild(head);
           item.appendChild(pv);
+          if (pvIcons) item.appendChild(pvIcons);
           list.appendChild(item);
         });
       });
