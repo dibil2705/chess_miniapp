@@ -611,6 +611,7 @@
     const historyPlies = [];
     const moveSound = new Audio('audio/chess-move.ogg');
     const checkSound = new Audio('audio/chess-check.ogg');
+    const evaluationPerspective = getFenActiveColor(initialFen) || 'w';
     let historyCursor = -1;
     let currentFen = initialFen;
     let boardState = [];
@@ -653,7 +654,7 @@
     }
 
     function normalizeScore(line, perspective){
-      const side = (perspective || activeColor) === 'b' ? 'b' : 'w';
+      const side = (perspective || evaluationPerspective || activeColor) === 'b' ? 'b' : 'w';
       if (!line) return { cp: 0, label: '0.0', mate: null };
 
       const rawMate = line?.mate;
@@ -671,7 +672,7 @@
     }
 
     function renderAnalysisLines(lines = [], { fromCache = false, perspective = null } = {}){
-      const viewColor = perspective || getFenActiveColor(currentFen);
+      const viewColor = perspective || evaluationPerspective || getFenActiveColor(currentFen);
       if (analysisListEl){
         analysisListEl.innerHTML = '';
       }
@@ -785,13 +786,13 @@
       }
       const capturedPiece = getPieceAt(to);
       const promotionPiece = parsePromotionFromUci(line.best_move_uci);
-      const scoreLabel = formatPriorityScore(line, activeColor);
+      const scoreLabel = formatPriorityScore(line, evaluationPerspective || activeColor);
       finalizeMove({ fromSquare: from, toSquare: to, movingPiece, capturedPiece, promotionPiece });
       setBoardStatus(`Выполнен приоритетный ход (${scoreLabel}).`);
     }
 
     function updatePriorityMoves(lines = [], perspective = null){
-      const viewColor = perspective || getFenActiveColor(currentFen);
+      const viewColor = perspective || evaluationPerspective || getFenActiveColor(currentFen);
       priorityTargets.forEach(({ list }) => {
         list.innerHTML = '';
       });
@@ -1012,7 +1013,7 @@
 
     function updateEvalBar(line, perspective = null){
       if (!evalFillEl || !evalLabelEl) return;
-      const viewColor = perspective || getFenActiveColor(currentFen);
+      const viewColor = perspective || evaluationPerspective || getFenActiveColor(currentFen);
       const { cp, label } = normalizeScore(line, viewColor);
       const normalized = 1 / (1 + Math.exp(-cp / 200));
       const percent = Math.round(normalized * 100);
@@ -1316,7 +1317,7 @@
       renderBoardFromFen(currentFen);
       if (fenTextEl) fenTextEl.textContent = currentFen;
       setBoardStatus(`Ход ${activeColor === 'w' ? 'белых' : 'чёрных'}.`);
-      const viewColor = getFenActiveColor(currentFen);
+      const viewColor = evaluationPerspective || getFenActiveColor(currentFen);
       updateArrow(row?.lines?.[0]);
       updateEvalBar(row?.lines?.[0], viewColor);
       updatePriorityMoves(row?.lines || [], viewColor);
