@@ -196,6 +196,17 @@
       display: grid;
       gap: 5px;
       box-shadow: 0 8px 20px rgba(0,0,0,.22);
+      cursor: pointer;
+      transition: border-color .2s ease, box-shadow .2s ease, transform .1s ease;
+    }
+    .palette-card:active{ transform: translateY(1px); }
+    .palette-card.selected{
+      border-color: rgba(255,255,255,.36);
+      box-shadow: 0 10px 24px rgba(0,0,0,.32), inset 0 0 0 1px rgba(255,255,255,.14);
+    }
+    .palette-card:focus-visible{
+      outline: 2px solid rgba(255,255,255,.45);
+      outline-offset: 2px;
     }
     .palette-preview{
       display: grid;
@@ -297,7 +308,16 @@
         Палитры доски
       </h3>
       <div class="palette-grid" aria-label="Варианты палитр">
-        <div class="palette-card" aria-label="Классическая зелёная палитра">
+        <div class="palette-card" data-palette="default" role="button" tabindex="0" aria-pressed="false" aria-label="Основная палитра">
+          <div class="palette-preview" aria-hidden="true">
+            <span style="background:#769656;"></span>
+            <span style="background:#eeeed2;"></span>
+            <span style="background:#eeeed2;"></span>
+            <span style="background:#769656;"></span>
+          </div>
+          <p class="palette-name">Основная</p>
+        </div>
+        <div class="palette-card" data-palette="classic" role="button" tabindex="0" aria-pressed="false" aria-label="Классическая зелёная палитра">
           <div class="palette-preview" aria-hidden="true">
             <span style="background:#8cb369;"></span>
             <span style="background:#f2ead3;"></span>
@@ -306,7 +326,7 @@
           </div>
           <p class="palette-name">Классика</p>
         </div>
-        <div class="palette-card" aria-label="Кофейная палитра">
+        <div class="palette-card" data-palette="coffee" role="button" tabindex="0" aria-pressed="false" aria-label="Кофейная палитра">
           <div class="palette-preview" aria-hidden="true">
             <span style="background:#d7c9aa;"></span>
             <span style="background:#8b5e3c;"></span>
@@ -315,7 +335,7 @@
           </div>
           <p class="palette-name">Кофейная</p>
         </div>
-        <div class="palette-card" aria-label="Морская палитра">
+        <div class="palette-card" data-palette="sea" role="button" tabindex="0" aria-pressed="false" aria-label="Морская палитра">
           <div class="palette-preview" aria-hidden="true">
             <span style="background:#e9ddc5;"></span>
             <span style="background:#466b8a;"></span>
@@ -324,7 +344,7 @@
           </div>
           <p class="palette-name">Морская</p>
         </div>
-        <div class="palette-card" aria-label="Тёплая палитра">
+        <div class="palette-card" data-palette="warm" role="button" tabindex="0" aria-pressed="false" aria-label="Тёплая палитра">
           <div class="palette-preview" aria-hidden="true">
             <span style="background:#f0e7d8;"></span>
             <span style="background:#b83c3c;"></span>
@@ -386,6 +406,7 @@
   <script>
     const tg = window.Telegram?.WebApp;
     const SOUND_STORAGE_KEY = 'chess-miniapp-sound-enabled';
+    const PALETTE_STORAGE_KEY = 'chess-miniapp-board-palette';
     const defaultTheme = {
       bg: '#111',
       panel: 'rgba(255,255,255,.06)',
@@ -394,6 +415,33 @@
       dark: '#769656',
       light: '#eeeed2'
     };
+    const boardPalettes = {
+      default: { dark: '#769656', light: '#eeeed2' },
+      classic: { dark: '#8cb369', light: '#f2ead3' },
+      coffee: { dark: '#8b5e3c', light: '#d7c9aa' },
+      sea: { dark: '#466b8a', light: '#e9ddc5' },
+      warm: { dark: '#b83c3c', light: '#f0e7d8' }
+    };
+
+    function getBoardPalette(name){
+      return boardPalettes[name] || boardPalettes.default;
+    }
+
+    function loadPalettePreference(){
+      const stored = localStorage.getItem(PALETTE_STORAGE_KEY);
+      return boardPalettes[stored] ? stored : 'default';
+    }
+
+    function savePalettePreference(name){
+      localStorage.setItem(PALETTE_STORAGE_KEY, name);
+    }
+
+    function applyBoardPalette(name){
+      const palette = getBoardPalette(name);
+      const root = document.documentElement;
+      root.style.setProperty('--dark', palette.dark);
+      root.style.setProperty('--light', palette.light);
+    }
 
     function applyTelegramTheme(){
       if (!tg) return;
@@ -403,8 +451,7 @@
       root.style.setProperty('--panel', theme.secondary_bg_color || defaultTheme.panel);
       root.style.setProperty('--border', theme.section_separator_color || defaultTheme.border);
       root.style.setProperty('--text', theme.text_color || defaultTheme.text);
-      root.style.setProperty('--dark', defaultTheme.dark);
-      root.style.setProperty('--light', defaultTheme.light);
+      applyBoardPalette(loadPalettePreference());
     }
 
     function initTelegram(){
@@ -444,6 +491,42 @@
         enabled = !enabled;
         saveSoundPreference(enabled);
         updateSoundToggleUI(enabled);
+      });
+    }
+
+    function updatePaletteSelection(selected){
+      const cards = document.querySelectorAll('.palette-card[data-palette]');
+      cards.forEach(card => {
+        const isActive = card.dataset.palette === selected;
+        card.classList.toggle('selected', isActive);
+        card.setAttribute('aria-pressed', String(isActive));
+      });
+    }
+
+    function initPalettePicker(){
+      const cards = document.querySelectorAll('.palette-card[data-palette]');
+      if (!cards.length) return;
+      let current = loadPalettePreference();
+      applyBoardPalette(current);
+      updatePaletteSelection(current);
+
+      const selectPalette = (name) => {
+        current = boardPalettes[name] ? name : 'default';
+        savePalettePreference(current);
+        applyBoardPalette(current);
+        updatePaletteSelection(current);
+      };
+
+      cards.forEach(card => {
+        const name = card.dataset.palette;
+        const handler = () => selectPalette(name);
+        card.addEventListener('click', handler);
+        card.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' '){
+            event.preventDefault();
+            handler();
+          }
+        });
       });
     }
 
@@ -515,6 +598,7 @@
 
     initTelegram();
     initSoundToggle();
+    initPalettePicker();
     hydratePuzzle();
   </script>
 </body>
