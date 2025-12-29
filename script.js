@@ -51,6 +51,7 @@ let puzzleLoading = false;
 let moveHistory = [];
 let historyStartFen = START_FEN;
 let soundEnabled = loadSoundPreference();
+let puzzleLockedAfterError = false;
 
 function getExpectedMoveColor(moveIndex){
   const opponentColor = puzzlePlayerColor === 'w' ? 'b' : 'w';
@@ -233,6 +234,7 @@ function loadPositionFromFen(fen, options = {}){
     puzzleMode = hasSolution;
     puzzleSolved = false;
     puzzleMoveIndex = 0;
+    puzzleLockedAfterError = false;
   } else {
     puzzleMode = puzzleMode && hasSolution;
     puzzlePlayerColor = puzzlePlayerColor || parsed.active;
@@ -290,7 +292,8 @@ function persistPuzzleState(){
       castlingRights,
       activeColor,
       moveHistory,
-      historyStartFen
+      historyStartFen,
+      puzzleLockedAfterError
     };
     localStorage.setItem(PUZZLE_STORAGE_KEY, JSON.stringify(payload));
   } catch (err){
@@ -606,6 +609,10 @@ function selectSquare(r, c){
 }
 
 function handleSquareTap(r, c){
+  if (puzzleMode && puzzleLockedAfterError){
+    updatePuzzleFeedback('wrong', 'Нажмите «Решить заново» или «Новая задача».', { withActions: true });
+    return;
+  }
   if (puzzleMode && !puzzleSolved && activeColor !== puzzlePlayerColor){
     return;
   }
@@ -979,6 +986,7 @@ function resetPuzzleProgress(){
 function restartCurrentPuzzle(){
   puzzleSolved = false;
   puzzleMoveIndex = 0;
+  puzzleLockedAfterError = false;
   closePuzzleOverlay();
   if (puzzleStartFen){
     loadPositionFromFen(puzzleStartFen);
@@ -1083,6 +1091,7 @@ function isAtSolutionPosition(){
 }
 
 function finalizePuzzleSolved(message = 'ЗАДАЧА РЕШЕНА'){
+  puzzleLockedAfterError = false;
   puzzleSolved = true;
   puzzleMoveIndex = puzzleSolutionMoves.length;
   updatePuzzleFeedback('solved', message, { withActions: true });
@@ -1105,6 +1114,7 @@ function verifyPuzzleMove(moveKey){
   const expectedMove = puzzleSolutionMoves[puzzleMoveIndex];
   const isPlayerMove = activeColor === puzzlePlayerColor;
   if (moveKey === expectedMove){
+    puzzleLockedAfterError = false;
     puzzleMoveIndex += 1;
     if (puzzleMoveIndex >= puzzleSolutionMoves.length){
       const parsedMove = parseMoveKey(moveKey);
@@ -1135,7 +1145,7 @@ function verifyPuzzleMove(moveKey){
 
   puzzleSolved = false;
   puzzleMoveIndex = 0;
-  resetPuzzleBoardToStart();
+  puzzleLockedAfterError = true;
   updatePuzzleFeedback('wrong', `Ожидался ход ${expectedMove}.`, { withActions: true });
   return false;
 }
@@ -1233,6 +1243,7 @@ function performMove(fromR, fromC, toR, toC){
 }
 
 function attemptAutoOpponentMove(){
+  if (puzzleLockedAfterError) return;
   if (!puzzleMode || puzzleSolved) return;
   if (!puzzleSolutionMoves.length) return;
   if (puzzleMoveIndex >= puzzleSolutionMoves.length) return;
@@ -1372,6 +1383,11 @@ function onPointerDownManual(e){
   const pointerType = e.pointerType || 'mouse';
   if (pointerType !== 'touch' && pointerType !== 'pen') return;
 
+  if (puzzleMode && puzzleLockedAfterError){
+    updatePuzzleFeedback('wrong', 'Нажмите «Решить заново» или «Новая задача».', { withActions: true });
+    return;
+  }
+
   if (puzzleMode && !puzzleSolved && activeColor !== puzzlePlayerColor){
     return;
   }
@@ -1477,6 +1493,11 @@ function onDragStart(e){
   const fromR = Number(e.target.dataset.fromR);
   const fromC = Number(e.target.dataset.fromC);
   const piece = boardState[fromR][fromC];
+  if (puzzleMode && puzzleLockedAfterError){
+    updatePuzzleFeedback('wrong', 'Нажмите «Решить заново» или «Новая задача».', { withActions: true });
+    e.preventDefault();
+    return;
+  }
   if (puzzleMode && !puzzleSolved && activeColor !== puzzlePlayerColor){
     e.preventDefault();
     return;
@@ -1580,6 +1601,7 @@ async function fetchRandomPuzzle(){
   puzzleStartFen = null;
   puzzlePlayerColor = null;
   puzzleData = null;
+  puzzleLockedAfterError = false;
   if (puzzleStatusEl) puzzleStatusEl.textContent = 'Загрузка задачи...';
   updatePuzzleFeedback('info', 'Загружаем новую задачу...');
   resetSelection();
@@ -1644,6 +1666,7 @@ function hydratePuzzleState(){
     puzzlePlayerColor = saved.puzzlePlayerColor || parsed.active;
     puzzleSolutionTargetFen = saved.puzzleSolutionTargetFen || puzzleSolutionTargetFen;
     puzzleLoading = false;
+    puzzleLockedAfterError = !!saved.puzzleLockedAfterError;
     promotionState = null;
     resetSelection();
     closePromotionDialog();
