@@ -37,6 +37,25 @@
       justify-content:space-between;
       gap:10px;
     }
+    .back-btn{
+      position: fixed;
+      top: 14px;
+      right: 12px;
+      padding:10px 12px;
+      border-radius:12px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: linear-gradient(145deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
+      color:#fff;
+      cursor:pointer;
+      box-shadow: 0 8px 22px rgba(0,0,0,.28);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      width: fit-content;
+      z-index: 20;
+    }
+    .back-btn:active{ transform: translateY(1px); }
     .panel{
       padding:14px;
       border-radius:12px;
@@ -482,7 +501,10 @@
   <div class="wrap">
     <div class="top-bar">
       <h2>Stockfish анализ позиции</h2>
-      <a class="btn" href="index.html">Назад</a>
+      <a class="back-btn" href="index.html">
+        <span class="iconify" data-icon="mdi:chevron-left" aria-hidden="true"></span>
+        Назад
+      </a>
     </div>
 
     <div class="layout">

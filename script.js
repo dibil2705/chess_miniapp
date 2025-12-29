@@ -736,7 +736,7 @@ function updatePuzzleInfoDisplay(data){
   } else if (puzzleSolutionMoves.length){
     const startColor = (puzzleStartFen?.split(' ')[1] === 'b') ? 'b' : 'w';
     const playerColorLabel = startColor === 'b' ? 'черными' : 'белыми';
-    updatePuzzleFeedback('info', `Решение из PGN прочитано (${puzzleSolutionMoves.length} хода). Ходите ${playerColorLabel}: ваш ход → ответ соперника → ваш ход.`);
+    updatePuzzleFeedback('idle');
   } else {
     updatePuzzleFeedback('idle');
   }
