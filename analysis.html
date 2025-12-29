@@ -620,7 +620,9 @@
     const historyPlies = [];
     const moveSound = new Audio('audio/chess-move.ogg');
     const checkSound = new Audio('audio/chess-check.ogg');
-    const evaluationPerspective = getFenActiveColor(initialFen) || 'w';
+    // Всегда показываем оценку в «абсолютных» белых единицах,
+    // чтобы знак не менялся при смене очереди хода.
+    const evaluationPerspective = 'w';
     let historyCursor = -1;
     let currentFen = initialFen;
     let boardState = [];
@@ -662,14 +664,25 @@
       return fenStr?.split(' ')[1] === 'b' ? 'b' : 'w';
     }
 
+    function normalizeSideToken(token, fallback = null){
+      if (token === 'b' || token === 'w') return token;
+      if (typeof token === 'string'){
+        const normalized = token.trim().toLowerCase();
+        if (normalized === 'white') return 'w';
+        if (normalized === 'black') return 'b';
+      }
+      return fallback;
+    }
+
     function getLineScoreSide(line, fallback = null){
-      const token = line?.score_side || line?.side || line?.turn || line?.active || line?.move_color;
+      const rawToken = line?.score_side || line?.side || line?.turn || line?.active || line?.move_color;
+      const token = normalizeSideToken(rawToken, null);
       if (token === 'b' || token === 'w') return token;
       const fenToken = line?.fen || line?.line_fen || line?.position_fen;
       if (fenToken){
         return getFenActiveColor(fenToken);
       }
-      return fallback === 'b' ? 'b' : 'w';
+      return normalizeSideToken(fallback, 'w') || 'w';
     }
 
     function normalizeScore(line, perspective){
@@ -693,7 +706,7 @@
     }
 
     function renderAnalysisLines(lines = [], { fromCache = false, perspective = null } = {}){
-      const viewColor = perspective || evaluationPerspective || getFenActiveColor(currentFen);
+      const viewColor = perspective || evaluationPerspective;
       if (analysisListEl){
         analysisListEl.innerHTML = '';
       }
@@ -813,7 +826,7 @@
     }
 
     function updatePriorityMoves(lines = [], perspective = null){
-      const viewColor = perspective || evaluationPerspective || getFenActiveColor(currentFen);
+      const viewColor = perspective || evaluationPerspective;
       priorityTargets.forEach(({ list }) => {
         list.innerHTML = '';
       });
@@ -1042,7 +1055,7 @@
 
     function updateEvalBar(line, perspective = null){
       if (!evalFillEl || !evalLabelEl) return;
-      const viewColor = perspective || evaluationPerspective || getFenActiveColor(currentFen);
+      const viewColor = perspective || evaluationPerspective;
       const { cp, label } = normalizeScore(line, viewColor);
       const normalized = 1 / (1 + Math.exp(-cp / 200));
       const percent = Math.round(normalized * 100);
