@@ -81,6 +81,7 @@ const analysisOverlayEl = document.getElementById('analysisOverlay');
 const analysisFrameEl = document.getElementById('analysisFrame');
 const closeAnalysisBtn = document.getElementById('closeAnalysisBtn');
 const settingsDetailsEl = document.querySelector('.floating-settings details');
+const openSettingsPageBtn = document.getElementById('openSettingsPage');
 const boardTitleEl = document.getElementById('boardTitle');
 
 const defaultTheme = {
@@ -1629,6 +1630,13 @@ document.getElementById('puzzleBtn').addEventListener('click', () => {
 
 if (analyzeBtn){
   analyzeBtn.addEventListener('click', openAnalysisPage);
+}
+
+if (openSettingsPageBtn){
+  openSettingsPageBtn.addEventListener('click', () => {
+    persistPuzzleState();
+    window.location.href = 'settings.html';
+  });
 }
 
 if (closeAnalysisBtn){

@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <title>Settings • Chess Board</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+  <style>
+    :root{
+      --dark:#769656;
+      --light:#eeeed2;
+      --bg:#111;
+      --panel:rgba(255,255,255,.06);
+      --border:rgba(255,255,255,.12);
+      --text:#fff;
+    }
+
+    body{
+      margin:0;
+      padding:16px 12px 20px;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    .page{
+      max-width: 880px;
+      margin: 0 auto;
+      display: grid;
+      gap: 16px;
+    }
+
+    header{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .title{
+      margin: 0;
+      font-size: clamp(22px, 5vw, 30px);
+      font-weight: 900;
+      letter-spacing: 0.6px;
+    }
+    .back-btn{
+      padding:10px 12px;
+      border-radius:12px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: linear-gradient(145deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
+      color:#fff;
+      cursor:pointer;
+      box-shadow: 0 8px 22px rgba(0,0,0,.28);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      width: fit-content;
+    }
+    .back-btn:active{ transform: translateY(1px); }
+
+    .info-block{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .section-title{
+      margin: 0;
+      font-size: 16px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .collapsible{
+      padding: 0;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+    }
+    .collapsible summary{
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      background: rgba(255,255,255,.04);
+    }
+    .collapsible summary::-webkit-details-marker{ display:none; }
+    .collapsible .collapsible-body{ padding: 12px 14px 14px 14px; display:grid; gap: 10px; }
+    .chevron{ font-size: 18px; opacity: .7; transition: transform .2s ease; }
+    details[open] .chevron{ transform: rotate(180deg); }
+
+    .settings-panel{
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: #1f1f1f;
+      display: grid;
+      gap: 10px;
+    }
+    .settings-panel .info-title{
+      margin: 0 0 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+    }
+    .settings-panel .info-title .iconify{
+      font-size: 18px;
+    }
+    .settings-puzzle-grid{
+      display: grid;
+      gap: 8px;
+    }
+    .settings-puzzle-grid .mono{ word-break: break-all; }
+
+    .puzzle-feedback{ margin-top: 8px; min-height: 22px; display: flex; justify-content: center; }
+    .puzzle-feedback-row{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.1);
+      font-size: 14px;
+      flex-wrap: wrap;
+    }
+    .puzzle-indicator{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .puzzle-feedback-row.success .puzzle-indicator{
+      background: rgba(64,214,108,.18);
+      color: #40d66c;
+      box-shadow: 0 0 0 1px rgba(64,214,108,.25);
+    }
+    .puzzle-feedback-row.error .puzzle-indicator{
+      background: rgba(255,99,99,.18);
+      color: #ff6b6b;
+      box-shadow: 0 0 0 1px rgba(255,107,107,.25);
+    }
+    .puzzle-feedback-row.info .puzzle-indicator{
+      background: rgba(255,255,255,.18);
+      color: #fff;
+      box-shadow: 0 0 0 1px rgba(255,255,255,.2);
+    }
+    .puzzle-feedback-row.solved{
+      width: 100%;
+      justify-content: center;
+      text-align: center;
+      background: rgba(76, 237, 140, 0.12);
+      border-color: rgba(76, 237, 140, 0.45);
+    }
+    .puzzle-feedback-row.solved .puzzle-feedback-text{
+      color: #4ced8c;
+      font-size: clamp(20px, 4vw, 28px);
+      font-weight: 900;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      text-shadow: 0 4px 14px rgba(0,0,0,.35);
+    }
+
+    .palette-grid{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+    }
+    .palette-card{
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 12px;
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.25);
+    }
+    .palette-preview{
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 0;
+      border-radius: 10px;
+      overflow: hidden;
+      aspect-ratio: 1 / 1;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.4);
+    }
+    .palette-preview span{ width: 100%; height: 100%; }
+    .palette-name{
+      margin: 0;
+      font-weight: 700;
+    }
+    .hint{
+      opacity:.8;
+      font-size: 13px;
+      margin: 0;
+    }
+
+    @media (max-width: 560px){
+      header{ flex-direction: column; align-items: flex-start; }
+      .back-btn{ width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1 class="title">Настройки</h1>
+      <a class="back-btn" href="index.html">
+        <span class="iconify" data-icon="mdi:chevron-left" aria-hidden="true"></span>
+        Назад к доске
+      </a>
+    </header>
+
+    <p class="hint">Здесь собраны сохранённые данные задачи и визуальные настройки. Панель можно раскрывать и сворачивать как в FAQ.</p>
+
+    <details class="collapsible" open>
+      <summary>
+        <span class="section-title">
+          <span class="iconify" data-icon="mdi:clipboard-text-outline" aria-hidden="true"></span>
+          Данные задачи
+        </span>
+        <span class="chevron" aria-hidden="true">⌃</span>
+      </summary>
+      <div class="collapsible-body">
+        <div class="settings-panel" role="region" aria-label="Данные задачи">
+          <div class="info-title">
+            <span class="iconify" data-icon="mdi:clipboard-text-outline" aria-hidden="true"></span>
+            <span>Задача</span>
+          </div>
+          <div class="settings-puzzle-grid">
+            <div><b>title:</b> <span id="puzzleTitle" class="mono"></span></div>
+            <div><b>url:</b> <a id="puzzleUrl" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
+            <div><b>publish_time:</b> <span id="puzzlePublish" class="mono"></span></div>
+            <div><b>fen:</b> <span id="puzzleFen" class="mono" style="word-break: break-all;"></span></div>
+            <div><b>pgn:</b> <span id="puzzlePgn" class="mono" style="word-break: break-all;"></span></div>
+            <div><b>image:</b> <a id="puzzleImage" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
+          </div>
+          <div id="puzzleFeedback" class="puzzle-feedback"></div>
+        </div>
+      </div>
+    </details>
+
+    <div class="info-block">
+      <h3 class="section-title">
+        <span class="iconify" data-icon="mdi:palette-outline" aria-hidden="true"></span>
+        Палитры доски
+      </h3>
+      <p class="hint">Выберите понравившуюся палитру — она используется только как визуальная подсказка. Цвета доски внутри мини-приложения фиксированы, чтобы совпадать с основной темой.</p>
+      <div class="palette-grid" aria-label="Варианты палитр">
+        <div class="palette-card" aria-label="Классическая зелёная палитра">
+          <div class="palette-preview" aria-hidden="true">
+            <span style="background:#8cb369;"></span>
+            <span style="background:#f2ead3;"></span>
+            <span style="background:#f2ead3;"></span>
+            <span style="background:#8cb369;"></span>
+          </div>
+          <p class="palette-name">Классика</p>
+        </div>
+        <div class="palette-card" aria-label="Кофейная палитра">
+          <div class="palette-preview" aria-hidden="true">
+            <span style="background:#d7c9aa;"></span>
+            <span style="background:#8b5e3c;"></span>
+            <span style="background:#8b5e3c;"></span>
+            <span style="background:#d7c9aa;"></span>
+          </div>
+          <p class="palette-name">Кофейная</p>
+        </div>
+        <div class="palette-card" aria-label="Морская палитра">
+          <div class="palette-preview" aria-hidden="true">
+            <span style="background:#e9ddc5;"></span>
+            <span style="background:#466b8a;"></span>
+            <span style="background:#466b8a;"></span>
+            <span style="background:#e9ddc5;"></span>
+          </div>
+          <p class="palette-name">Морская</p>
+        </div>
+        <div class="palette-card" aria-label="Тёплая палитра">
+          <div class="palette-preview" aria-hidden="true">
+            <span style="background:#f0e7d8;"></span>
+            <span style="background:#b83c3c;"></span>
+            <span style="background:#b83c3c;"></span>
+            <span style="background:#f0e7d8;"></span>
+          </div>
+          <p class="palette-name">Тёплая</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    const defaultTheme = {
+      bg: '#111',
+      panel: 'rgba(255,255,255,.06)',
+      border: 'rgba(255,255,255,.12)',
+      text: '#fff',
+      dark: '#769656',
+      light: '#eeeed2'
+    };
+
+    function applyTelegramTheme(){
+      if (!tg) return;
+      const theme = tg.themeParams || {};
+      const root = document.documentElement;
+      root.style.setProperty('--bg', theme.bg_color || defaultTheme.bg);
+      root.style.setProperty('--panel', theme.secondary_bg_color || defaultTheme.panel);
+      root.style.setProperty('--border', theme.section_separator_color || defaultTheme.border);
+      root.style.setProperty('--text', theme.text_color || defaultTheme.text);
+      root.style.setProperty('--dark', defaultTheme.dark);
+      root.style.setProperty('--light', defaultTheme.light);
+    }
+
+    function initTelegram(){
+      if (!tg) return;
+      tg.ready();
+      tg.expand();
+      applyTelegramTheme();
+      tg.onEvent('themeChanged', applyTelegramTheme);
+    }
+
+    function formatPublishTime(value){
+      if (!value && value !== 0) return '';
+      if (typeof value === 'number' || /^\\d+$/.test(String(value))){
+        const date = new Date(Number(value) * 1000);
+        if (!Number.isNaN(date.getTime())) return date.toLocaleString('ru-RU');
+      }
+      return String(value);
+    }
+
+    function renderPuzzle(data, solved = false){
+      const titleEl = document.getElementById('puzzleTitle');
+      const urlEl = document.getElementById('puzzleUrl');
+      const publishEl = document.getElementById('puzzlePublish');
+      const fenEl = document.getElementById('puzzleFen');
+      const pgnEl = document.getElementById('puzzlePgn');
+      const imageEl = document.getElementById('puzzleImage');
+      const feedbackEl = document.getElementById('puzzleFeedback');
+
+      titleEl.textContent = data?.title || '—';
+      urlEl.textContent = data?.url || '—';
+      urlEl.href = data?.url || '#';
+      publishEl.textContent = data?.publish_time ? formatPublishTime(data.publish_time) : '—';
+      fenEl.textContent = data?.fen || '—';
+      pgnEl.textContent = data?.pgn || '—';
+      imageEl.textContent = data?.image || '—';
+      imageEl.href = data?.image || '#';
+
+      feedbackEl.className = 'puzzle-feedback';
+      feedbackEl.innerHTML = '';
+      const row = document.createElement('div');
+      row.className = 'puzzle-feedback-row success solved';
+      const icon = document.createElement('span');
+      icon.className = 'puzzle-indicator';
+      icon.textContent = solved ? '✓' : '•';
+      const text = document.createElement('span');
+      text.className = 'puzzle-feedback-text';
+      text.textContent = solved ? 'ЗАДАЧА РЕШЕНА' : 'Задача загружена';
+      row.append(icon, text);
+      feedbackEl.appendChild(row);
+    }
+
+    function hydratePuzzle(){
+      const fallback = {
+        title: 'Quality vs Quantity',
+        url: 'https://www.chess.com/daily/2021-04-16',
+        publish_time: '16.04.2021, 10:00:00',
+        fen: '5r1k/pp3pq1/2P3pp/4N3/3r4/1B3R2/PP3PPP/R5K1 w - - 0 1',
+        pgn: '[Result \"*\"]\\n[FEN \"5r1k/pp3pq1/2P3pp/4N3/3r4/1B3R2/PP3PPP/R5K1 w - - 0 1\"]\\n\\n1.Rxf7 Rxf7 2.Nxf7+ Kh7 3.c7 Qf8 4.Be6 Rc4 5.Bxc4 *',
+        image: 'https://www.chess.com/dynboard?fen=5r1k/pp3pq1/2P3pp/4N3/3r4/1B3R2/PP3PPP/R5K1%20w%20-%20-%200%201&size=2'
+      };
+      try{
+        const raw = localStorage.getItem('chess-miniapp-current-puzzle');
+        if (!raw){
+          renderPuzzle(fallback, false);
+          return;
+        }
+        const parsed = JSON.parse(raw);
+        const data = parsed?.puzzleData || fallback;
+        const solved = !!parsed?.puzzleSolved;
+        renderPuzzle(data, solved);
+      } catch (err){
+        console.warn('Не удалось загрузить сохранённую задачу', err);
+        renderPuzzle(fallback, false);
+      }
+    }
+
+    initTelegram();
+    hydratePuzzle();
+  </script>
+</body>
+</html>
