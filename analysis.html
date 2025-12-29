@@ -306,11 +306,18 @@
       border-radius:12px;
       background: linear-gradient(180deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.01) 100%);
       border:1px solid var(--border);
+      cursor:pointer;
+      transition: border-color .12s ease, box-shadow .12s ease, transform .08s ease;
+      outline:none;
     }
+    .priority-item:focus-visible{ box-shadow: 0 0 0 3px rgba(207,224,247,.25); border-color: rgba(207,224,247,.6); }
+    .priority-item:active{ transform: translateY(1px); }
+    .priority-item.is-empty{ cursor: default; }
     .priority-head{
       display:flex;
       align-items:center;
       gap:10px;
+      flex-wrap: wrap;
     }
     .priority-piece-icon{
       display:grid;
@@ -333,6 +340,15 @@
       gap:6px;
     }
     .priority-index{ color:#cfe0f7; }
+    .priority-score{
+      margin-left:auto;
+      padding:4px 8px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      font-weight:700;
+      font-size:13px;
+    }
     .priority-pv{
       font-size:14px;
       opacity:.9;
@@ -720,6 +736,55 @@
       return span;
     }
 
+    function formatPriorityScore(line){
+      const { label, mate } = normalizeScore(line);
+      if (mate !== null){
+        const side = mate > 0 ? 'белых' : 'чёрных';
+        return `Мат за ${Math.abs(mate)} (${side})`;
+      }
+      return `${label} cp`;
+    }
+
+    function parsePromotionFromUci(uci = ''){
+      if (!uci || uci.length < 5) return null;
+      return uci[4];
+    }
+
+    function applyPriorityMove(line){
+      if (!line || !line.best_move_uci){
+        setBoardStatus('Нет данных для приоритетного хода.');
+        return;
+      }
+      const coords = uciToCoords(line.best_move_uci);
+      if (!coords){
+        setBoardStatus('Некорректный формат приоритетного хода.');
+        return;
+      }
+      const { from, to } = coords;
+      const movingPiece = getPieceAt(from);
+      if (!movingPiece){
+        setBoardStatus('На исходной клетке нет фигуры для приоритетного хода.');
+        return;
+      }
+      if (getPieceColor(movingPiece) !== activeColor){
+        setBoardStatus('Сейчас ход другого цвета.');
+        return;
+      }
+      if (!isLegalPieceMove(movingPiece, from, to, boardState)){
+        setBoardStatus('Приоритетный ход неразрешён правилами.');
+        return;
+      }
+      if (wouldLeaveKingInCheck(from, to, movingPiece)){
+        setBoardStatus('Приоритетный ход оставляет короля под боем.');
+        return;
+      }
+      const capturedPiece = getPieceAt(to);
+      const promotionPiece = parsePromotionFromUci(line.best_move_uci);
+      const scoreLabel = formatPriorityScore(line);
+      finalizeMove({ fromSquare: from, toSquare: to, movingPiece, capturedPiece, promotionPiece });
+      setBoardStatus(`Выполнен приоритетный ход (${scoreLabel}).`);
+    }
+
     function updatePriorityMoves(lines = []){
       priorityTargets.forEach(({ list }) => {
         list.innerHTML = '';
@@ -728,7 +793,7 @@
       if (!top.length){
         priorityTargets.forEach(({ list }) => {
           const empty = document.createElement('div');
-          empty.className = 'priority-item mono';
+          empty.className = 'priority-item mono is-empty';
           empty.textContent = 'Нет приоритетных ходов';
           list.appendChild(empty);
         });
@@ -755,12 +820,27 @@
           head.appendChild(icon);
           head.appendChild(title);
 
+          const score = document.createElement('div');
+          score.className = 'priority-score mono';
+          score.textContent = formatPriorityScore(line);
+          head.appendChild(score);
+
           const pv = document.createElement('div');
           pv.className = 'priority-pv mono';
           pv.textContent = line.pv_san || '—';
 
           item.appendChild(head);
           item.appendChild(pv);
+          item.setAttribute('role', 'button');
+          item.setAttribute('aria-label', `Сделать ход ${line.best_move_uci || ''}`);
+          item.tabIndex = 0;
+          item.addEventListener('click', () => applyPriorityMove(line));
+          item.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' '){
+              event.preventDefault();
+              applyPriorityMove(line);
+            }
+          });
           list.appendChild(item);
         });
       });
