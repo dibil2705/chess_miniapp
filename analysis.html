@@ -687,7 +687,7 @@
 
     function normalizeScore(line, perspective){
       const desiredSide = (perspective || evaluationPerspective || 'w') === 'b' ? 'b' : 'w';
-      const scoreSide = getLineScoreSide(line, getFenActiveColor(currentFen));
+      const scoreSide = getLineScoreSide(line, desiredSide);
       const direction = scoreSide === desiredSide ? 1 : -1;
       if (!line) return { cp: 0, label: '0.0', mate: null };
 
