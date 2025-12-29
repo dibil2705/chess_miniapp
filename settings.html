@@ -246,6 +246,11 @@
       text-decoration: none;
     }
     .contact-link:hover{ text-decoration: underline; }
+    .contact-panels{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 10px;
+    }
 
     @media (max-width: 560px){
       header{ flex-direction: column; align-items: flex-start; }
@@ -330,10 +335,18 @@
         <span class="iconify" data-icon="mdi:telegram" aria-hidden="true"></span>
         Связь с разработчиком
       </h3>
-      <a class="contact-link" href="https://t.me/Niktooo27" target="_blank" rel="noreferrer noopener">
-        <span class="iconify" data-icon="mdi:send-circle-outline" aria-hidden="true"></span>
-        @Niktooo27
-      </a>
+      <div class="contact-panels">
+        <div class="settings-panel" role="region" aria-label="Личный контакт">
+          <div class="info-title">Личное сообщение</div>
+          <a class="contact-link" href="https://t.me/Niktooo27" target="_blank" rel="noreferrer noopener">@Niktooo27</a>
+          <p class="hint">Напишите напрямую, чтобы обсудить проект.</p>
+        </div>
+        <div class="settings-panel" role="region" aria-label="Шахматное сообщество">
+          <div class="info-title">Шахматное сообщество</div>
+          <a class="contact-link" href="https://t.me/chesspolyana" target="_blank" rel="noreferrer noopener">@chesspolyana</a>
+          <p class="hint">Присоединяйтесь к общению и разбору задач.</p>
+        </div>
+      </div>
     </div>
 
     <div class="info-block">
