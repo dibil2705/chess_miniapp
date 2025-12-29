@@ -30,6 +30,7 @@ const checkSound = new Audio('audio/chess-check.ogg');
 const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
 const PUZZLE_STORAGE_KEY = 'chess-miniapp-current-puzzle';
 const SOUND_STORAGE_KEY = 'chess-miniapp-sound-enabled';
+const PALETTE_STORAGE_KEY = 'chess-miniapp-board-palette';
 
 let flipped = false;
 let boardState = fenToBoard(START_FEN);
@@ -95,6 +96,17 @@ const defaultTheme = {
   dark: '#769656',
   light: '#eeeed2'
 };
+const boardPalettes = {
+  default: { dark: '#769656', light: '#eeeed2' },
+  classic: { dark: '#8cb369', light: '#f2ead3' },
+  coffee: { dark: '#8b5e3c', light: '#d7c9aa' },
+  sea: { dark: '#466b8a', light: '#e9ddc5' },
+  warm: { dark: '#b83c3c', light: '#f0e7d8' }
+};
+
+function getBoardPalette(name){
+  return boardPalettes[name] || boardPalettes.default;
+}
 
 function preventZoom(){
   // Avoid pinch and double-tap zooming inside the Telegram webview.
@@ -124,6 +136,18 @@ function loadSoundPreference(){
   return stored !== 'false' && stored !== '0';
 }
 
+function loadPalettePreference(){
+  const stored = localStorage.getItem(PALETTE_STORAGE_KEY);
+  return boardPalettes[stored] ? stored : 'default';
+}
+
+function applyBoardPalette(name){
+  const palette = getBoardPalette(name);
+  const root = document.documentElement;
+  root.style.setProperty('--dark', palette.dark);
+  root.style.setProperty('--light', palette.light);
+}
+
 function applyTelegramTheme(){
   if (!tg) return;
   const theme = tg.themeParams || {};
@@ -133,8 +157,7 @@ function applyTelegramTheme(){
   root.style.setProperty('--border', theme.section_separator_color || defaultTheme.border);
   root.style.setProperty('--text', theme.text_color || defaultTheme.text);
   // Keep board colors stable across platforms.
-  root.style.setProperty('--dark', defaultTheme.dark);
-  root.style.setProperty('--light', defaultTheme.light);
+  applyBoardPalette(loadPalettePreference());
 }
 
 function initTelegram(){
@@ -1741,12 +1764,16 @@ window.addEventListener('storage', (event) => {
   if (event.key === SOUND_STORAGE_KEY){
     soundEnabled = loadSoundPreference();
   }
+  if (event.key === PALETTE_STORAGE_KEY){
+    applyBoardPalette(loadPalettePreference());
+  }
 });
 
 promotionButtons.forEach(btn => {
   btn.addEventListener('click', () => handlePromotionChoice(btn.dataset.piece));
 });
 
+applyBoardPalette(loadPalettePreference());
 preventZoom();
 initTelegram();
 const restoredPuzzle = hydratePuzzleState();
