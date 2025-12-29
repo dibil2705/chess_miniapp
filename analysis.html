@@ -662,21 +662,33 @@
       return fenStr?.split(' ')[1] === 'b' ? 'b' : 'w';
     }
 
+    function getLineScoreSide(line, fallback = null){
+      const token = line?.score_side || line?.side || line?.turn || line?.active || line?.move_color;
+      if (token === 'b' || token === 'w') return token;
+      const fenToken = line?.fen || line?.line_fen || line?.position_fen;
+      if (fenToken){
+        return getFenActiveColor(fenToken);
+      }
+      return fallback === 'b' ? 'b' : 'w';
+    }
+
     function normalizeScore(line, perspective){
-      const side = (perspective || evaluationPerspective || activeColor) === 'b' ? 'b' : 'w';
+      const desiredSide = (perspective || evaluationPerspective || 'w') === 'b' ? 'b' : 'w';
+      const scoreSide = getLineScoreSide(line, getFenActiveColor(currentFen));
+      const direction = scoreSide === desiredSide ? 1 : -1;
       if (!line) return { cp: 0, label: '0.0', mate: null };
 
       const rawMate = line?.mate;
       if (rawMate !== undefined && rawMate !== null){
-        const signedMate = side === 'w' ? rawMate : -rawMate;
+        const signedMate = rawMate * direction;
         const cpEquivalent = signedMate > 0 ? 900 : -900;
         const mateLabelPrefix = signedMate > 0 ? '' : '-';
         return { cp: cpEquivalent, label: `${mateLabelPrefix}M${Math.abs(signedMate)}`, mate: signedMate };
       }
 
-      const rawCp = Number(line?.score_cp);
+      const rawCp = Number(line?.score_cp ?? line?.cp);
       if (Number.isNaN(rawCp)) return { cp: 0, label: '0.0', mate: null };
-      const signedCp = side === 'w' ? rawCp : -rawCp;
+      const signedCp = rawCp * direction;
       return { cp: signedCp, label: (signedCp / 100).toFixed(2), mate: null };
     }
 
