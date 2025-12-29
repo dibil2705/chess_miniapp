@@ -32,6 +32,7 @@
     }
 
     header{
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -44,8 +45,8 @@
       letter-spacing: 0.6px;
     }
     .back-btn{
-      padding:10px 12px;
-      border-radius:12px;
+      padding:9px 11px;
+      border-radius:10px;
       border: 1px solid rgba(255,255,255,.18);
       background: linear-gradient(145deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
       color:#fff;
@@ -180,16 +181,16 @@
 
     .palette-grid{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
     }
     .palette-card{
       background: rgba(255,255,255,.04);
       border: 1px solid rgba(255,255,255,.08);
-      border-radius: 12px;
-      padding: 12px;
+      border-radius: 10px;
+      padding: 10px;
       display: grid;
-      gap: 10px;
+      gap: 8px;
       box-shadow: 0 10px 28px rgba(0,0,0,.25);
     }
     .palette-preview{
@@ -197,7 +198,7 @@
       grid-template-columns: repeat(2, 1fr);
       grid-template-rows: repeat(2, 1fr);
       gap: 0;
-      border-radius: 10px;
+      border-radius: 8px;
       overflow: hidden;
       aspect-ratio: 1 / 1;
       box-shadow: inset 0 0 0 1px rgba(0,0,0,.4);
@@ -253,8 +254,16 @@
     }
 
     @media (max-width: 560px){
-      header{ flex-direction: column; align-items: flex-start; }
-      .back-btn{ width: 100%; justify-content: center; }
+      header{ align-items: flex-start; }
+      .title{ padding-right: 92px; }
+      .back-btn{
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: auto;
+        justify-content: center;
+        min-height: 40px;
+      }
     }
   </style>
 </head>
@@ -289,7 +298,6 @@
         <span class="iconify" data-icon="mdi:palette-outline" aria-hidden="true"></span>
         Палитры доски
       </h3>
-      <p class="hint">Выберите понравившуюся палитру — она используется только как визуальная подсказка. Цвета доски внутри мини-приложения фиксированы, чтобы совпадать с основной темой.</p>
       <div class="palette-grid" aria-label="Варианты палитр">
         <div class="palette-card" aria-label="Классическая зелёная палитра">
           <div class="palette-preview" aria-hidden="true">
@@ -333,43 +341,48 @@
     <div class="info-block">
       <h3 class="section-title">
         <span class="iconify" data-icon="mdi:telegram" aria-hidden="true"></span>
-        Связь с разработчиком
+        Контакты
       </h3>
       <div class="contact-panels">
-        <div class="settings-panel" role="region" aria-label="Личный контакт">
+        <div class="settings-panel" role="region" aria-label="Разработчик">
           <div class="info-title">Личное сообщение</div>
           <a class="contact-link" href="https://t.me/Niktooo27" target="_blank" rel="noreferrer noopener">@Niktooo27</a>
-          <p class="hint">Напишите напрямую, чтобы обсудить проект.</p>
+          <p class="hint">Разработчик</p>
         </div>
-        <div class="settings-panel" role="region" aria-label="Шахматное сообщество">
-          <div class="info-title">Шахматное сообщество</div>
+        <div class="settings-panel" role="region" aria-label="Телеграм канал">
+          <div class="info-title">Телеграм канал</div>
           <a class="contact-link" href="https://t.me/chesspolyana" target="_blank" rel="noreferrer noopener">@chesspolyana</a>
-          <p class="hint">Присоединяйтесь к общению и разбору задач.</p>
+          <p class="hint">Сообщество на красной поляне</p>
         </div>
       </div>
     </div>
 
-    <div class="info-block">
-      <h3 class="section-title">
-        <span class="iconify" data-icon="mdi:clipboard-text-outline" aria-hidden="true"></span>
-        Данные задачи
-      </h3>
-      <div class="settings-panel" role="region" aria-label="Данные задачи">
-        <div class="info-title">
+    <details class="collapsible">
+      <summary>
+        <div class="section-title">
           <span class="iconify" data-icon="mdi:clipboard-text-outline" aria-hidden="true"></span>
-          <span>Задача</span>
+          Данные задачи
         </div>
-        <div class="settings-puzzle-grid">
-          <div><b>title:</b> <span id="puzzleTitle" class="mono"></span></div>
-          <div><b>url:</b> <a id="puzzleUrl" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
-          <div><b>publish_time:</b> <span id="puzzlePublish" class="mono"></span></div>
-          <div><b>fen:</b> <span id="puzzleFen" class="mono" style="word-break: break-all;"></span></div>
-          <div><b>pgn:</b> <span id="puzzlePgn" class="mono" style="word-break: break-all;"></span></div>
-          <div><b>image:</b> <a id="puzzleImage" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
+        <span class="chevron" aria-hidden="true">⌃</span>
+      </summary>
+      <div class="collapsible-body">
+        <div class="settings-panel" role="region" aria-label="Данные задачи">
+          <div class="info-title">
+            <span class="iconify" data-icon="mdi:clipboard-text-outline" aria-hidden="true"></span>
+            <span>Задача</span>
+          </div>
+          <div class="settings-puzzle-grid">
+            <div><b>title:</b> <span id="puzzleTitle" class="mono"></span></div>
+            <div><b>url:</b> <a id="puzzleUrl" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
+            <div><b>publish_time:</b> <span id="puzzlePublish" class="mono"></span></div>
+            <div><b>fen:</b> <span id="puzzleFen" class="mono" style="word-break: break-all;"></span></div>
+            <div><b>pgn:</b> <span id="puzzlePgn" class="mono" style="word-break: break-all;"></span></div>
+            <div><b>image:</b> <a id="puzzleImage" class="mono" href="#" target="_blank" rel="noreferrer noopener"></a></div>
+          </div>
+          <div id="puzzleFeedback" class="puzzle-feedback"></div>
         </div>
-        <div id="puzzleFeedback" class="puzzle-feedback"></div>
       </div>
-    </div>
+    </details>
   </div>
 
   <script>
