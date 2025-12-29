@@ -1057,6 +1057,13 @@ function updatePuzzleFeedback(state, message = '', options = {}){
   }
 }
 
+function ensureSolvedFeedbackVisible(message = 'Задача решена.'){
+  if (!puzzleSolved || !puzzleFeedbackEl) return;
+  const alreadyShown = puzzleFeedbackEl.querySelector('.puzzle-feedback-row.solved');
+  if (alreadyShown) return;
+  updatePuzzleFeedback('solved', message, { withActions: true });
+}
+
 function verifyPuzzleMove(moveKey){
   if (!puzzleMode || !puzzleSolutionMoves.length || puzzleSolved) return true;
 
@@ -1607,6 +1614,7 @@ function hydratePuzzleState(){
     closePuzzleOverlay();
     render();
     updatePuzzleStatus();
+    ensureSolvedFeedbackVisible();
     persistPuzzleState();
     return true;
   } catch (err){
