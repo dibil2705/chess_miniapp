@@ -271,7 +271,10 @@
     }
 
     @media (max-width: 560px){
-      .palette-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .palette-grid{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        --palette-scale: 0.525;
+      }
       header{ align-items: flex-start; }
       .title{ padding-right: 92px; }
     }
