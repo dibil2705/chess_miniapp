@@ -184,7 +184,7 @@
     }
 
     .palette-grid{
-      --palette-scale: 0.7;
+      --palette-scale: 0.35;
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(calc(120px * var(--palette-scale)), 1fr));
       gap: calc(6px * var(--palette-scale));
@@ -273,7 +273,7 @@
     @media (max-width: 560px){
       .palette-grid{
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        --palette-scale: 0.315;
+        --palette-scale: 0.1575;
       }
       header{ align-items: flex-start; }
       .title{ padding-right: 92px; }
