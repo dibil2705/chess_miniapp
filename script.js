@@ -53,6 +53,7 @@ let moveHistory = [];
 let historyStartFen = START_FEN;
 let soundEnabled = loadSoundPreference();
 let puzzleLockedAfterError = false;
+let puzzleErrorCount = 0;
 
 function getExpectedMoveColor(moveIndex){
   const opponentColor = puzzlePlayerColor === 'w' ? 'b' : 'w';
@@ -80,6 +81,7 @@ const puzzleImageEl = document.getElementById('puzzleImage');
 const puzzleFeedbackEl = document.getElementById('puzzleFeedback');
 const puzzleOverlayEl = document.getElementById('puzzleOverlay');
 const puzzleOverlayTitleEl = document.getElementById('puzzleOverlayTitle');
+const puzzleOverlayRatingEl = document.getElementById('puzzleOverlayStars');
 const puzzleOverlayActionsEl = document.getElementById('puzzleOverlayActions');
 const analysisOverlayEl = document.getElementById('analysisOverlay');
 const analysisFrameEl = document.getElementById('analysisFrame');
@@ -193,12 +195,13 @@ function closePromotionDialog(){
   promotionOverlay.classList.remove('active');
 }
 
-function openPuzzleOverlay({ title = '', actions = [], variant = '' } = {}){
+function openPuzzleOverlay({ title = '', actions = [], variant = '', rating = 0 } = {}){
   if (!puzzleOverlayEl || !puzzleOverlayTitleEl || !puzzleOverlayActionsEl) return;
   puzzleOverlayTitleEl.textContent = title;
   puzzleOverlayActionsEl.innerHTML = '';
   actions.forEach(action => puzzleOverlayActionsEl.appendChild(action));
   puzzleOverlayEl.classList.toggle('solved', variant === 'solved');
+  renderPuzzleOverlayStars(variant === 'solved' ? rating : 0);
   puzzleOverlayEl.classList.add('active');
 }
 
@@ -208,6 +211,35 @@ function closePuzzleOverlay(){
   puzzleOverlayEl.classList.remove('solved');
   puzzleOverlayTitleEl.textContent = '';
   puzzleOverlayActionsEl.innerHTML = '';
+  renderPuzzleOverlayStars(0);
+}
+
+function renderPuzzleOverlayStars(rating){
+  if (!puzzleOverlayRatingEl) return;
+  puzzleOverlayRatingEl.innerHTML = '';
+  const normalized = Math.max(0, Math.min(3, Number(rating) || 0));
+  if (!normalized){
+    puzzleOverlayRatingEl.classList.remove('visible');
+    puzzleOverlayRatingEl.removeAttribute('aria-label');
+    return;
+  }
+
+  for (let i=1; i<=3; i++){
+    const star = document.createElement('img');
+    star.src = 'assets/stars/gold-star.svg';
+    star.alt = '';
+    star.setAttribute('aria-hidden', 'true');
+    star.className = 'puzzle-star' + (i <= normalized ? '' : ' inactive');
+    puzzleOverlayRatingEl.appendChild(star);
+  }
+  puzzleOverlayRatingEl.classList.add('visible');
+  puzzleOverlayRatingEl.setAttribute('aria-label', `Оценка решения: ${normalized} из 3`);
+}
+
+function calculatePuzzleStarRating(){
+  if (puzzleErrorCount <= 0) return 3;
+  if (puzzleErrorCount === 1) return 2;
+  return 1;
 }
 
 function fenToBoard(fen){
@@ -320,7 +352,8 @@ function persistPuzzleState(){
       activeColor,
       moveHistory,
       historyStartFen,
-      puzzleLockedAfterError
+      puzzleLockedAfterError,
+      puzzleErrorCount
     };
     localStorage.setItem(PUZZLE_STORAGE_KEY, JSON.stringify(payload));
   } catch (err){
@@ -718,6 +751,7 @@ function formatPublishTime(ts){
 function updatePuzzleInfoDisplay(data){
   puzzleData = data;
   puzzleStartFen = data?.fen || null;
+  puzzleErrorCount = 0;
   if (puzzleTitleEl) puzzleTitleEl.textContent = data?.title || '';
   if (puzzleUrlEl){
     puzzleUrlEl.textContent = data?.url || '';
@@ -1043,6 +1077,7 @@ function updatePuzzleFeedback(state, message = '', options = {}){
 
   let overlayTitle = '';
   let overlayActions = [];
+  let overlayRating = options.overlayRating ?? 0;
 
   if (state === 'correct'){
     icon.textContent = '✓';
@@ -1066,6 +1101,7 @@ function updatePuzzleFeedback(state, message = '', options = {}){
     wrapper.classList.add('success', 'solved');
     text.textContent = message || '';
     overlayTitle = options.overlayTitle || message || 'Задача решена';
+    overlayRating = options.overlayRating ?? calculatePuzzleStarRating();
   } else {
     return;
   }
@@ -1105,7 +1141,8 @@ function updatePuzzleFeedback(state, message = '', options = {}){
     openPuzzleOverlay({
       title: overlayTitle || text.textContent,
       actions: overlayActions,
-      variant: state === 'solved' ? 'solved' : ''
+      variant: state === 'solved' ? 'solved' : '',
+      rating: overlayRating
     });
   }
 }
@@ -1178,7 +1215,9 @@ function verifyPuzzleMove(moveKey){
   puzzleSolved = false;
   puzzleMoveIndex = 0;
   puzzleLockedAfterError = true;
+  puzzleErrorCount += 1;
   updatePuzzleFeedback('wrong', 'Попробуй ещё раз', { withActions: true });
+  persistPuzzleState();
   return false;
 }
 
@@ -1634,6 +1673,7 @@ async function fetchRandomPuzzle(){
   puzzlePlayerColor = null;
   puzzleData = null;
   puzzleLockedAfterError = false;
+  puzzleErrorCount = 0;
   if (puzzleStatusEl) puzzleStatusEl.textContent = 'Загрузка задачи...';
   updatePuzzleFeedback('info', 'Загружаем новую задачу...');
   resetSelection();
@@ -1699,6 +1739,7 @@ function hydratePuzzleState(){
     puzzleSolutionTargetFen = saved.puzzleSolutionTargetFen || puzzleSolutionTargetFen;
     puzzleLoading = false;
     puzzleLockedAfterError = !!saved.puzzleLockedAfterError;
+    puzzleErrorCount = Number.isInteger(saved.puzzleErrorCount) ? saved.puzzleErrorCount : 0;
     promotionState = null;
     resetSelection();
     closePromotionDialog();
