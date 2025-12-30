@@ -832,8 +832,7 @@ function updatePuzzleStatus(){
   if (!puzzleStatusEl) return;
   const quota = getQuotaInfo();
   if (quota.blocked){
-    const remaining = formatDuration(quota.remainingMs);
-    puzzleStatusEl.textContent = `Лимит задач: новая через ${remaining}`;
+    puzzleStatusEl.textContent = 'Новые задачи временно недоступны. Попробуйте позже.';
     setPuzzleButtonDisabled(true);
     ensureQuotaTimer();
     return;
@@ -1783,8 +1782,7 @@ function onDrop(e){
 async function fetchRandomPuzzle(){
   const quota = getQuotaInfo();
   if (quota.blocked){
-    const remaining = formatDuration(quota.remainingMs);
-    updatePuzzleFeedback('info', `Лимит: новая задача будет доступна через ${remaining}.`);
+    updatePuzzleFeedback('info', 'Новые задачи временно недоступны. Попробуйте позже.');
     updatePuzzleStatus();
     ensureQuotaTimer();
     return;
@@ -1814,7 +1812,7 @@ async function fetchRandomPuzzle(){
     updatePuzzleInfoDisplay(data);
     if (data?.fen) {
       if (!recordPuzzleStart()){
-        updatePuzzleFeedback('info', 'Лимит задач исчерпан, попробуйте позже.');
+        updatePuzzleFeedback('info', 'Новые задачи временно недоступны. Попробуйте позже.');
         updatePuzzleStatus();
         return;
       }
