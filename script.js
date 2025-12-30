@@ -150,11 +150,16 @@ function applyBoardPalette(name){
 function applyTelegramTheme(){
   if (!tg) return;
   const theme = tg.themeParams || {};
+  const forceDefaultTheme = tg.platform === 'tdesktop';
   const root = document.documentElement;
-  root.style.setProperty('--bg', theme.bg_color || defaultTheme.bg);
-  root.style.setProperty('--panel', theme.secondary_bg_color || defaultTheme.panel);
-  root.style.setProperty('--border', theme.section_separator_color || defaultTheme.border);
-  root.style.setProperty('--text', theme.text_color || defaultTheme.text);
+  const bg = forceDefaultTheme ? defaultTheme.bg : (theme.bg_color || defaultTheme.bg);
+  const panel = forceDefaultTheme ? defaultTheme.panel : (theme.secondary_bg_color || defaultTheme.panel);
+  const border = forceDefaultTheme ? defaultTheme.border : (theme.section_separator_color || defaultTheme.border);
+  const text = forceDefaultTheme ? defaultTheme.text : (theme.text_color || defaultTheme.text);
+  root.style.setProperty('--bg', bg);
+  root.style.setProperty('--panel', panel);
+  root.style.setProperty('--border', border);
+  root.style.setProperty('--text', text);
   // Keep board colors stable across platforms.
   applyBoardPalette(loadPalettePreference());
 }
