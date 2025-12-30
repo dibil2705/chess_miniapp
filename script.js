@@ -1173,7 +1173,7 @@ function verifyPuzzleMove(moveKey){
   puzzleSolved = false;
   puzzleMoveIndex = 0;
   puzzleLockedAfterError = true;
-  updatePuzzleFeedback('wrong', `Ожидался ход ${expectedMove}.`, { withActions: true });
+  updatePuzzleFeedback('wrong', 'Попробуй ещё раз', { withActions: true });
   return false;
 }
 
