@@ -35,11 +35,12 @@
     }
 
     .page-subtitle{
-      margin: -10px 2px 8px 0;
+      margin: -10px 0 8px 0;
       opacity: .82;
       font-size: 14px;
-      justify-self: end;
-      text-align: right;
+      justify-self: center;
+      text-align: center;
+      width: 100%;
     }
 
     .board-wrapper{
@@ -322,25 +323,6 @@
     }
     .puzzle-actions button:active{ transform: translateY(1px); }
 
-    .bonus-panel{
-      display: grid;
-      gap: 10px;
-      padding: 12px 14px;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      background: var(--panel);
-    }
-    .bonus-panel[hidden]{ display:none; }
-    .bonus-panel-title{
-      margin: 0;
-      font-weight: 800;
-      font-size: 15px;
-    }
-    .bonus-actions{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
     .cta-primary,
     .cta-secondary{
       flex: 1 1 180px;
@@ -589,14 +571,6 @@
       <button id="analyzeBtn" disabled>Анализ (скоро)</button>
       <button id="resetTimerBtn" type="button">Сброс таймера</button>
       <div id="puzzleStatus" class="hint">Новые задачи через </div>
-    </div>
-
-    <div id="bonusPanel" class="bonus-panel" hidden>
-      <div class="bonus-panel-title">Первая задача решена</div>
-      <div class="bonus-actions">
-        <button id="bonusTasksBtn" class="cta-primary" type="button">+2 бонусные задачи</button>
-        <button id="doneForTodayBtn" class="cta-secondary" type="button">Готово на сегодня</button>
-      </div>
     </div>
 
     <div id="puzzleFeedback" class="puzzle-feedback"></div>
