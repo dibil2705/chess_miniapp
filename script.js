@@ -938,7 +938,7 @@ function updatePuzzleStatus(){
   if (quota.blocked && !quota.bonusAvailable){
     const remaining = formatDuration(quota.remainingMs);
     const prefix = quota.state.dayDone ? 'На сегодня всё.' : 'Дневной лимит выполнен.';
-    puzzleStatusEl.textContent = `${prefix} Новые задачи в 07:00 Мск через ${remaining}.`;
+    puzzleStatusEl.textContent = `${prefix} Новые задачи через ${remaining}.`;
     setPuzzleButtonDisabled(true);
     ensureQuotaTimer();
     return;
