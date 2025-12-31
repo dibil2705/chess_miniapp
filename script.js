@@ -1328,8 +1328,17 @@ function updatePuzzleFeedback(state, message = '', options = {}){
   } else if (state === 'wrong'){
     icon.textContent = '✕';
     wrapper.classList.add('error');
-    text.textContent = message || 'Неправильный ход. Попробуйте ещё раз.';
-    overlayTitle = text.textContent;
+    const retryMessage = message || 'Попробуй ещё раз';
+    text.textContent = retryMessage;
+    overlayTitle = options.overlayTitle || 'Попробуй ещё раз';
+    if (!overlayActions.length){
+      overlayActions = [
+        createActionButton('Решить заново', 'promotion-btn', () => {
+          resetPuzzleBoardToStart();
+          closePuzzleOverlay();
+        })
+      ];
+    }
   } else if (state === 'error'){
     icon.textContent = '✕';
     wrapper.classList.add('error');
@@ -1482,7 +1491,7 @@ function verifyPuzzleMove(moveKey){
   puzzleLockedAfterError = false;
   puzzleErrorCount += 1;
   resetPuzzleBoardToStart();
-  updatePuzzleFeedback('wrong', 'Попробуй ещё раз с начала задачи.');
+  updatePuzzleFeedback('wrong', 'Попробуй ещё раз');
   persistPuzzleState();
   return false;
 }
