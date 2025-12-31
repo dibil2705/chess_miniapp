@@ -33,7 +33,7 @@ const SOUND_STORAGE_KEY = 'chess-miniapp-sound-enabled';
 const PALETTE_STORAGE_KEY = 'chess-miniapp-board-palette';
 const PUZZLE_QUOTA_STORAGE_PREFIX = 'chess-miniapp-quota';
 const PUZZLE_QUOTA_LIMIT = 3;
-const PUZZLE_QUOTA_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
+const PUZZLE_QUOTA_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 let flipped = false;
 let boardState = fenToBoard(START_FEN);
@@ -77,6 +77,7 @@ const ranksLeftEl = document.getElementById('ranksLeft');
 const puzzleStatusEl = document.getElementById('puzzleStatus');
 const puzzleBtn = document.getElementById('puzzleBtn');
 const analyzeBtn = document.getElementById('analyzeBtn');
+const resetTimerBtn = document.getElementById('resetTimerBtn');
 const puzzleTitleEl = document.getElementById('puzzleTitle');
 const puzzleUrlEl = document.getElementById('puzzleUrl');
 const puzzlePublishEl = document.getElementById('puzzlePublish');
@@ -249,6 +250,16 @@ function ensureQuotaTimer(){
     }
     updatePuzzleStatus();
   }, 1000);
+}
+
+function resetPuzzleQuota(){
+  saveQuotaState({
+    windowStart: Date.now(),
+    count: 0
+  });
+  stopQuotaTimer();
+  updatePuzzleFeedback('info', 'Таймер лимита сброшен. Можно запросить новую задачу.');
+  updatePuzzleStatus();
 }
 
 function setPuzzleButtonDisabled(disabled){
@@ -1894,8 +1905,14 @@ if (puzzleBtn){
   });
 }
 
-if (analyzeBtn){
+if (analyzeBtn && !analyzeBtn.disabled){
   analyzeBtn.addEventListener('click', openAnalysisPage);
+}
+
+if (resetTimerBtn){
+  resetTimerBtn.addEventListener('click', () => {
+    resetPuzzleQuota();
+  });
 }
 
 if (openSettingsPageBtn){
