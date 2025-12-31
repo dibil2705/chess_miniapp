@@ -34,6 +34,12 @@
       gap:14px;
     }
 
+    .page-subtitle{
+      margin: -4px 0 6px 0;
+      opacity: .82;
+      font-size: 14px;
+    }
+
     .board-wrapper{
       position: relative;
       width:min(560px, 100%);
@@ -314,6 +320,43 @@
     }
     .puzzle-actions button:active{ transform: translateY(1px); }
 
+    .bonus-panel{
+      display: grid;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+    }
+    .bonus-panel[hidden]{ display:none; }
+    .bonus-panel-title{
+      margin: 0;
+      font-weight: 800;
+      font-size: 15px;
+    }
+    .bonus-actions{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .cta-primary,
+    .cta-secondary{
+      flex: 1 1 180px;
+      justify-content: center;
+      font-weight: 700;
+    }
+    .cta-primary{
+      background: linear-gradient(145deg, rgba(76,237,140,.2), rgba(76,237,140,.12));
+      border-color: rgba(76,237,140,.35);
+      color: #4ced8c;
+      box-shadow: 0 10px 28px rgba(76,237,140,.25);
+    }
+    .cta-secondary{
+      background: rgba(255,255,255,.06);
+      border-color: rgba(255,255,255,.2);
+      color: var(--text);
+    }
+
     .puzzle-overlay{
       position: absolute;
       inset: 0;
@@ -524,6 +567,7 @@
 
   <div class="wrap">
     <h2 id="boardTitle" style="margin:0 0 10px 0;">Chess Board</h2>
+    <p class="page-subtitle">Задачи каждый день</p>
 
     <div class="board-wrapper">
       <div id="board" class="board" aria-label="Chess board"></div>
@@ -543,6 +587,14 @@
       <button id="analyzeBtn" disabled>Анализ (скоро)</button>
       <button id="resetTimerBtn" type="button">Сброс таймера</button>
       <div id="puzzleStatus" class="hint">Новые задачи через </div>
+    </div>
+
+    <div id="bonusPanel" class="bonus-panel" hidden>
+      <div class="bonus-panel-title">Первая задача решена</div>
+      <div class="bonus-actions">
+        <button id="bonusTasksBtn" class="cta-primary" type="button">+2 бонусные задачи</button>
+        <button id="doneForTodayBtn" class="cta-secondary" type="button">Готово на сегодня</button>
+      </div>
     </div>
 
     <div id="puzzleFeedback" class="puzzle-feedback"></div>

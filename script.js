@@ -32,8 +32,10 @@ const PUZZLE_STORAGE_KEY = 'chess-miniapp-current-puzzle';
 const SOUND_STORAGE_KEY = 'chess-miniapp-sound-enabled';
 const PALETTE_STORAGE_KEY = 'chess-miniapp-board-palette';
 const PUZZLE_QUOTA_STORAGE_PREFIX = 'chess-miniapp-quota';
-const PUZZLE_QUOTA_LIMIT = 3;
-const PUZZLE_QUOTA_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+const DAILY_BASE_PUZZLE_LIMIT = 1;
+const DAILY_BONUS_PUZZLES = 2;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const DAILY_RESET_UTC_OFFSET_MS = 4 * 60 * 60 * 1000; // 07:00 Мск = 04:00 UTC
 
 let flipped = false;
 let boardState = fenToBoard(START_FEN);
@@ -95,6 +97,9 @@ const closeAnalysisBtn = document.getElementById('closeAnalysisBtn');
 const settingsDetailsEl = document.querySelector('.floating-settings details');
 const openSettingsPageBtn = document.getElementById('openSettingsPage');
 const boardTitleEl = document.getElementById('boardTitle');
+const bonusPanelEl = document.getElementById('bonusPanel');
+const bonusTasksBtn = document.getElementById('bonusTasksBtn');
+const doneForTodayBtn = document.getElementById('doneForTodayBtn');
 
 const defaultTheme = {
   bg: '#111',
@@ -160,6 +165,12 @@ function getQuotaStorageKey(){
   return `${PUZZLE_QUOTA_STORAGE_PREFIX}:${userId ?? 'anonymous'}`;
 }
 
+function getCurrentWindowStartMs(){
+  const now = Date.now();
+  const dayIndex = Math.floor((now - DAILY_RESET_UTC_OFFSET_MS) / DAY_MS);
+  return dayIndex * DAY_MS + DAILY_RESET_UTC_OFFSET_MS;
+}
+
 function loadQuotaState(){
   try{
     const raw = localStorage.getItem(getQuotaStorageKey());
@@ -168,7 +179,11 @@ function loadQuotaState(){
     if (!parsed || typeof parsed !== 'object') return null;
     return {
       windowStart: Number(parsed.windowStart) || 0,
-      count: Number(parsed.count) || 0
+      started: Number(parsed.started) || 0,
+      solved: Number(parsed.solved) || 0,
+      bonusActivated: Boolean(parsed.bonusActivated),
+      dayDone: Boolean(parsed.dayDone),
+      bonusUnlocked: Boolean(parsed.bonusUnlocked)
     };
   } catch (err){
     console.warn('Не удалось прочитать лимит задач', err);
@@ -185,12 +200,19 @@ function saveQuotaState(state){
 }
 
 function normalizeQuotaState(){
-  const now = Date.now();
+  const currentWindowStart = getCurrentWindowStartMs();
   const stored = loadQuotaState();
-  let state = stored && stored.windowStart ? stored : { windowStart: now, count: 0 };
-  let changed = !stored || !stored.windowStart;
-  if (now - state.windowStart >= PUZZLE_QUOTA_WINDOW_MS){
-    state = { windowStart: now, count: 0 };
+  let state = stored && stored.windowStart ? stored : null;
+  let changed = false;
+  if (!state || state.windowStart !== currentWindowStart){
+    state = {
+      windowStart: currentWindowStart,
+      started: 0,
+      solved: 0,
+      bonusActivated: false,
+      dayDone: false,
+      bonusUnlocked: false
+    };
     changed = true;
   }
   if (changed){
@@ -201,12 +223,21 @@ function normalizeQuotaState(){
 
 function getQuotaInfo(){
   const state = normalizeQuotaState();
-  const windowEnd = state.windowStart + PUZZLE_QUOTA_WINDOW_MS;
+  const windowEnd = state.windowStart + DAY_MS;
+  const bonusLimit = state.bonusActivated ? DAILY_BONUS_PUZZLES : 0;
+  const limit = DAILY_BASE_PUZZLE_LIMIT + bonusLimit;
+  const remaining = Math.max(0, limit - state.started);
+  const blocked = state.dayDone || state.started >= limit;
   const remainingMs = Math.max(0, windowEnd - Date.now());
+  const bonusAvailable = (state.bonusUnlocked || state.solved >= DAILY_BASE_PUZZLE_LIMIT) && !state.bonusActivated && !state.dayDone;
   return {
     state,
-    blocked: state.count >= PUZZLE_QUOTA_LIMIT,
-    remainingMs
+    blocked,
+    remaining,
+    limit,
+    windowEnd,
+    remainingMs,
+    bonusAvailable
   };
 }
 
@@ -215,11 +246,52 @@ function recordPuzzleStart(){
   if (info.blocked) return false;
   const updated = {
     windowStart: info.state.windowStart,
-    count: info.state.count + 1
+    started: info.state.started + 1,
+    solved: info.state.solved,
+    bonusActivated: info.state.bonusActivated,
+    dayDone: info.state.dayDone,
+    bonusUnlocked: info.state.bonusUnlocked
   };
   saveQuotaState(updated);
   ensureQuotaTimer();
   return true;
+}
+
+function recordPuzzleSolved(){
+  const info = getQuotaInfo();
+  const updated = {
+    ...info.state,
+    solved: info.state.solved + 1,
+    bonusUnlocked: true
+  };
+  saveQuotaState(updated);
+  ensureQuotaTimer();
+  return updated;
+}
+
+function activateBonusTasks(){
+  const info = getQuotaInfo();
+  const updated = {
+    ...info.state,
+    bonusActivated: true,
+    dayDone: false,
+    bonusUnlocked: false
+  };
+  saveQuotaState(updated);
+  stopQuotaTimer();
+  updatePuzzleStatus();
+}
+
+function markDayDone(){
+  const info = getQuotaInfo();
+  const updated = {
+    ...info.state,
+    dayDone: true,
+    bonusUnlocked: false
+  };
+  saveQuotaState(updated);
+  ensureQuotaTimer();
+  updatePuzzleStatus();
 }
 
 function formatDuration(ms){
@@ -269,11 +341,15 @@ function ensureQuotaTimer(){
 
 function resetPuzzleQuota(){
   saveQuotaState({
-    windowStart: Date.now(),
-    count: 0
+    windowStart: getCurrentWindowStartMs(),
+    started: 0,
+    solved: 0,
+    bonusActivated: false,
+    dayDone: false,
+    bonusUnlocked: false
   });
   stopQuotaTimer();
-  updatePuzzleFeedback('info', 'Таймер лимита сброшен. Можно запросить новую задачу.');
+  updatePuzzleFeedback('info', 'Дневной таймер сброшен. Можно запросить новую задачу.');
   updatePuzzleStatus();
 }
 
@@ -804,7 +880,7 @@ function selectSquare(r, c){
 
 function handleSquareTap(r, c){
   if (puzzleMode && puzzleLockedAfterError){
-    updatePuzzleFeedback('wrong', 'Нажмите «Решить заново» или «Новая задача».', { withActions: true });
+    updatePuzzleFeedback('wrong', 'Возьмите новую задачу, чтобы продолжить.');
     return;
   }
   if (puzzleMode && !puzzleSolved && activeColor !== puzzlePlayerColor){
@@ -857,18 +933,35 @@ function updateStatus(){
 function updatePuzzleStatus(){
   if (!puzzleStatusEl) return;
   const quota = getQuotaInfo();
-  if (quota.blocked){
+  toggleBonusPanel(quota.bonusAvailable);
+
+  if (quota.blocked && !quota.bonusAvailable){
     const remaining = formatDuration(quota.remainingMs);
-    puzzleStatusEl.textContent = `Новые задачи через ${remaining}`;
+    const prefix = quota.state.dayDone ? 'На сегодня всё.' : 'Дневной лимит выполнен.';
+    puzzleStatusEl.textContent = `${prefix} Новые задачи в 07:00 Мск через ${remaining}.`;
     setPuzzleButtonDisabled(true);
     ensureQuotaTimer();
     return;
   }
-  setPuzzleButtonDisabled(false);
-  stopQuotaTimer();
+  setPuzzleButtonDisabled(quota.bonusAvailable);
+
+  if (quota.blocked){
+    ensureQuotaTimer();
+  } else {
+    stopQuotaTimer();
+  }
 
   if (puzzleLoading){
     puzzleStatusEl.textContent = 'Загрузка задачи...';
+    return;
+  }
+  if (quota.bonusAvailable){
+    puzzleStatusEl.textContent = 'Первая задача решена. Хотите бонусные задачи?';
+    return;
+  }
+  if (quota.remaining > 0 && quota.state.started > 0){
+    const label = quota.limit > DAILY_BASE_PUZZLE_LIMIT ? 'бонусных задач' : 'задач';
+    puzzleStatusEl.textContent = `Доступно еще ${quota.remaining} ${label} сегодня.`;
     return;
   }
   if (puzzleSolved){
@@ -884,6 +977,11 @@ function updatePuzzleStatus(){
     return;
   }
   puzzleStatusEl.textContent = '';
+}
+
+function toggleBonusPanel(shouldShow){
+  if (!bonusPanelEl) return;
+  bonusPanelEl.hidden = !shouldShow;
 }
 
 function formatPublishTime(ts){
@@ -1204,7 +1302,6 @@ function restartCurrentPuzzle(){
 }
 
 function updatePuzzleFeedback(state, message = '', options = {}){
-  const showActions = options.withActions ?? (state === 'wrong' || state === 'solved');
   if (!puzzleFeedbackEl) return;
   closePuzzleOverlay();
   puzzleFeedbackEl.className = 'puzzle-feedback';
@@ -1221,7 +1318,7 @@ function updatePuzzleFeedback(state, message = '', options = {}){
   text.className = 'puzzle-feedback-text';
 
   let overlayTitle = '';
-  let overlayActions = [];
+  let overlayActions = Array.isArray(options.actions) ? options.actions : [];
   let overlayRating = options.overlayRating ?? 0;
 
   if (state === 'correct'){
@@ -1231,7 +1328,7 @@ function updatePuzzleFeedback(state, message = '', options = {}){
   } else if (state === 'wrong'){
     icon.textContent = '✕';
     wrapper.classList.add('error');
-    text.textContent = message || 'Неправильный ход. Попробуйте решить задачу заново.';
+    text.textContent = message || 'Неправильный ход. Попробуйте ещё раз.';
     overlayTitle = text.textContent;
   } else if (state === 'error'){
     icon.textContent = '✕';
@@ -1256,28 +1353,6 @@ function updatePuzzleFeedback(state, message = '', options = {}){
     wrapper.append(text);
   }
 
-  if (showActions){
-    const retryBtn = document.createElement('button');
-    retryBtn.type = 'button';
-    retryBtn.className = 'promotion-btn';
-    retryBtn.textContent = 'Решить заново';
-    retryBtn.addEventListener('click', () => {
-      closePuzzleOverlay();
-      restartCurrentPuzzle();
-    });
-
-    const newBtn = document.createElement('button');
-    newBtn.type = 'button';
-    newBtn.className = 'promotion-btn';
-    newBtn.textContent = 'Новая задача';
-    newBtn.addEventListener('click', () => {
-      closePuzzleOverlay();
-      fetchRandomPuzzle();
-    });
-
-    overlayActions = [retryBtn, newBtn];
-  }
-
   if (shouldRenderRow){
     puzzleFeedbackEl.appendChild(wrapper);
   }
@@ -1290,6 +1365,50 @@ function updatePuzzleFeedback(state, message = '', options = {}){
       rating: overlayRating
     });
   }
+}
+
+function createActionButton(text, className, handler){
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = className || 'promotion-btn';
+  btn.textContent = text;
+  btn.addEventListener('click', handler);
+  return btn;
+}
+
+function requestBonusTasks(){
+  activateBonusTasks();
+  toggleBonusPanel(false);
+  if (!puzzleLoading){
+    fetchRandomPuzzle();
+  }
+}
+
+function finishForToday(){
+  markDayDone();
+  toggleBonusPanel(false);
+  updatePuzzleFeedback('info', 'На сегодня всё. Новые задачи будут в 07:00 Мск.');
+}
+
+function buildSolvedActions(){
+  const actions = [];
+  const quota = getQuotaInfo();
+  if (quota.bonusAvailable){
+    actions.push(createActionButton('+2 бонусные задачи', 'promotion-btn cta-primary', () => {
+      closePuzzleOverlay();
+      requestBonusTasks();
+    }));
+    actions.push(createActionButton('Готово на сегодня', 'promotion-btn cta-secondary', () => {
+      closePuzzleOverlay();
+      finishForToday();
+    }));
+  } else if (!quota.blocked && quota.remaining > 0){
+    actions.push(createActionButton('Новая задача', 'promotion-btn', () => {
+      closePuzzleOverlay();
+      fetchRandomPuzzle();
+    }));
+  }
+  return actions;
 }
 
 function resetPuzzleBoardToStart(){
@@ -1308,7 +1427,10 @@ function finalizePuzzleSolved(message = ''){
   puzzleLockedAfterError = false;
   puzzleSolved = true;
   puzzleMoveIndex = puzzleSolutionMoves.length;
-  updatePuzzleFeedback('solved', message, { withActions: true });
+  recordPuzzleSolved();
+  const actions = buildSolvedActions();
+  const finalMessage = message || (getQuotaInfo().state.solved === 1 ? 'Первая задача готова!' : 'Задача решена.');
+  updatePuzzleFeedback('solved', finalMessage, { actions, overlayRating: calculatePuzzleStarRating() });
   updatePuzzleStatus();
 }
 
@@ -1316,7 +1438,7 @@ function ensureSolvedFeedbackVisible(message = 'Задача решена.'){
   if (!puzzleSolved || !puzzleFeedbackEl) return;
   const alreadyShown = puzzleFeedbackEl.querySelector('.puzzle-feedback-row.solved');
   if (alreadyShown) return;
-  updatePuzzleFeedback('solved', message, { withActions: true });
+  updatePuzzleFeedback('solved', message, { actions: buildSolvedActions(), overlayRating: calculatePuzzleStarRating() });
 }
 
 function verifyPuzzleMove(moveKey){
@@ -1347,9 +1469,7 @@ function verifyPuzzleMove(moveKey){
         puzzleMoveIndex -= 1;
         return false;
       }
-      puzzleSolved = true;
-      updatePuzzleFeedback('solved', '', { withActions: true });
-      updatePuzzleStatus();
+      finalizePuzzleSolved('Задача решена.');
     } else {
       const who = isPlayerMove ? 'Ваш ход принят' : 'Соперник ответил';
       updatePuzzleFeedback('correct', `${who}: ${moveKey}. Ждем следующий ход.`);
@@ -1359,9 +1479,10 @@ function verifyPuzzleMove(moveKey){
 
   puzzleSolved = false;
   puzzleMoveIndex = 0;
-  puzzleLockedAfterError = true;
+  puzzleLockedAfterError = false;
   puzzleErrorCount += 1;
-  updatePuzzleFeedback('wrong', 'Попробуй ещё раз', { withActions: true });
+  resetPuzzleBoardToStart();
+  updatePuzzleFeedback('wrong', 'Попробуй ещё раз с начала задачи.');
   persistPuzzleState();
   return false;
 }
@@ -1600,7 +1721,7 @@ function onPointerDownManual(e){
   if (pointerType !== 'touch' && pointerType !== 'pen') return;
 
   if (puzzleMode && puzzleLockedAfterError){
-    updatePuzzleFeedback('wrong', 'Нажмите «Решить заново» или «Новая задача».', { withActions: true });
+    updatePuzzleFeedback('wrong', 'Возьмите новую задачу, чтобы продолжить.');
     return;
   }
 
@@ -1710,7 +1831,7 @@ function onDragStart(e){
   const fromC = Number(e.target.dataset.fromC);
   const piece = boardState[fromR][fromC];
   if (puzzleMode && puzzleLockedAfterError){
-    updatePuzzleFeedback('wrong', 'Нажмите «Решить заново» или «Новая задача».', { withActions: true });
+    updatePuzzleFeedback('wrong', 'Возьмите новую задачу, чтобы продолжить.');
     e.preventDefault();
     return;
   }
@@ -1808,9 +1929,15 @@ function onDrop(e){
 
 async function fetchRandomPuzzle(){
   const quota = getQuotaInfo();
+  if (quota.bonusAvailable){
+    updatePuzzleFeedback('info', 'Нажмите «+2 бонусные задачи», чтобы продолжить.');
+    updatePuzzleStatus();
+    ensureQuotaTimer();
+    return;
+  }
   if (quota.blocked){
     const remaining = formatDuration(quota.remainingMs);
-    updatePuzzleFeedback('info', `Лимит: новая задача будет доступна через ${remaining}.`);
+    updatePuzzleFeedback('info', `Новая задача будет доступна в 07:00 Мск через ${remaining}.`);
     updatePuzzleStatus();
     ensureQuotaTimer();
     return;
@@ -1897,7 +2024,7 @@ function hydratePuzzleState(){
     puzzlePlayerColor = saved.puzzlePlayerColor || parsed.active;
     puzzleSolutionTargetFen = saved.puzzleSolutionTargetFen || puzzleSolutionTargetFen;
     puzzleLoading = false;
-    puzzleLockedAfterError = !!saved.puzzleLockedAfterError;
+    puzzleLockedAfterError = false;
     puzzleErrorCount = Number.isInteger(saved.puzzleErrorCount) ? saved.puzzleErrorCount : 0;
     promotionState = null;
     resetSelection();
@@ -1927,6 +2054,18 @@ if (analyzeBtn && !analyzeBtn.disabled){
 if (resetTimerBtn){
   resetTimerBtn.addEventListener('click', () => {
     resetPuzzleQuota();
+  });
+}
+
+if (bonusTasksBtn){
+  bonusTasksBtn.addEventListener('click', () => {
+    requestBonusTasks();
+  });
+}
+
+if (doneForTodayBtn){
+  doneForTodayBtn.addEventListener('click', () => {
+    finishForToday();
   });
 }
 
