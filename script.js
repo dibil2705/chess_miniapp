@@ -224,10 +224,24 @@ function recordPuzzleStart(){
 
 function formatDuration(ms){
   const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
-  const totalMinutes = Math.ceil(totalSeconds / 60);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const withLabel = (value, forms) => {
+    const rem10 = value % 10;
+    const rem100 = value % 100;
+    let form = forms[2];
+    if (rem10 === 1 && rem100 !== 11) form = forms[0];
+    else if (rem10 >= 2 && rem10 <= 4 && (rem100 < 12 || rem100 > 14)) form = forms[1];
+    return `${value.toString().padStart(2, '0')} ${form}`;
+  };
+
+  const hoursLabel = withLabel(hours, ['час', 'часа', 'часов']);
+  const minutesLabel = withLabel(minutes, ['минута', 'минуты', 'минут']);
+  const secondsLabel = withLabel(seconds, ['секунда', 'секунды', 'секунд']);
+
+  return `${hoursLabel} ${minutesLabel} ${secondsLabel}`;
 }
 
 function stopQuotaTimer(){
@@ -845,7 +859,7 @@ function updatePuzzleStatus(){
   const quota = getQuotaInfo();
   if (quota.blocked){
     const remaining = formatDuration(quota.remainingMs);
-    puzzleStatusEl.textContent = `Лимит задач: новая через ${remaining}`;
+    puzzleStatusEl.textContent = `Новые задачи через ${remaining}`;
     setPuzzleButtonDisabled(true);
     ensureQuotaTimer();
     return;
