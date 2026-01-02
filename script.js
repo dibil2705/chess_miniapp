@@ -89,6 +89,7 @@ const puzzleImageEl = document.getElementById('puzzleImage');
 const puzzleFeedbackEl = document.getElementById('puzzleFeedback');
 const puzzleOverlayEl = document.getElementById('puzzleOverlay');
 const puzzleOverlayTitleEl = document.getElementById('puzzleOverlayTitle');
+const puzzleOverlaySubtitleEl = document.getElementById('puzzleOverlaySubtitle');
 const puzzleOverlayRatingEl = document.getElementById('puzzleOverlayStars');
 const puzzleOverlayActionsEl = document.getElementById('puzzleOverlayActions');
 const analysisOverlayEl = document.getElementById('analysisOverlay');
@@ -398,9 +399,12 @@ function closePromotionDialog(){
   promotionOverlay.classList.remove('active');
 }
 
-function openPuzzleOverlay({ title = '', actions = [], variant = '', rating = 0 } = {}){
+function openPuzzleOverlay({ title = '', subtitle = '', actions = [], variant = '', rating = 0 } = {}){
   if (!puzzleOverlayEl || !puzzleOverlayTitleEl || !puzzleOverlayActionsEl) return;
   puzzleOverlayTitleEl.textContent = title;
+  if (puzzleOverlaySubtitleEl){
+    puzzleOverlaySubtitleEl.textContent = subtitle;
+  }
   puzzleOverlayActionsEl.innerHTML = '';
   actions.forEach(action => puzzleOverlayActionsEl.appendChild(action));
   puzzleOverlayEl.classList.toggle('solved', variant === 'solved');
@@ -413,6 +417,9 @@ function closePuzzleOverlay(){
   puzzleOverlayEl.classList.remove('active');
   puzzleOverlayEl.classList.remove('solved');
   puzzleOverlayTitleEl.textContent = '';
+  if (puzzleOverlaySubtitleEl){
+    puzzleOverlaySubtitleEl.textContent = '';
+  }
   puzzleOverlayActionsEl.innerHTML = '';
   renderPuzzleOverlayStars(0);
 }
@@ -1311,6 +1318,7 @@ function updatePuzzleFeedback(state, message = '', options = {}){
   text.className = 'puzzle-feedback-text';
 
   let overlayTitle = '';
+  let overlaySubtitle = options.overlaySubtitle || '';
   let overlayActions = Array.isArray(options.actions) ? options.actions : [];
   let overlayRating = options.overlayRating ?? 0;
 
@@ -1324,6 +1332,7 @@ function updatePuzzleFeedback(state, message = '', options = {}){
     const retryMessage = message || 'Попробуй ещё раз';
     text.textContent = retryMessage;
     overlayTitle = options.overlayTitle || 'Попробуй ещё раз';
+    overlaySubtitle = options.overlaySubtitle || 'Этот ход не решает задачу';
     if (!overlayActions.length){
       overlayActions = [
         createActionButton('Решить заново', 'promotion-btn', () => {
@@ -1362,6 +1371,7 @@ function updatePuzzleFeedback(state, message = '', options = {}){
   if (overlayTitle || overlayActions.length){
     openPuzzleOverlay({
       title: overlayTitle || text.textContent,
+      subtitle: overlaySubtitle,
       actions: overlayActions,
       variant: state === 'solved' ? 'solved' : '',
       rating: overlayRating
