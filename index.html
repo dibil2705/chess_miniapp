@@ -373,6 +373,14 @@
       text-shadow: 0 4px 14px rgba(0,0,0,.35);
       color: var(--text);
     }
+    .puzzle-overlay-subtitle{
+      margin: -4px 0 2px;
+      text-align: center;
+      font-size: 13px;
+      letter-spacing: 0.2px;
+      color: rgba(255,255,255,.6);
+    }
+    .puzzle-overlay-subtitle:empty{ display: none; }
     .puzzle-overlay.solved .puzzle-overlay-title{ color: #4ced8c; }
     .puzzle-overlay.solved .puzzle-overlay-title{
       font-size: clamp(22px, 5vw, 32px);
@@ -560,6 +568,7 @@
       <div id="puzzleOverlay" class="puzzle-overlay" aria-live="polite" aria-atomic="true">
         <div class="puzzle-dialog">
           <div id="puzzleOverlayTitle" class="puzzle-overlay-title"></div>
+          <div id="puzzleOverlaySubtitle" class="puzzle-overlay-subtitle"></div>
           <div id="puzzleOverlayStars" class="puzzle-overlay-stars" aria-hidden="true"></div>
           <div id="puzzleOverlayActions" class="puzzle-overlay-actions"></div>
         </div>
