@@ -20,6 +20,9 @@ const BLACK_SVG = {
   k: 'icone/black/Chess_kdt45.svg'
 };
 
+const SPRITE_URLS = [...new Set([...Object.values(WHITE_SVG), ...Object.values(BLACK_SVG)])];
+const STAR_SPRITES = ['assets/stars/gold-star.svg'];
+
 // Default: empty board while ждем задачу
 const START_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 
@@ -60,6 +63,8 @@ let soundEnabled = loadSoundPreference();
 let puzzleLockedAfterError = false;
 let puzzleErrorCount = 0;
 let quotaTimerId = null;
+let spritePreloadPromise = null;
+const boardLoaderReasons = new Set();
 
 function getExpectedMoveColor(moveIndex){
   const opponentColor = puzzlePlayerColor === 'w' ? 'b' : 'w';
@@ -74,6 +79,8 @@ const fenOutEl = document.getElementById('fenOut');
 const statusEl = document.getElementById('status');
 const promotionOverlay = document.getElementById('promotionOverlay');
 const promotionButtons = Array.from(promotionOverlay?.querySelectorAll('.promotion-btn') || []);
+const boardWrapperEl = document.querySelector('.board-wrapper');
+const boardLoaderEl = document.getElementById('boardLoader');
 const filesBottomEl = document.getElementById('filesBottom');
 const ranksLeftEl = document.getElementById('ranksLeft');
 const puzzleStatusEl = document.getElementById('puzzleStatus');
@@ -117,8 +124,61 @@ const boardPalettes = {
   warm: { dark: '#b83c3c', light: '#f0e7d8' }
 };
 
+function updateBoardLoaderVisibility(){
+  const shouldShow = boardLoaderReasons.size > 0;
+  if (boardWrapperEl){
+    boardWrapperEl.classList.toggle('loading', shouldShow);
+  }
+  if (boardLoaderEl){
+    boardLoaderEl.classList.toggle('visible', shouldShow);
+    boardLoaderEl.setAttribute('aria-busy', shouldShow ? 'true' : 'false');
+  }
+}
+
+function showBoardLoader(reason){
+  if (!reason) return;
+  boardLoaderReasons.add(reason);
+  updateBoardLoaderVisibility();
+}
+
+function hideBoardLoader(reason){
+  if (!reason) return;
+  boardLoaderReasons.delete(reason);
+  updateBoardLoaderVisibility();
+}
+
 function getBoardPalette(name){
   return boardPalettes[name] || boardPalettes.default;
+}
+
+function preloadImage(url){
+  return new Promise((resolve) => {
+    let settled = false;
+    const finalize = () => {
+      if (settled) return;
+      settled = true;
+      resolve(url);
+    };
+    const img = new Image();
+    img.decoding = 'async';
+    img.loading = 'eager';
+    img.onload = finalize;
+    img.onerror = finalize;
+    img.src = url;
+    if (typeof img.decode === 'function'){
+      img.decode().then(finalize).catch(finalize);
+    }
+  });
+}
+
+function preloadSprites(){
+  if (spritePreloadPromise) return spritePreloadPromise;
+  const urls = Array.from(new Set([...SPRITE_URLS, ...STAR_SPRITES]));
+  spritePreloadPromise = Promise.all(urls.map(preloadImage)).catch((err) => {
+    console.warn('Не удалось предзагрузить спрайты', err);
+    return [];
+  });
+  return spritePreloadPromise;
 }
 
 function preventZoom(){
@@ -438,6 +498,8 @@ function renderPuzzleOverlayStars(rating){
     const star = document.createElement('img');
     star.src = 'assets/stars/gold-star.svg';
     star.alt = '';
+    star.decoding = 'async';
+    star.loading = 'eager';
     star.setAttribute('aria-hidden', 'true');
     star.className = 'puzzle-star' + (i <= normalized ? '' : ' inactive');
     puzzleOverlayRatingEl.appendChild(star);
@@ -1657,6 +1719,8 @@ function render(){
 
         const img = document.createElement('img');
         img.alt = '';
+        img.decoding = 'async';
+        img.loading = 'eager';
         img.src = isPieceBlack ? (BLACK_SVG[piece] || '') : (WHITE_SVG[piece] || '');
         img.draggable = false; // keep drag handling on container
         p.appendChild(img);
@@ -1939,39 +2003,44 @@ function onDrop(e){
   performMove(from.r, from.c, toR, toC);
 }
 
-async function fetchRandomPuzzle(){
-  const quota = getQuotaInfo();
-  if (quota.bonusAvailable){
-    updatePuzzleFeedback('info', 'Нажмите «+2 бонусные задачи», чтобы продолжить.');
-    updatePuzzleStatus();
-    ensureQuotaTimer();
-    return;
-  }
-  if (quota.blocked){
-    const remaining = formatDuration(quota.remainingMs);
-    updatePuzzleFeedback('info', `Новая задача будет доступна в 07:00 Мск через ${remaining}.`);
-    updatePuzzleStatus();
-    ensureQuotaTimer();
-    return;
-  }
-
-  closePuzzleOverlay();
-  puzzleMode = false;
-  puzzleSolutionTargetFen = null;
-  puzzleLoading = true;
-  puzzleSolutionMoves = [];
-  puzzleMoveIndex = 0;
-  puzzleSolved = false;
-  puzzleStartFen = null;
-  puzzlePlayerColor = null;
-  puzzleData = null;
-  puzzleLockedAfterError = false;
-  puzzleErrorCount = 0;
-  if (puzzleStatusEl) puzzleStatusEl.textContent = 'Загрузка задачи...';
-  updatePuzzleFeedback('info', 'Загружаем новую задачу...');
-  resetSelection();
-  render();
+async function fetchRandomPuzzle(options = {}){
+  const { useBoardLoader = true } = options;
+  const loaderReason = useBoardLoader ? 'puzzle-load' : null;
+  if (loaderReason) showBoardLoader(loaderReason);
   try {
+    const quota = getQuotaInfo();
+    if (quota.bonusAvailable){
+      updatePuzzleFeedback('info', 'Нажмите «+2 бонусные задачи», чтобы продолжить.');
+      updatePuzzleStatus();
+      ensureQuotaTimer();
+      return;
+    }
+    if (quota.blocked){
+      const remaining = formatDuration(quota.remainingMs);
+      updatePuzzleFeedback('info', `Новая задача будет доступна в 07:00 Мск через ${remaining}.`);
+      updatePuzzleStatus();
+      ensureQuotaTimer();
+      return;
+    }
+
+    closePuzzleOverlay();
+    puzzleMode = false;
+    puzzleSolutionTargetFen = null;
+    puzzleLoading = true;
+    puzzleSolutionMoves = [];
+    puzzleMoveIndex = 0;
+    puzzleSolved = false;
+    puzzleStartFen = null;
+    puzzlePlayerColor = null;
+    puzzleData = null;
+    puzzleLockedAfterError = false;
+    puzzleErrorCount = 0;
+    if (puzzleStatusEl) puzzleStatusEl.textContent = 'Загрузка задачи...';
+    updatePuzzleFeedback('info', 'Загружаем новую задачу...');
+    resetSelection();
+    if (!useBoardLoader){
+      render();
+    }
     const res = await fetch('https://api.chess.com/pub/puzzle/random');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -1994,6 +2063,8 @@ async function fetchRandomPuzzle(){
     updatePuzzleFeedback('error', 'Не удалось загрузить задачу. Попробуйте снова.');
     puzzleLoading = false;
     updatePuzzleStatus();
+  } finally {
+    if (loaderReason) hideBoardLoader(loaderReason);
   }
 }
 
@@ -2011,7 +2082,10 @@ function closeAnalysisOverlay(){
   document.body.classList.remove('no-scroll');
 }
 
-function hydratePuzzleState(){
+function hydratePuzzleState(options = {}){
+  const { suppressRender = false, useBoardLoader = false } = options;
+  const loaderReason = useBoardLoader ? 'puzzle-hydrate' : null;
+  if (loaderReason) showBoardLoader(loaderReason);
   try{
     const raw = localStorage.getItem(PUZZLE_STORAGE_KEY);
     if (!raw) return false;
@@ -2042,14 +2116,18 @@ function hydratePuzzleState(){
     resetSelection();
     closePromotionDialog();
     closePuzzleOverlay();
-    render();
-    updatePuzzleStatus();
-    ensureSolvedFeedbackVisible();
+    if (!suppressRender){
+      render();
+      updatePuzzleStatus();
+      ensureSolvedFeedbackVisible();
+    }
     persistPuzzleState();
     return true;
   } catch (err){
     console.warn('Не удалось восстановить задачу', err);
     return false;
+  } finally {
+    if (loaderReason) hideBoardLoader(loaderReason);
   }
 }
 
@@ -2139,9 +2217,28 @@ promotionButtons.forEach(btn => {
 applyBoardPalette(loadPalettePreference());
 preventZoom();
 initTelegram();
-const restoredPuzzle = hydratePuzzleState();
-if (!restoredPuzzle){
+
+async function bootstrapApp(){
+  showBoardLoader('assets');
+  showBoardLoader('puzzle-init');
+  try{
+    await preloadSprites();
+  } finally {
+    hideBoardLoader('assets');
+  }
+
+  const restoredPuzzle = hydratePuzzleState({ suppressRender: true, useBoardLoader: true });
+  if (restoredPuzzle){
+    render();
+    updatePuzzleStatus();
+    ensureSolvedFeedbackVisible();
+    hideBoardLoader('puzzle-init');
+    return;
+  }
+
   resetMoveHistory(boardToFen(boardState));
-  render();
-  fetchRandomPuzzle();
+  await fetchRandomPuzzle({ useBoardLoader: true });
+  hideBoardLoader('puzzle-init');
 }
+
+bootstrapApp();

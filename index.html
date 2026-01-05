@@ -19,6 +19,11 @@
       --text:#fff;
     }
 
+    @keyframes spin{
+      from{ transform: rotate(0deg); }
+      to{ transform: rotate(360deg); }
+    }
+
     body{
       margin:0;
       padding:12px 12px 18px 12px;
@@ -56,6 +61,43 @@
       column-gap: 10px;
       row-gap: 8px;
       align-items: stretch;
+    }
+
+    .board-wrapper.loading .board,
+    .board-wrapper.loading .coord-files,
+    .board-wrapper.loading .coord-ranks{
+      visibility: hidden;
+    }
+
+    .board-loader{
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 4000;
+      background: radial-gradient(circle at 50% 50%, rgba(0,0,0,.28), rgba(0,0,0,.55));
+      border-radius: 14px;
+    }
+    .board-loader.visible{ display: flex; }
+    .board-spinner{
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 6px solid rgba(255,255,255,.12);
+      border-top-color: rgba(255,255,255,.8);
+      animation: spin 1s linear infinite;
+      box-shadow: 0 10px 28px rgba(0,0,0,.32);
+    }
+    .board-loader-text{
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.85);
+      text-shadow: 0 4px 12px rgba(0,0,0,.35);
+      font-size: 13px;
     }
 
     .board{
@@ -565,6 +607,10 @@
       <div id="board" class="board" aria-label="Chess board"></div>
       <div id="filesBottom" class="coord-files" aria-hidden="true"></div>
       <div id="ranksLeft" class="coord-ranks" aria-hidden="true"></div>
+      <div id="boardLoader" class="board-loader" aria-live="polite" aria-busy="true">
+        <div class="board-spinner" aria-hidden="true"></div>
+        <div class="board-loader-text">Загружаем доску...</div>
+      </div>
       <div id="puzzleOverlay" class="puzzle-overlay" aria-live="polite" aria-atomic="true">
         <div class="puzzle-dialog">
           <div id="puzzleOverlayTitle" class="puzzle-overlay-title"></div>
