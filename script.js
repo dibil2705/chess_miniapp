@@ -28,8 +28,10 @@ const START_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 
 const tg = window.Telegram?.WebApp;
 
-const moveSound = new Audio('audio/chess-move.ogg');
-const checkSound = new Audio('audio/chess-check.ogg');
+const AUDIO_FILES = {
+  move: 'audio/chess-move.ogg',
+  check: 'audio/chess-check.ogg'
+};
 const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
 const PUZZLE_STORAGE_KEY = 'chess-miniapp-current-puzzle';
 const SOUND_STORAGE_KEY = 'chess-miniapp-sound-enabled';
@@ -65,6 +67,10 @@ let puzzleLoading = false;
 let moveHistory = [];
 let historyStartFen = START_FEN;
 let soundEnabled = loadSoundPreference();
+let audioContext = null;
+let audioBuffers = new Map();
+let audioPreloadPromise = null;
+let audioUnlockPromise = null;
 let puzzleLockedAfterError = false;
 let puzzleErrorCount = 0;
 let quotaTimerId = null;
@@ -174,6 +180,60 @@ function hideBoardLoader(reason){
 
 function getBoardPalette(name){
   return boardPalettes[name] || boardPalettes.default;
+}
+
+function createAudioContext(){
+  if (audioContext) return audioContext;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+  audioContext = new AudioContextClass({ latencyHint: 'interactive' });
+  return audioContext;
+}
+
+async function preloadAudioBuffers(){
+  const ctx = createAudioContext();
+  if (!ctx) return null;
+  if (audioPreloadPromise) return audioPreloadPromise;
+  audioPreloadPromise = Promise.all(
+    Object.values(AUDIO_FILES).map(async (url) => {
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = await ctx.decodeAudioData(arrayBuffer);
+      audioBuffers.set(url, buffer);
+      return buffer;
+    })
+  ).catch((err) => {
+    console.warn('Не удалось подготовить аудио', err);
+    return null;
+  });
+  return audioPreloadPromise;
+}
+
+async function unlockAudioContext(){
+  if (audioUnlockPromise) return audioUnlockPromise;
+  audioUnlockPromise = (async () => {
+    const ctx = createAudioContext();
+    if (!ctx) return null;
+    if (ctx.state === 'suspended'){
+      try{
+        await ctx.resume();
+      } catch (err) {
+        console.warn('Не удалось активировать аудиоконтекст', err);
+      }
+    }
+    await preloadAudioBuffers();
+    return ctx;
+  })();
+  return audioUnlockPromise;
+}
+
+function setupAudioUnlock(){
+  const handler = () => {
+    unlockAudioContext();
+  };
+  document.addEventListener('pointerdown', handler, { once: true });
+  document.addEventListener('touchstart', handler, { once: true });
+  document.addEventListener('keydown', handler, { once: true });
 }
 
 function preloadImage(url){
@@ -931,12 +991,24 @@ function playerHasLegalMoves(color){
   return false;
 }
 
-function playSound(sound){
-  if (!soundEnabled || !sound) return;
-  try {
-    sound.currentTime = 0;
-    sound.play().catch(() => {});
-  } catch (_) {}
+function playSound(url){
+  if (!soundEnabled || !url) return;
+  const ctx = createAudioContext();
+  if (!ctx) return;
+  if (ctx.state === 'suspended'){
+    unlockAudioContext();
+    return;
+  }
+  const buffer = audioBuffers.get(url);
+  if (!buffer){
+    preloadAudioBuffers();
+    return;
+  }
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(ctx.destination);
+  const startAt = ctx.currentTime + 0.005;
+  source.start(startAt);
 }
 
 function playMoveAudio(){
@@ -944,9 +1016,9 @@ function playMoveAudio(){
   const hasMoves = playerHasLegalMoves(activeColor);
   const isMate = inCheck && !hasMoves;
   if (isMate || inCheck){
-    playSound(checkSound);
+    playSound(AUDIO_FILES.check);
   } else {
-    playSound(moveSound);
+    playSound(AUDIO_FILES.move);
   }
 }
 
@@ -2373,6 +2445,7 @@ promotionButtons.forEach(btn => {
 applyBoardPalette(loadPalettePreference());
 preventZoom();
 initTelegram();
+setupAudioUnlock();
 
 async function bootstrapApp(){
   showBoardLoader('assets');
