@@ -121,6 +121,7 @@
       grid-template-columns: repeat(8, 1fr);
       grid-template-rows: repeat(8, 1fr);
       grid-auto-rows: 1fr;
+      position: relative;
       border-radius:14px;
       overflow:hidden;
       box-shadow: 0 12px 40px rgba(0,0,0,.45);
@@ -207,6 +208,16 @@
     }
 
     .piece.dragging{ opacity: 0; }
+    .piece-moving{
+      position: absolute;
+      z-index: 5;
+      pointer-events: none;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      transition: transform .2s ease;
+      will-change: transform;
+    }
 
     /* drag feedback */
     .sq.drop{ outline: 3px solid rgba(255,255,255,.55); outline-offset:-3px; }

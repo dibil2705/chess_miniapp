@@ -64,6 +64,7 @@ let puzzleLockedAfterError = false;
 let puzzleErrorCount = 0;
 let quotaTimerId = null;
 let spritePreloadPromise = null;
+let pendingMoveAnimations = [];
 const boardLoaderReasons = new Set();
 
 function getExpectedMoveColor(moveIndex){
@@ -1002,7 +1003,7 @@ function updatePuzzleStatus(){
     return;
   }
   if (puzzleMode && puzzleData && !puzzleSolved){
-    puzzleStatusEl.textContent = `Чей ход: ${activeColor === 'w' ? 'белых' : 'черных'}\nНайди выигрышное продолжение`;
+    puzzleStatusEl.textContent = `Ход ${activeColor === 'w' ? 'белых' : 'черных'}\nНайди выигрышное продолжение`;
     return;
   }
 
@@ -1615,11 +1616,16 @@ function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null }){
     const isKingSide = toC > fromC;
     const rookFromC = isKingSide ? 7 : 0;
     const rookToC = isKingSide ? 5 : 3;
+    pendingMoveAnimations = [
+      { fromR, fromC, toR, toC, piece },
+      { fromR, fromC: rookFromC, toR: fromR, toC: rookToC, piece: isWhite(piece) ? 'R' : 'r' }
+    ];
     boardState[fromR][fromC] = '';
     boardState[toR][toC] = piece;
     boardState[fromR][rookFromC] = '';
     boardState[fromR][rookToC] = isWhite(piece) ? 'R' : 'r';
   } else {
+    pendingMoveAnimations = [{ fromR, fromC, toR, toC, piece: pieceToPlace }];
     boardState[fromR][fromC] = '';
     boardState[toR][toC] = pieceToPlace;
   }
@@ -1692,6 +1698,69 @@ function updateCoordinates(){
   if (ranksLeftEl) ranksLeftEl.innerHTML = ranks.map(r => `<span>${r}</span>`).join('');
 }
 
+function getSquareElement(r, c){
+  if (!boardEl) return null;
+  const display = coordToDisplay(r, c);
+  return boardEl.querySelector(`.sq[data-dr="${display.r}"][data-dc="${display.c}"]`);
+}
+
+function animatePieceMove({ fromR, fromC, toR, toC, piece }){
+  if (!boardEl) return;
+  const fromSq = getSquareElement(fromR, fromC);
+  const toSq = getSquareElement(toR, toC);
+  if (!fromSq || !toSq) return;
+
+  const toPieceEl = toSq.querySelector('.piece');
+  if (!toPieceEl) return;
+
+  const boardRect = boardEl.getBoundingClientRect();
+  const fromRect = fromSq.getBoundingClientRect();
+  const toRect = toSq.getBoundingClientRect();
+  const isPieceBlack = isBlack(piece);
+
+  const mover = document.createElement('div');
+  mover.className = `piece piece-moving ${isPieceBlack ? 'black' : 'white'}`;
+
+  const img = document.createElement('img');
+  img.alt = '';
+  img.decoding = 'async';
+  img.loading = 'eager';
+  img.src = isPieceBlack ? (BLACK_SVG[piece] || '') : (WHITE_SVG[piece] || '');
+  img.draggable = false;
+  mover.appendChild(img);
+
+  mover.style.left = `${fromRect.left - boardRect.left}px`;
+  mover.style.top = `${fromRect.top - boardRect.top}px`;
+  mover.style.width = `${fromRect.width}px`;
+  mover.style.height = `${fromRect.height}px`;
+
+  toPieceEl.style.visibility = 'hidden';
+  boardEl.appendChild(mover);
+
+  const dx = toRect.left - fromRect.left;
+  const dy = toRect.top - fromRect.top;
+  requestAnimationFrame(() => {
+    mover.style.transform = `translate(${dx}px, ${dy}px)`;
+  });
+
+  const cleanup = () => {
+    mover.removeEventListener('transitionend', cleanup);
+    mover.remove();
+    toPieceEl.style.visibility = '';
+  };
+  mover.addEventListener('transitionend', cleanup);
+  window.setTimeout(() => {
+    if (document.body.contains(mover)) cleanup();
+  }, 300);
+}
+
+function runPendingMoveAnimations(){
+  if (!pendingMoveAnimations.length) return;
+  const animations = pendingMoveAnimations;
+  pendingMoveAnimations = [];
+  animations.forEach(animatePieceMove);
+}
+
 function render(){
   boardEl.innerHTML = '';
   updateCoordinates();
@@ -1761,6 +1830,8 @@ function render(){
       boardEl.appendChild(sq);
     }
   }
+
+  runPendingMoveAnimations();
 
   if (fenOutEl){
     fenOutEl.textContent = boardToFen(boardState);
