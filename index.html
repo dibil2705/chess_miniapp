@@ -190,8 +190,8 @@
     }
     .piece.white{ }
     .piece.white img{
-      width: 140.712%;
-      height: 140.712%;
+      width: 160%;
+      height: 160%;
       display:block;
       pointer-events: none; /* so drag events stay on .piece */
       user-select:none;
@@ -199,8 +199,8 @@
     }
     .piece.black{ }
     .piece.black img{
-      width: 140.712%;
-      height: 140.712%;
+      width: 160%;
+      height: 160%;
       display:block;
       pointer-events: none; /* so drag events stay on .piece */
       user-select:none;
@@ -219,8 +219,7 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      transform: translate(0, 0);
-      transition: transform .28s cubic-bezier(0.22, 1, 0.36, 1);
+      transform: translate3d(0, 0, 0);
       will-change: transform;
     }
     .piece-moving img{

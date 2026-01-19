@@ -40,6 +40,10 @@ const DAILY_BASE_PUZZLE_LIMIT = 1;
 const DAILY_BONUS_PUZZLES = 2;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DAILY_RESET_UTC_OFFSET_MS = 4 * 60 * 60 * 1000; // 07:00 Мск = 04:00 UTC
+const MOVE_ANIMATION_MIN_MS = 140;
+const MOVE_ANIMATION_MAX_MS = 420;
+const MOVE_ANIMATION_PX_PER_MS = 1.6;
+const HYPERBOLIC_EASE_FACTOR = 3.6;
 
 let flipped = false;
 let boardState = fenToBoard(START_FEN);
@@ -1737,6 +1741,12 @@ function getPieceRenderSize(r, c){
   return { width: rect.width, height: rect.height };
 }
 
+function hyperbolicEase(t){
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  return (t * (1 + HYPERBOLIC_EASE_FACTOR)) / (t + HYPERBOLIC_EASE_FACTOR);
+}
+
 function animatePieceMove({ fromR, fromC, toR, toC, piece, size }){
   if (!boardEl) return;
   const fromSq = getSquareElement(fromR, fromC);
@@ -1780,19 +1790,38 @@ function animatePieceMove({ fromR, fromC, toR, toC, piece, size }){
 
   const dx = toLeft - fromLeft;
   const dy = toTop - fromTop;
-  requestAnimationFrame(() => {
-    mover.style.transform = `translate(${dx}px, ${dy}px)`;
-  });
+  const distance = Math.hypot(dx, dy);
+  const duration = Math.min(
+    MOVE_ANIMATION_MAX_MS,
+    Math.max(MOVE_ANIMATION_MIN_MS, distance / MOVE_ANIMATION_PX_PER_MS)
+  );
+  let rafId = null;
+  let cleanedUp = false;
 
   const cleanup = () => {
-    mover.removeEventListener('transitionend', cleanup);
+    if (cleanedUp) return;
+    cleanedUp = true;
+    if (rafId !== null) cancelAnimationFrame(rafId);
     mover.remove();
     toPieceEl.style.visibility = '';
   };
-  mover.addEventListener('transitionend', cleanup);
+
+  const start = performance.now();
+  const step = (now) => {
+    const t = Math.min((now - start) / duration, 1);
+    const eased = hyperbolicEase(t);
+    mover.style.transform = `translate3d(${dx * eased}px, ${dy * eased}px, 0)`;
+    if (t < 1){
+      rafId = requestAnimationFrame(step);
+    } else {
+      cleanup();
+    }
+  };
+
+  rafId = requestAnimationFrame(step);
   window.setTimeout(() => {
     if (document.body.contains(mover)) cleanup();
-  }, 300);
+  }, duration + 120);
 }
 
 function runPendingMoveAnimations(){
