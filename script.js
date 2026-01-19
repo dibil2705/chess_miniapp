@@ -997,6 +997,15 @@ function updatePuzzleStatus(){
   const quota = getQuotaInfo();
   toggleBonusPanel(quota.bonusAvailable);
 
+  if (puzzleLoading){
+    puzzleStatusEl.textContent = 'Загрузка задачи...';
+    return;
+  }
+  if (puzzleMode && puzzleData && !puzzleSolved){
+    puzzleStatusEl.textContent = `Чей ход: ${activeColor === 'w' ? 'белых' : 'черных'}\nНайди выигрышное продолжение`;
+    return;
+  }
+
   if (quota.blocked && !quota.bonusAvailable){
     const remaining = formatDuration(quota.remainingMs);
     const prefix = quota.state.dayDone ? 'На сегодня всё.' : 'Дневной лимит выполнен.';
@@ -1013,10 +1022,6 @@ function updatePuzzleStatus(){
     stopQuotaTimer();
   }
 
-  if (puzzleLoading){
-    puzzleStatusEl.textContent = 'Загрузка задачи...';
-    return;
-  }
   if (quota.bonusAvailable){
     puzzleStatusEl.textContent = 'Первая задача решена. Хотите бонусные задачи?';
     return;
