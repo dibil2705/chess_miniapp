@@ -223,6 +223,14 @@
       transition: transform .28s cubic-bezier(0.22, 1, 0.36, 1);
       will-change: transform;
     }
+    .piece-moving img{
+      width: 100%;
+      height: 100%;
+      display: block;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
 
     @keyframes piece-fade-in{
       from{
