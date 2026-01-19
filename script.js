@@ -1826,9 +1826,7 @@ function animatePieceMove({ fromR, fromC, toR, toC, piece, size }){
 
 function runPendingMoveAnimations(){
   if (!pendingMoveAnimations.length) return;
-  const animations = pendingMoveAnimations;
   pendingMoveAnimations = [];
-  animations.forEach(animatePieceMove);
 }
 
 function render(){
