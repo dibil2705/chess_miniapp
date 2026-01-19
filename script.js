@@ -1622,7 +1622,7 @@ function needsPromotion(piece, toR){
   return false;
 }
 
-function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null }){
+function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null, animate = true }){
   const moveKey = buildMoveKey({ fromR, fromC, toR, toC, promotionPiece });
   if (!verifyPuzzleMove(moveKey)){
     return;
@@ -1636,16 +1636,16 @@ function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null }){
     const isKingSide = toC > fromC;
     const rookFromC = isKingSide ? 7 : 0;
     const rookToC = isKingSide ? 5 : 3;
-    pendingMoveAnimations = [
+    pendingMoveAnimations = animate ? [
       { fromR, fromC, toR, toC, piece },
       { fromR, fromC: rookFromC, toR: fromR, toC: rookToC, piece: isWhite(piece) ? 'R' : 'r' }
-    ];
+    ] : [];
     boardState[fromR][fromC] = '';
     boardState[toR][toC] = piece;
     boardState[fromR][rookFromC] = '';
     boardState[fromR][rookToC] = isWhite(piece) ? 'R' : 'r';
   } else {
-    pendingMoveAnimations = [{ fromR, fromC, toR, toC, piece: pieceToPlace }];
+    pendingMoveAnimations = animate ? [{ fromR, fromC, toR, toC, piece: pieceToPlace }] : [];
     boardState[fromR][fromC] = '';
     boardState[toR][toC] = pieceToPlace;
   }
@@ -1673,15 +1673,16 @@ function handlePromotionChoice(pieceCode){
   applyMove({ fromR, fromC, toR, toC, piece, promotionPiece });
 }
 
-function performMove(fromR, fromC, toR, toC){
+function performMove(fromR, fromC, toR, toC, options = {}){
   if (!isMoveAllowed(fromR, fromC, toR, toC)) return;
   const piece = boardState[fromR][fromC];
+  const { animate = true } = options;
   if (needsPromotion(piece, toR)){
     promotionState = { fromR, fromC, toR, toC, piece };
     openPromotionDialog(isWhite(piece) ? 'w' : 'b');
     return;
   }
-  applyMove({ fromR, fromC, toR, toC, piece });
+  applyMove({ fromR, fromC, toR, toC, piece, animate });
 }
 
 function attemptAutoOpponentMove(){
@@ -1750,10 +1751,15 @@ function animatePieceMove({ fromR, fromC, toR, toC, piece }){
   img.draggable = false;
   mover.appendChild(img);
 
-  mover.style.left = `${fromRect.left - boardRect.left}px`;
-  mover.style.top = `${fromRect.top - boardRect.top}px`;
-  mover.style.width = `${fromRect.width}px`;
-  mover.style.height = `${fromRect.height}px`;
+  const width = toRect.width;
+  const height = toRect.height;
+  const fromLeft = fromRect.left + (fromRect.width - width) / 2;
+  const fromTop = fromRect.top + (fromRect.height - height) / 2;
+
+  mover.style.left = `${fromLeft - boardRect.left}px`;
+  mover.style.top = `${fromTop - boardRect.top}px`;
+  mover.style.width = `${width}px`;
+  mover.style.height = `${height}px`;
 
   toPieceEl.style.visibility = 'hidden';
   boardEl.appendChild(mover);
@@ -1919,15 +1925,16 @@ function onPointerDownManual(e){
     return;
   }
 
-  manualDragActive = true;
-  e.currentTarget.classList.add('dragging');
   const rect = e.currentTarget.getBoundingClientRect();
   const ghost = e.currentTarget.cloneNode(true);
+  ghost.classList.remove('dragging');
   ghost.classList.add('drag-ghost', 'drag-ghost-active');
   ghost.style.width = `${rect.width}px`;
   ghost.style.height = `${rect.height}px`;
   document.body.appendChild(ghost);
 
+  manualDragActive = true;
+  e.currentTarget.classList.add('dragging');
   manualDrag = {
     fromR,
     fromC,
@@ -2000,7 +2007,7 @@ function onPointerUpManual(e){
     return;
   }
 
-  performMove(fromR, fromC, targetSq.r, targetSq.c);
+  performMove(fromR, fromC, targetSq.r, targetSq.c, { animate: false });
 }
 
 function onPointerCancelManual(e){
@@ -2107,7 +2114,7 @@ function onDrop(e){
     return;
   }
 
-  performMove(from.r, from.c, toR, toC);
+  performMove(from.r, from.c, toR, toC, { animate: false });
 }
 
 async function fetchRandomPuzzle(options = {}){
@@ -2159,6 +2166,7 @@ async function fetchRandomPuzzle(options = {}){
         updatePuzzleStatus();
         return;
       }
+      initialPieceRevealPending = true;
       loadPositionFromFen(data.fen);
     } else {
       puzzleMode = false;
