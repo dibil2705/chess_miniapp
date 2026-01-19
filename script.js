@@ -1630,22 +1630,24 @@ function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null, anima
 
   const fenBefore = boardToFen(boardState);
   const pieceToPlace = promotionPiece || piece;
+  const movingPieceSize = animate ? getPieceRenderSize(fromR, fromC) : null;
   updateCastlingRights(fromR, fromC, toR, toC, piece);
 
   if (isCastlingMove(piece, fromR, fromC, toR, toC)){
     const isKingSide = toC > fromC;
     const rookFromC = isKingSide ? 7 : 0;
     const rookToC = isKingSide ? 5 : 3;
+    const rookSize = animate ? getPieceRenderSize(fromR, rookFromC) : null;
     pendingMoveAnimations = animate ? [
-      { fromR, fromC, toR, toC, piece },
-      { fromR, fromC: rookFromC, toR: fromR, toC: rookToC, piece: isWhite(piece) ? 'R' : 'r' }
+      { fromR, fromC, toR, toC, piece, size: movingPieceSize },
+      { fromR, fromC: rookFromC, toR: fromR, toC: rookToC, piece: isWhite(piece) ? 'R' : 'r', size: rookSize }
     ] : [];
     boardState[fromR][fromC] = '';
     boardState[toR][toC] = piece;
     boardState[fromR][rookFromC] = '';
     boardState[fromR][rookToC] = isWhite(piece) ? 'R' : 'r';
   } else {
-    pendingMoveAnimations = animate ? [{ fromR, fromC, toR, toC, piece: pieceToPlace }] : [];
+    pendingMoveAnimations = animate ? [{ fromR, fromC, toR, toC, piece: pieceToPlace, size: movingPieceSize }] : [];
     boardState[fromR][fromC] = '';
     boardState[toR][toC] = pieceToPlace;
   }
@@ -1725,19 +1727,28 @@ function getSquareElement(r, c){
   return boardEl.querySelector(`.sq[data-dr="${display.r}"][data-dc="${display.c}"]`);
 }
 
-function animatePieceMove({ fromR, fromC, toR, toC, piece }){
+function getPieceRenderSize(r, c){
+  const sq = getSquareElement(r, c);
+  if (!sq) return null;
+  const pieceEl = sq.querySelector('.piece img') || sq.querySelector('.piece');
+  if (!pieceEl) return null;
+  const rect = pieceEl.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  return { width: rect.width, height: rect.height };
+}
+
+function animatePieceMove({ fromR, fromC, toR, toC, piece, size }){
   if (!boardEl) return;
   const fromSq = getSquareElement(fromR, fromC);
   const toSq = getSquareElement(toR, toC);
   if (!fromSq || !toSq) return;
 
-  const fromPieceEl = fromSq.querySelector('.piece');
   const toPieceEl = toSq.querySelector('.piece');
   if (!toPieceEl) return;
 
   const boardRect = boardEl.getBoundingClientRect();
-  const fromRect = (fromPieceEl || fromSq).getBoundingClientRect();
-  const toRect = toPieceEl.getBoundingClientRect();
+  const fromRect = fromSq.getBoundingClientRect();
+  const toRect = toSq.getBoundingClientRect();
   const isPieceBlack = isBlack(piece);
 
   const mover = document.createElement('div');
@@ -1751,10 +1762,13 @@ function animatePieceMove({ fromR, fromC, toR, toC, piece }){
   img.draggable = false;
   mover.appendChild(img);
 
-  const width = toRect.width;
-  const height = toRect.height;
+  const fallbackSize = getPieceRenderSize(toR, toC);
+  const width = size?.width || fallbackSize?.width || toRect.width;
+  const height = size?.height || fallbackSize?.height || toRect.height;
   const fromLeft = fromRect.left + (fromRect.width - width) / 2;
   const fromTop = fromRect.top + (fromRect.height - height) / 2;
+  const toLeft = toRect.left + (toRect.width - width) / 2;
+  const toTop = toRect.top + (toRect.height - height) / 2;
 
   mover.style.left = `${fromLeft - boardRect.left}px`;
   mover.style.top = `${fromTop - boardRect.top}px`;
@@ -1764,8 +1778,8 @@ function animatePieceMove({ fromR, fromC, toR, toC, piece }){
   toPieceEl.style.visibility = 'hidden';
   boardEl.appendChild(mover);
 
-  const dx = toRect.left - fromRect.left;
-  const dy = toRect.top - fromRect.top;
+  const dx = toLeft - fromLeft;
+  const dy = toTop - fromTop;
   requestAnimationFrame(() => {
     mover.style.transform = `translate(${dx}px, ${dy}px)`;
   });
