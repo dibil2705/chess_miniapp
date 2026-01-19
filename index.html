@@ -208,6 +208,10 @@
     }
 
     .piece.dragging{ opacity: 0; }
+    .piece-appear{
+      opacity: 0;
+      animation: piece-fade-in 0.35s ease forwards;
+    }
     .piece-moving{
       position: absolute;
       z-index: 5;
@@ -215,8 +219,20 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      transition: transform .2s ease;
+      transform: translate(0, 0);
+      transition: transform .28s cubic-bezier(0.22, 1, 0.36, 1);
       will-change: transform;
+    }
+
+    @keyframes piece-fade-in{
+      from{
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to{
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     /* drag feedback */

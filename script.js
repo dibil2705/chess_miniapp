@@ -65,7 +65,9 @@ let puzzleErrorCount = 0;
 let quotaTimerId = null;
 let spritePreloadPromise = null;
 let pendingMoveAnimations = [];
+let initialPieceRevealPending = true;
 const boardLoaderReasons = new Set();
+const PIECE_APPEAR_DELAY_MS = 35;
 
 function getExpectedMoveColor(moveIndex){
   const opponentColor = puzzlePlayerColor === 'w' ? 'b' : 'w';
@@ -1768,6 +1770,8 @@ function render(){
   const blackKingPos = getKingPosition(boardState, 'b');
   const whiteInCheck = whiteKingPos && isKingInCheck(boardState, 'w');
   const blackInCheck = blackKingPos && isKingInCheck(boardState, 'b');
+  let pieceAppearIndex = 0;
+  const shouldAnimatePieces = initialPieceRevealPending;
   for (let dr=0; dr<8; dr++){
     for (let dc=0; dc<8; dc++){
       const { r, c } = displayToCoord(dr, dc);
@@ -1790,6 +1794,11 @@ function render(){
         const p = document.createElement('div');
         const isPieceBlack = isBlack(piece);
         p.className = 'piece ' + (isPieceBlack ? 'black' : 'white');
+        if (shouldAnimatePieces){
+          p.classList.add('piece-appear');
+          p.style.animationDelay = `${pieceAppearIndex * PIECE_APPEAR_DELAY_MS}ms`;
+          pieceAppearIndex += 1;
+        }
 
         const img = document.createElement('img');
         img.alt = '';
@@ -1832,6 +1841,10 @@ function render(){
   }
 
   runPendingMoveAnimations();
+
+  if (initialPieceRevealPending && pieceAppearIndex > 0){
+    initialPieceRevealPending = false;
+  }
 
   if (fenOutEl){
     fenOutEl.textContent = boardToFen(boardState);
