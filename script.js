@@ -28,9 +28,37 @@ const START_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 
 const tg = window.Telegram?.WebApp;
 
+const AUDIO_SOURCES = {
+  move: {
+    ogg: 'audio/chess-move.ogg',
+    mp3: 'audio/chess-move.mp3'
+  },
+  check: {
+    ogg: 'audio/chess-check.ogg',
+    mp3: 'audio/chess-check.mp3'
+  }
+};
+
+function selectAudioFile(sources){
+  try {
+    const tester = document.createElement('audio');
+    if (tester?.canPlayType){
+      if (tester.canPlayType('audio/ogg; codecs="vorbis"')){
+        return sources.ogg;
+      }
+      if (tester.canPlayType('audio/mpeg')){
+        return sources.mp3;
+      }
+    }
+  } catch (err) {
+    console.warn('Не удалось проверить поддержку аудио', err);
+  }
+  return sources.mp3 || sources.ogg;
+}
+
 const AUDIO_FILES = {
-  move: 'audio/chess-move.ogg',
-  check: 'audio/chess-check.ogg'
+  move: selectAudioFile(AUDIO_SOURCES.move),
+  check: selectAudioFile(AUDIO_SOURCES.check)
 };
 const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
 const PUZZLE_STORAGE_KEY = 'chess-miniapp-current-puzzle';
