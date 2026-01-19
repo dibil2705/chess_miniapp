@@ -34,6 +34,7 @@ const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
 const PUZZLE_STORAGE_KEY = 'chess-miniapp-current-puzzle';
 const SOUND_STORAGE_KEY = 'chess-miniapp-sound-enabled';
 const PALETTE_STORAGE_KEY = 'chess-miniapp-board-palette';
+const PIECE_REVEAL_STORAGE_KEY = 'chess-miniapp-piece-reveal-complete';
 const PUZZLE_QUOTA_STORAGE_PREFIX = 'chess-miniapp-quota';
 const DAILY_BASE_PUZZLE_LIMIT = 1;
 const DAILY_BONUS_PUZZLES = 2;
@@ -65,9 +66,26 @@ let puzzleErrorCount = 0;
 let quotaTimerId = null;
 let spritePreloadPromise = null;
 let pendingMoveAnimations = [];
-let initialPieceRevealPending = true;
+let initialPieceRevealPending = shouldRevealPiecesOnLoad();
 const boardLoaderReasons = new Set();
 const PIECE_APPEAR_DELAY_MS = 35;
+
+function shouldRevealPiecesOnLoad(){
+  try {
+    return !localStorage.getItem(PIECE_REVEAL_STORAGE_KEY);
+  } catch (err) {
+    console.warn('Не удалось проверить флаг появления фигур', err);
+    return true;
+  }
+}
+
+function markPiecesRevealComplete(){
+  try {
+    localStorage.setItem(PIECE_REVEAL_STORAGE_KEY, '1');
+  } catch (err) {
+    console.warn('Не удалось сохранить флаг появления фигур', err);
+  }
+}
 
 function getExpectedMoveColor(moveIndex){
   const opponentColor = puzzlePlayerColor === 'w' ? 'b' : 'w';
@@ -1712,12 +1730,13 @@ function animatePieceMove({ fromR, fromC, toR, toC, piece }){
   const toSq = getSquareElement(toR, toC);
   if (!fromSq || !toSq) return;
 
+  const fromPieceEl = fromSq.querySelector('.piece');
   const toPieceEl = toSq.querySelector('.piece');
   if (!toPieceEl) return;
 
   const boardRect = boardEl.getBoundingClientRect();
-  const fromRect = fromSq.getBoundingClientRect();
-  const toRect = toSq.getBoundingClientRect();
+  const fromRect = (fromPieceEl || fromSq).getBoundingClientRect();
+  const toRect = toPieceEl.getBoundingClientRect();
   const isPieceBlack = isBlack(piece);
 
   const mover = document.createElement('div');
@@ -1808,11 +1827,9 @@ function render(){
         img.draggable = false; // keep drag handling on container
         p.appendChild(img);
 
-        p.draggable = true;
+        p.draggable = false;
         p.dataset.fromR = String(r);
         p.dataset.fromC = String(c);
-        p.addEventListener('dragstart', onDragStart);
-        p.addEventListener('dragend', onDragEnd);
         p.addEventListener('click', onPieceClick);
         p.addEventListener('pointerdown', onPointerDownManual);
         sq.appendChild(p);
@@ -1844,6 +1861,7 @@ function render(){
 
   if (initialPieceRevealPending && pieceAppearIndex > 0){
     initialPieceRevealPending = false;
+    markPiecesRevealComplete();
   }
 
   if (fenOutEl){
@@ -1883,7 +1901,7 @@ function stopManualDrag(){
 
 function onPointerDownManual(e){
   const pointerType = e.pointerType || 'mouse';
-  if (pointerType !== 'touch' && pointerType !== 'pen') return;
+  if (pointerType === 'mouse' && e.button !== 0) return;
 
   if (puzzleMode && puzzleLockedAfterError){
     updatePuzzleFeedback('wrong', 'Возьмите новую задачу, чтобы продолжить.');
@@ -1905,7 +1923,7 @@ function onPointerDownManual(e){
   e.currentTarget.classList.add('dragging');
   const rect = e.currentTarget.getBoundingClientRect();
   const ghost = e.currentTarget.cloneNode(true);
-  ghost.classList.add('drag-ghost');
+  ghost.classList.add('drag-ghost', 'drag-ghost-active');
   ghost.style.width = `${rect.width}px`;
   ghost.style.height = `${rect.height}px`;
   document.body.appendChild(ghost);
