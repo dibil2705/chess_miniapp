@@ -30,6 +30,8 @@
       --panel:rgba(255,255,255,.06);
       --border:rgba(255,255,255,.12);
       --text:#fff;
+      --tg-safe-area-top:0px;
+      --app-safe-top:max(env(safe-area-inset-top), var(--tg-safe-area-top));
     }
 
     @keyframes spin{
@@ -39,7 +41,7 @@
 
     body{
       margin:0;
-      padding:12px 12px 18px 12px;
+      padding:calc(12px + var(--app-safe-top)) 12px 18px 12px;
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       background:var(--bg);
       color:var(--text);
@@ -611,7 +613,7 @@
 
     /* Compact view helpers */
     @media (max-width: 768px){
-      body{ padding:8px 10px 14px 10px; }
+      body{ padding:calc(8px + var(--app-safe-top)) 10px 14px 10px; }
       .wrap{ gap:10px; }
       .board-wrapper{ width:100%; }
       #puzzleStatus{
@@ -622,7 +624,7 @@
 
     .floating-settings{
       position: fixed;
-      top: 2px;
+      top: calc(2px + var(--app-safe-top));
       right: 10px;
       z-index: 5000;
       display: grid;

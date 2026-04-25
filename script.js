@@ -543,12 +543,34 @@ function applyTelegramTheme(){
   applyBoardPalette(loadPalettePreference());
 }
 
+function updateAppSafeArea(){
+  const root = document.documentElement;
+  const safeTop = Math.max(
+    0,
+    Number(tg?.safeAreaInset?.top) || 0,
+    Number(tg?.contentSafeAreaInset?.top) || 0
+  );
+  root.style.setProperty('--tg-safe-area-top', `${safeTop}px`);
+}
+
+function bindTelegramEvent(eventName, handler){
+  try {
+    tg?.onEvent?.(eventName, handler);
+  } catch (err) {
+    console.warn(`Telegram event ${eventName} is not available`, err);
+  }
+}
+
 function initTelegram(){
   if (!tg) return;
+  updateAppSafeArea();
   tg.ready();
   tg.expand();
   applyTelegramTheme();
-  tg.onEvent('themeChanged', applyTelegramTheme);
+  bindTelegramEvent('themeChanged', applyTelegramTheme);
+  bindTelegramEvent('viewportChanged', updateAppSafeArea);
+  bindTelegramEvent('safeAreaChanged', updateAppSafeArea);
+  bindTelegramEvent('contentSafeAreaChanged', updateAppSafeArea);
 }
 
 function setPromotionIcons(color){

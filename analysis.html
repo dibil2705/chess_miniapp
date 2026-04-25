@@ -17,6 +17,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Stockfish анализ</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
   <style>
     :root{
@@ -26,11 +27,13 @@
       --panel:rgba(255,255,255,.06);
       --border:rgba(255,255,255,.12);
       --text:#fff;
+      --tg-safe-area-top:0px;
+      --app-safe-top:max(env(safe-area-inset-top), var(--tg-safe-area-top));
     }
     *, *::before, *::after{ box-sizing: border-box; }
     body{
       margin:0;
-      padding:72px 16px 120px;
+      padding:calc(72px + var(--app-safe-top)) 16px 120px;
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       background:var(--bg);
       color:var(--text);
@@ -52,7 +55,7 @@
     }
     .back-btn{
       position: fixed;
-      top: 14px;
+      top: calc(14px + var(--app-safe-top));
       right: 12px;
       padding:10px 12px;
       border-radius:12px;
@@ -97,7 +100,7 @@
       width:min(620px, 100%);
       margin:0 auto;
       display:grid;
-      grid-template-columns: 18px auto 1fr;
+      grid-template-columns: 34px auto 1fr;
       grid-template-rows: 1fr auto;
       grid-template-areas:
         "cp ranks board"
@@ -146,8 +149,10 @@
     .eval-bar{
       grid-area: cp;
       position: relative;
-      width: 18px;
-      background: linear-gradient(180deg, #333 0%, #f5f5f5 100%);
+      width: 100%;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.14), rgba(255,255,255,.02) 28%, rgba(255,255,255,.02) 72%, rgba(255,255,255,.12)),
+        linear-gradient(180deg, #3d3b37 0%, #2d2b28 50%, #252320 100%);
       border-radius: 10px;
       overflow:hidden;
       border:1px solid var(--border);
@@ -157,19 +162,25 @@
       bottom:0;
       left:0;
       right:0;
-      background:#f5f5f5;
-      transition:height .2s ease;
-      height:50%;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.82), #fff 45%, #f6f6f6 55%, rgba(255,255,255,.82)),
+        linear-gradient(180deg, #fff 0%, #f3f3f3 52%, #e8e8e8 100%);
+      transition:height .28s ease;
+      height:0;
+      z-index:1;
     }
     .eval-label{
       position:absolute;
-      bottom:4px;
+      top:50%;
       left:50%;
-      transform:translateX(-50%);
-      color:#000;
+      transform:translate(-50%, -50%);
+      color:#fff;
+      mix-blend-mode:difference;
       font-size:10px;
-      font-weight:700;
+      line-height:1;
+      font-weight:800;
       pointer-events:none;
+      z-index:3;
     }
     .coord-files,
     .coord-ranks{
@@ -251,7 +262,9 @@
     }
     .history-bar{
       width:100%;
-      background: linear-gradient(180deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.03) 100%);
+      background:
+        linear-gradient(180deg, rgba(76,76,76,.16) 0%, rgba(34,34,34,.14) 100%),
+        rgba(0,0,0,.18);
       border:1px solid var(--border);
       border-radius:12px;
       padding:12px 12px 10px;
@@ -316,7 +329,7 @@
       .board-wrapper{
         width: 100%;
         margin: 0;
-        grid-template-columns: 18px 13px 1fr;
+        grid-template-columns: 30px 13px 1fr;
         grid-template-rows: 1fr auto;
         grid-template-areas:
           "cp ranks board"
@@ -417,7 +430,7 @@
       display:grid;
       gap:10px;
       max-height:360px;
-      overflow-y:auto;
+      overflow:auto;
       padding-right:6px;
       scroll-behavior:smooth;
     }
@@ -425,13 +438,35 @@
     .history-body::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.2); border-radius:999px; }
     .history-body::-webkit-scrollbar-track{ background:rgba(255,255,255,.06); }
     .analysis-history{
+      --tree-step: 30px;
+      --tree-trunk-x: 20px;
+      --tree-muted-line: rgba(150,158,172,.16);
+      --tree-line: rgba(150,158,172,.30);
+      --tree-active-line: rgba(244,232,196,.92);
+      position:relative;
       display:flex;
       flex-direction:column;
       gap:6px;
-      padding:4px 4px 6px 0;
+      padding:6px 8px 8px 42px;
       margin:0;
       width:100%;
+      background:transparent;
+      border-radius:12px;
     }
+    .analysis-history::before{
+      content:"";
+      position:absolute;
+      left:var(--tree-trunk-x);
+      top:24px;
+      bottom:22px;
+      width:0;
+      border-left:2px solid var(--tree-line);
+      pointer-events:none;
+    }
+    .analysis-history.has-active-branch::before{
+      border-left-color:rgba(150,158,172,.12);
+    }
+    .analysis-history:empty::before{ display:none; }
     .move-row{
       display:grid;
       grid-template-columns: 42px 1fr 1fr;
@@ -487,6 +522,175 @@
     .move-col span{ position:relative; z-index:1; }
     .move-col.is-active::after{ opacity:1; }
     .move-col.is-empty{ opacity:.45; font-weight:500; }
+    .move-tree-node{
+      position:relative;
+      display:grid;
+      grid-template-columns: 42px minmax(76px, 1fr) minmax(76px, 1fr) 72px;
+      align-items:center;
+      gap:12px;
+      margin-left:calc(var(--tree-depth, 0) * var(--tree-step));
+      width:calc(100% - (var(--tree-depth, 0) * var(--tree-step)));
+      min-width:430px;
+      min-height:38px;
+      padding:7px 10px;
+      color:var(--text);
+      text-align:left;
+      border:1px solid transparent;
+      border-radius:8px;
+      background:transparent;
+      cursor:pointer;
+      font-size:15px;
+    }
+    .move-tree-node::before{
+      content:"";
+      position:absolute;
+      left:calc(var(--tree-step) * -1 + 6px);
+      top:-7px;
+      width:24px;
+      height:calc(50% + 7px);
+      border-left:2px solid var(--tree-line);
+      border-bottom:2px solid var(--tree-line);
+      border-bottom-left-radius:7px;
+      pointer-events:none;
+      transition:border-color .16s ease, opacity .16s ease, box-shadow .16s ease;
+    }
+    .move-tree-node::after{
+      content:"";
+      position:absolute;
+      left:calc(var(--tree-step) * -1 + 6px);
+      top:-7px;
+      bottom:-7px;
+      width:0;
+      border-left:2px solid var(--tree-muted-line);
+      pointer-events:none;
+      transition:border-color .16s ease, opacity .16s ease, box-shadow .16s ease;
+    }
+    .move-tree-node.is-mainline::before{
+      display:none;
+    }
+    .move-tree-node.is-mainline::after,
+    .move-tree-node.is-root::after{
+      display:none;
+    }
+    .move-tree-node.is-nested:not(.is-variation)::before{
+      display:none;
+    }
+    .move-tree-node.is-variation{
+      background:transparent;
+    }
+    .move-tree-node.is-variation::before{
+      border-left-color:var(--tree-line);
+      border-bottom-color:var(--tree-line);
+    }
+    .analysis-history.has-active-branch .move-tree-node.is-muted{
+      opacity:.46;
+    }
+    .analysis-history.has-active-branch .move-tree-node.is-muted::before,
+    .analysis-history.has-active-branch .move-tree-node.is-muted::after{
+      border-color:rgba(150,158,172,.10);
+      opacity:.55;
+    }
+    .move-tree-node.is-branch::before,
+    .move-tree-node.is-branch::after{
+      border-color:var(--tree-active-line);
+      opacity:1;
+      box-shadow:0 0 10px rgba(244,232,196,.20);
+    }
+    .move-tree-node.is-mainline.is-branch::after{
+      display:block;
+      left:-22px;
+      top:-7px;
+      bottom:-7px;
+      border-left-color:var(--tree-active-line);
+    }
+    .move-tree-node.is-current-node::after{
+      bottom:50%;
+    }
+    .move-tree-node.is-active{
+      border-color:rgba(244,232,196,.56);
+      box-shadow:0 0 0 1px rgba(244,232,196,.14), 0 10px 24px rgba(0,0,0,.24);
+      background:linear-gradient(180deg, rgba(160,150,122,.22), rgba(24,24,24,.30));
+    }
+    .move-tree-node.is-root{
+      grid-template-columns: 1fr 72px;
+      margin-left:0;
+      max-width:100%;
+      width:100%;
+      min-width:260px;
+      background:transparent;
+    }
+    .move-tree-node.is-root::before{ display:none; }
+    .move-tree-node.is-root .move-tree-prefix{ display:none; }
+    .move-tree-prefix{
+      position:relative;
+      opacity:.76;
+      font-weight:800;
+      font-size:15px;
+      text-align:right;
+      color:rgba(235,241,255,.82);
+      transition:color .16s ease, opacity .16s ease;
+    }
+    .move-tree-node.is-mainline .move-tree-prefix::before{
+      content:"";
+      position:absolute;
+      left:-35px;
+      top:50%;
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background:rgba(170,178,192,.82);
+      box-shadow:0 0 0 3px rgba(170,178,192,.10);
+      transform:translateY(-50%);
+      transition:background .16s ease, box-shadow .16s ease, opacity .16s ease;
+    }
+    .move-tree-node.is-mainline .move-tree-prefix::after{
+      content:"";
+      position:absolute;
+      left:-30px;
+      top:50%;
+      width:24px;
+      border-top:2px solid var(--tree-line);
+      transform:translateY(-50%);
+      transition:border-color .16s ease, box-shadow .16s ease, opacity .16s ease;
+    }
+    .move-tree-node.is-mainline.is-branch .move-tree-prefix::before{
+      background:var(--tree-active-line);
+      box-shadow:0 0 0 4px rgba(244,232,196,.16), 0 0 12px rgba(244,232,196,.28);
+    }
+    .move-tree-node.is-mainline.is-branch .move-tree-prefix::after{
+      border-top-color:var(--tree-active-line);
+      box-shadow:0 0 10px rgba(244,232,196,.18);
+    }
+    .move-tree-move{
+      min-width:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      font-weight:800;
+      color:rgba(255,255,255,.93);
+      text-shadow:0 1px 2px rgba(0,0,0,.35);
+      transition:color .16s ease, text-shadow .16s ease, opacity .16s ease;
+    }
+    .move-tree-move.is-selected{
+      color:#fff4cf;
+      text-shadow:0 0 10px rgba(244,232,196,.36), 0 1px 2px rgba(0,0,0,.45);
+    }
+    .move-tree-move.is-empty{
+      opacity:.18;
+    }
+    .move-tree-eval{
+      justify-self:end;
+      min-width:66px;
+      padding:5px 9px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,.08);
+      background:linear-gradient(180deg, rgba(255,255,255,.1), rgba(255,255,255,.035));
+      color:rgba(245,248,255,.92);
+      font-size:14px;
+      font-weight:800;
+      text-align:center;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+    }
     .history-empty{ opacity:.7; font-size:14px; padding:4px 0 2px; }
     .promotion-overlay{
       position: fixed;
@@ -563,7 +767,7 @@
         <div class="history-bar">
           <div class="history-head">
             <div>
-              <strong>Новые записи</strong>
+              <strong>Дерево ходов</strong>
             </div>
             <div class="history-controls" aria-label="Управление историей">
               <button class="history-btn" id="historyFirstBtn" title="К началу" aria-label="К началу">
@@ -616,6 +820,7 @@
   <script>
     const params = new URLSearchParams(window.location.search);
     const initialFen = params.get('fen');
+    const tg = window.Telegram?.WebApp;
     const PALETTE_STORAGE_KEY = 'chess-miniapp-board-palette';
     const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
     const boardPalettes = {
@@ -676,8 +881,11 @@
     const ANALYZE_URL = 'http://127.0.0.1:8000/analyze';
     const CACHE_TTL_MS = 10_000;
     const analyzeCache = new Map();
-    const analysisHistory = [];
+    const historyNodes = new Map();
+    let moveTreeRoot = null;
+    let historyNodeSeq = 0;
     const historyPlies = [];
+    const historyNavNodes = [];
     const AUDIO_FILES = {
       move: 'audio/chess-move.ogg',
       check: 'audio/chess-check.ogg'
@@ -686,6 +894,7 @@
     // чтобы знак не менялся при смене очереди хода.
     const evaluationPerspective = 'w';
     let historyCursor = -1;
+    let currentHistoryNodeId = null;
     let currentFen = initialFen;
     let boardState = [];
     let activeColor = 'w';
@@ -1255,11 +1464,13 @@
     function updateEvalBar(line, perspective = null){
       if (!evalFillEl || !evalLabelEl) return;
       const viewColor = perspective || evaluationPerspective;
-      const { cp, label } = normalizeScore(line, viewColor);
-      const normalized = 1 / (1 + Math.exp(-cp / 200));
-      const percent = Math.round(normalized * 100);
+      const { cp, label, mate } = normalizeScore(line, viewColor);
+      const percent = mate !== null
+        ? (mate > 0 ? 100 : 0)
+        : Math.round((1 / (1 + Math.exp(-cp / 200))) * 100);
       evalFillEl.style.height = `${percent}%`;
-      evalLabelEl.textContent = label;
+      evalLabelEl.style.top = cp < 0 ? '8%' : '94%';
+      evalLabelEl.textContent = cp > 0 && label[0] !== '+' && label[0] !== '-' ? `+${label}` : label;
     }
 
     function extractErrorDetail(errObj, fallback){
@@ -1289,22 +1500,22 @@
     async function analyzePosition(options = {}){
       const {
         force = false,
-        attachToHistory = true,
-        targetRowIndex = null
+        targetNodeId = currentHistoryNodeId
       } = typeof options === 'object' && options !== null ? options : {};
       if (!currentFen){
         setAnalysisStatus('FEN не передан. Вернитесь на главную и откройте анализ заново.');
         return;
       }
 
-      const targetRow = Number.isInteger(targetRowIndex) ? analysisHistory[targetRowIndex] : null;
-      const existingLines = targetRow?.lines || [];
+      const targetNode = targetNodeId ? historyNodes.get(targetNodeId) : null;
+      const existingLines = targetNode?.lines || [];
       const fenSide = getFenActiveColor(currentFen);
       const normalizeForCurrent = (lines) => normalizeAnalysisLines(lines, currentFen, fenSide);
       if (existingLines.length && !force){
         const normalizedExisting = normalizeForCurrent(existingLines);
-        if (targetRow) targetRow.lines = normalizedExisting;
+        if (targetNode) targetNode.lines = normalizedExisting;
         renderAnalysisLines(normalizedExisting, { fromCache: true });
+        renderHistory({ scrollToCursor: false });
         return;
       }
 
@@ -1313,10 +1524,11 @@
       const cacheValid = !force && cached && now - cached.timestamp < CACHE_TTL_MS;
       const cachedLines = cacheValid ? (cached.data?.lines || cached.data?.analysis || []) : [];
       if (cacheValid && cachedLines.length){
-        if (targetRow){
+        if (targetNode){
           const normalizedCached = normalizeForCurrent(cachedLines).slice(0, 3);
-          targetRow.lines = normalizedCached;
+          targetNode.lines = normalizedCached;
           renderAnalysisLines(normalizedCached, { fromCache: true });
+          renderHistory({ scrollToCursor: false });
           return;
         }
         renderAnalysisLines(normalizeForCurrent(cachedLines), { fromCache: true });
@@ -1332,13 +1544,11 @@
         const normalizedLines = normalizeForCurrent(lines);
         const cachePayload = { ...data, lines: normalizedLines };
         analyzeCache.set(currentFen, { timestamp: now, data: cachePayload });
-        if (targetRow){
-          targetRow.lines = normalizedLines.slice(0, 3);
+        if (targetNode){
+          targetNode.lines = normalizedLines.slice(0, 3);
         }
         renderAnalysisLines(normalizedLines, { fromCache: false });
-        if (attachToHistory){
-          pushAnalysisHistory(currentFen, normalizedLines);
-        }
+        renderHistory({ scrollToCursor: false });
       } catch (err){
         setAnalysisStatus(`Ошибка анализа: ${err.message}`);
         if (analysisListEl) analysisListEl.innerHTML = '';
@@ -1358,76 +1568,216 @@
       }
     }
 
-    function rebuildHistoryPlies({ preserveCursor = false } = {}){
-      const prevKey = preserveCursor && historyCursor >= 0 && historyPlies[historyCursor]
-        ? `${historyPlies[historyCursor].rowIndex}-${historyPlies[historyCursor].side}`
-        : null;
+    function createHistoryNode({ parentId = null, fen, move = null, lines = [] }){
+      const id = `n${++historyNodeSeq}`;
+      const node = {
+        id,
+        parentId,
+        fen,
+        move,
+        lines,
+        children: [],
+        createdAt: Date.now()
+      };
+      historyNodes.set(id, node);
+      if (parentId && historyNodes.has(parentId)){
+        historyNodes.get(parentId).children.push(id);
+      }
+      return node;
+    }
+
+    function resetMoveTree(startFen){
+      historyNodes.clear();
       historyPlies.length = 0;
-      analysisHistory.forEach((item, idx) => {
-        const whiteText = item.moves?.white || '—';
-        const blackText = item.moves?.black || '—';
-        if (whiteText !== '—' && item.fens?.white){
-          historyPlies.push({ rowIndex: idx, side: 'white', fen: item.fens.white });
+      historyNavNodes.length = 0;
+      historyNodeSeq = 0;
+      moveTreeRoot = createHistoryNode({ fen: startFen, move: null });
+      currentHistoryNodeId = moveTreeRoot.id;
+      historyCursor = -1;
+    }
+
+    function ensureMoveTreeRoot(startFen = currentFen){
+      if (!moveTreeRoot){
+        resetMoveTree(startFen || initialFen || '8/8/8/8/8/8/8/8 w - - 0 1');
+      }
+      return moveTreeRoot;
+    }
+
+    function getHistoryNodeDepth(nodeId){
+      let depth = -1;
+      let node = historyNodes.get(nodeId);
+      while (node){
+        depth += 1;
+        node = node.parentId ? historyNodes.get(node.parentId) : null;
+      }
+      return Math.max(depth, 0);
+    }
+
+    function getHistoryPathIds(nodeId){
+      const ids = new Set();
+      let node = historyNodes.get(nodeId);
+      while (node){
+        ids.add(node.id);
+        node = node.parentId ? historyNodes.get(node.parentId) : null;
+      }
+      return ids;
+    }
+
+    function getMovePrefix(move){
+      if (!move) return '';
+      return move.side === 'b' ? `${move.moveNumber}...` : `${move.moveNumber}.`;
+    }
+
+    function getPieceAtFenSquare(fen, square){
+      const board = fenToBoard(fen);
+      const { fileIdx, rankIdx } = squareToIndices(square);
+      if (!isInsideBoard(rankIdx, fileIdx)) return '';
+      return board[rankIdx]?.[fileIdx] || '';
+    }
+
+    function formatTreeMoveLabel(node){
+      const raw = node?.move?.label || node?.move?.uci || '';
+      const uci = node?.move?.uci || raw;
+      if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(uci)) return raw || '—';
+      const from = uci.slice(0, 2);
+      const to = uci.slice(2, 4);
+      const parentFen = node?.parentId ? historyNodes.get(node.parentId)?.fen : null;
+      const piece = parentFen ? getPieceAtFenSquare(parentFen, from) : '';
+      const upper = (piece || '').toUpperCase();
+      if (upper === 'K' && from[0] === 'e' && (to[0] === 'g' || to[0] === 'c')){
+        return to[0] === 'g' ? 'O-O' : 'O-O-O';
+      }
+      const glyphs = { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘' };
+      const promotion = uci.length > 4 ? `=${uci[4].toUpperCase()}` : '';
+      return `${glyphs[upper] || ''}${to}${promotion}`;
+    }
+
+    function formatTreeEval(node){
+      const line = node?.lines?.[0];
+      if (!line) return '';
+      const { cp, label, mate } = normalizeScore(line, evaluationPerspective);
+      if (mate !== null){
+        return cp > 0 && label[0] !== '+' && label[0] !== '-' ? `+${label}` : label;
+      }
+      return cp > 0 && label[0] !== '+' && label[0] !== '-' ? `+${label}` : label;
+    }
+
+    function rebuildHistoryPlies({ preserveCursor = true } = {}){
+      const prevNodeId = preserveCursor ? currentHistoryNodeId : null;
+      historyPlies.length = 0;
+      historyNavNodes.length = 0;
+
+      const walk = (nodeId, depth = 0, isVariation = false) => {
+        const node = historyNodes.get(nodeId);
+        if (!node) return;
+
+        const walkLocalBranches = (parentNode, baseDepth) => {
+          if (!parentNode?.children?.length) return;
+          const children = parentNode.children
+            .map((childId) => historyNodes.get(childId))
+            .filter(Boolean);
+          children.slice(1).forEach((child) => {
+            walk(child.id, baseDepth + 1, true);
+          });
+          if (children[0]){
+            walk(children[0].id, baseDepth, false);
+          }
+        };
+
+        if (node.move?.side === 'w'){
+          const blackChildren = node.children
+            .map((childId) => historyNodes.get(childId))
+            .filter((child) => child?.move?.side === 'b');
+          const mainBlack = blackChildren[0] || null;
+          historyPlies.push({
+            id: mainBlack?.id || node.id,
+            whiteId: node.id,
+            blackId: mainBlack?.id || null,
+            fen: mainBlack?.fen || node.fen,
+            depth,
+            isVariation
+          });
+          historyNavNodes.push({ id: node.id });
+          if (mainBlack) historyNavNodes.push({ id: mainBlack.id });
+
+          blackChildren.slice(1).forEach((child) => {
+            walk(child.id, depth + 1, true);
+          });
+          if (mainBlack){
+            walkLocalBranches(mainBlack, depth);
+          }
+          return;
         }
-        if (blackText !== '—' && item.fens?.black){
-          historyPlies.push({ rowIndex: idx, side: 'black', fen: item.fens.black });
+
+        if (node.move?.side === 'b'){
+          historyPlies.push({
+            id: node.id,
+            whiteId: null,
+            blackId: node.id,
+            fen: node.fen,
+            depth,
+            isVariation
+          });
+          historyNavNodes.push({ id: node.id });
         }
+        walkLocalBranches(node, depth);
+      };
+
+      ensureMoveTreeRoot();
+      if (moveTreeRoot.children.length){
+        historyPlies.push({ id: moveTreeRoot.id, fen: moveTreeRoot.fen, depth: 0, isRoot: true });
+        historyNavNodes.push({ id: moveTreeRoot.id });
+      }
+      moveTreeRoot.children.forEach((childId, childIndex) => {
+        walk(childId, childIndex > 0 ? 1 : 0, childIndex > 0);
       });
-      if (!historyPlies.length){
+
+      if (!historyNavNodes.length){
         historyCursor = -1;
         return;
       }
-      if (prevKey){
-        const newIdx = historyPlies.findIndex((ply) => `${ply.rowIndex}-${ply.side}` === prevKey);
-        if (newIdx !== -1){
-          historyCursor = newIdx;
-          return;
-        }
-      }
-      historyCursor = Math.min(historyCursor, historyPlies.length - 1);
-      if (historyCursor === -1 || Number.isNaN(historyCursor)){
-        historyCursor = historyPlies.length - 1;
+      const preservedIndex = prevNodeId ? historyNavNodes.findIndex((item) => item.id === prevNodeId) : -1;
+      if (preservedIndex !== -1){
+        historyCursor = preservedIndex;
+      } else {
+        historyCursor = Math.min(Math.max(historyCursor, 0), historyNavNodes.length - 1);
       }
     }
 
     function hydrateHistoryFromStorage(){
       const stored = readStoredMoveHistory();
-      if (!stored || !Array.isArray(stored.moves) || !stored.moves.length) return;
-      const startFen = stored.startFen || currentFen || initialFen;
-      analysisHistory.length = 0;
-      historyCursor = -1;
-      let lastFen = startFen;
+      const startFen = stored?.startFen || currentFen || initialFen || '8/8/8/8/8/8/8/8 w - - 0 1';
+      resetMoveTree(startFen);
+      if (!stored || !Array.isArray(stored.moves) || !stored.moves.length){
+        renderHistory();
+        return;
+      }
 
-      stored.moves.forEach((move, idx) => {
-        const text = move?.san || move?.uci || '—';
-        const fenForMove = move?.fen || lastFen;
-        const rowIdx = Math.floor(idx / 2);
-        if (!analysisHistory[rowIdx]){
-          analysisHistory[rowIdx] = {
-            fen: lastFen,
-            createdAt: move?.createdAt ? new Date(move.createdAt) : new Date(),
-            lines: [],
-            moves: { white: '—', black: '—' },
-            fens: { white: null, black: null },
-            active: lastFen?.split(' ')[1] === 'b' ? 'b' : 'w'
-          };
-        }
-        if (idx % 2 === 0){
-          analysisHistory[rowIdx].moves.white = text;
-          analysisHistory[rowIdx].fens.white = fenForMove;
-        } else {
-          analysisHistory[rowIdx].moves.black = text;
-          analysisHistory[rowIdx].fens.black = fenForMove;
-        }
-        analysisHistory[rowIdx].fen = fenForMove;
-        analysisHistory[rowIdx].active = fenForMove?.split(' ')[1] === 'b' ? 'b' : 'w';
-        lastFen = fenForMove;
+      let parentId = moveTreeRoot.id;
+      let lastFen = startFen;
+      stored.moves.forEach((move) => {
+        const parentFen = lastFen;
+        const parsedParent = parseFenState(parentFen);
+        const label = move?.san || move?.uci || '—';
+        const node = createHistoryNode({
+          parentId,
+          fen: move?.fen || parentFen,
+          move: {
+            label,
+            uci: move?.uci || '',
+            side: parsedParent.active,
+            moveNumber: parsedParent.fullmove
+          }
+        });
+        parentId = node.id;
+        lastFen = node.fen;
       });
 
-      rebuildHistoryPlies();
-      historyCursor = historyPlies.length ? historyPlies.length - 1 : -1;
-      const lastCursorFen = historyCursor >= 0 ? historyPlies[historyCursor]?.fen : null;
-      currentFen = lastCursorFen || lastFen || currentFen;
+      rebuildHistoryPlies({ preserveCursor: false });
+      currentHistoryNodeId = parentId;
+      historyCursor = historyNavNodes.findIndex((item) => item.id === currentHistoryNodeId);
+      const lastNode = historyNodes.get(currentHistoryNodeId);
+      currentFen = lastNode?.fen || lastFen || currentFen;
       const parsed = parseFenState(currentFen);
       boardState = parsed.board;
       activeColor = parsed.active;
@@ -1443,47 +1793,95 @@
     function renderHistory(options = {}){
       const { scrollToCursor = false } = options;
       if (!analysisHistoryEl || !historyEmptyEl) return;
+      ensureMoveTreeRoot();
+      rebuildHistoryPlies();
       analysisHistoryEl.innerHTML = '';
       updateHistoryControlsEnabled();
-      if (!historyPlies.length || !analysisHistory.length){
+      if (!historyPlies.length){
+        analysisHistoryEl.classList.remove('has-active-branch');
         historyEmptyEl.style.display = 'block';
         return;
       }
       historyEmptyEl.style.display = 'none';
-      if (historyCursor === -1 && historyPlies.length){
-        historyCursor = historyPlies.length - 1;
-      }
-      historyCursor = Math.min(historyCursor, historyPlies.length - 1);
-      const currentPly = historyCursor >= 0 ? historyPlies[historyCursor] : null;
-      analysisHistory.forEach((item, idx) => {
+
+      const currentNodeId = currentHistoryNodeId;
+      const activeBranchIds = getHistoryPathIds(currentNodeId);
+      const hasActiveBranch = activeBranchIds.size > 1;
+      analysisHistoryEl.classList.toggle('has-active-branch', hasActiveBranch);
+      historyPlies.forEach((item, index) => {
+        const node = historyNodes.get(item.id);
+        const whiteNode = item.whiteId ? historyNodes.get(item.whiteId) : null;
+        const blackNode = item.blackId ? historyNodes.get(item.blackId) : null;
+        if (!node) return;
+        const itemIds = [item.id, item.whiteId, item.blackId].filter(Boolean);
+        const isOnActiveBranch = itemIds.some((id) => activeBranchIds.has(id));
+        const isCurrentRow = !item.isRoot && itemIds.includes(currentNodeId);
         const row = document.createElement('div');
-        row.className = 'move-row';
-        const moveNum = document.createElement('div');
-        moveNum.className = 'move-num';
-        moveNum.textContent = idx + 1;
-        const whiteMove = document.createElement('div');
-        const blackMove = document.createElement('div');
-        whiteMove.className = 'move-col';
-        blackMove.className = 'move-col';
-        const white = item.moves?.white || '—';
-        const black = item.moves?.black || '—';
-        whiteMove.innerHTML = `<span>${white}</span>`;
-        blackMove.innerHTML = `<span>${black}</span>`;
-        if (white === '—') whiteMove.classList.add('is-empty');
-        if (black === '—') blackMove.classList.add('is-empty');
-        if (currentPly && idx === currentPly.rowIndex){
-          row.classList.add('is-current');
-          if (currentPly.side === 'white') whiteMove.classList.add('is-active');
-          if (currentPly.side === 'black') blackMove.classList.add('is-active');
+        row.className = 'move-tree-node';
+        row.dataset.nodeId = node.id;
+        if (item.whiteId) row.dataset.whiteId = item.whiteId;
+        if (item.blackId) row.dataset.blackId = item.blackId;
+        row.style.setProperty('--tree-depth', String(item.depth));
+        if (item.isRoot) row.classList.add('is-root');
+        if (item.depth === 0 && !item.isRoot) row.classList.add('is-mainline');
+        if (item.depth > 0) row.classList.add('is-nested');
+        if (isCurrentRow) row.classList.add('is-active', 'is-current-node');
+        if (isOnActiveBranch) row.classList.add('is-branch');
+        if (hasActiveBranch && !isOnActiveBranch) row.classList.add('is-muted');
+        if (item.isVariation) row.classList.add('is-variation');
+
+        const prefix = document.createElement('span');
+        prefix.className = 'move-tree-prefix';
+        prefix.textContent = item.isRoot
+          ? ''
+          : getMovePrefix((whiteNode || blackNode || node).move);
+        const whiteMove = document.createElement('span');
+        whiteMove.className = 'move-tree-move mono';
+        const blackMove = document.createElement('span');
+        blackMove.className = 'move-tree-move mono';
+        const evalBadge = document.createElement('span');
+        evalBadge.className = 'move-tree-eval mono';
+        evalBadge.textContent = formatTreeEval(node);
+        if (item.isRoot){
+          whiteMove.textContent = 'Стартовая позиция';
+          blackMove.remove();
+        } else {
+          whiteMove.textContent = whiteNode ? formatTreeMoveLabel(whiteNode) : '';
+          blackMove.textContent = blackNode ? formatTreeMoveLabel(blackNode) : '';
+          if (!whiteNode) whiteMove.classList.add('is-empty');
+          if (!blackNode) blackMove.classList.add('is-empty');
+          if (whiteNode?.id === currentNodeId) whiteMove.classList.add('is-selected');
+          if (blackNode?.id === currentNodeId) blackMove.classList.add('is-selected');
+          if (whiteNode){
+            whiteMove.addEventListener('click', (event) => {
+              event.stopPropagation();
+              loadHistoryNode(whiteNode.id);
+            });
+          }
+          if (blackNode){
+            blackMove.addEventListener('click', (event) => {
+              event.stopPropagation();
+              loadHistoryNode(blackNode.id);
+            });
+          }
         }
-        row.appendChild(moveNum);
+
+        row.appendChild(prefix);
         row.appendChild(whiteMove);
-        row.appendChild(blackMove);
+        if (!item.isRoot) row.appendChild(blackMove);
+        row.appendChild(evalBadge);
+        row.addEventListener('click', () => {
+          historyCursor = historyNavNodes.findIndex((entry) => entry.id === node.id);
+          loadHistoryNode(node.id);
+        });
         analysisHistoryEl.appendChild(row);
       });
-      if (scrollToCursor && currentPly && historyBodyEl){
+
+      if (scrollToCursor && currentNodeId && historyBodyEl){
         requestAnimationFrame(() => {
-          const targetRow = analysisHistoryEl.children[currentPly.rowIndex];
+          const targetRow = analysisHistoryEl.querySelector(
+            `[data-node-id="${currentNodeId}"], [data-white-id="${currentNodeId}"], [data-black-id="${currentNodeId}"]`
+          );
           if (targetRow){
             const targetOffset = Math.max(
               targetRow.offsetTop - (historyBodyEl.clientHeight / 2) + (targetRow.clientHeight / 2),
@@ -1495,40 +1893,6 @@
       }
     }
 
-    function pushAnalysisHistory(fenValue, lines){
-      if (!analysisHistoryEl) return;
-      const pvRaw = lines?.[0]?.pv_san;
-      const pv = Array.isArray(pvRaw) ? pvRaw.join(' ') : (typeof pvRaw === 'string' ? pvRaw : '');
-      const tokens = pv.split(/\s+/).filter(Boolean);
-      const white = tokens[0] || '—';
-      const black = tokens[1] || '—';
-      const entry = {
-        fen: fenValue,
-        createdAt: new Date(),
-        lines: lines?.slice(0,3) || [],
-        moves: { white, black },
-        fens: { white: null, black: null },
-        active: activeColor
-      };
-      const lastMover = activeColor === 'w' ? 'black' : 'white';
-      entry.fens[lastMover] = fenValue;
-      const wasAtTail = historyCursor === -1 || historyCursor === historyPlies.length - 1;
-      analysisHistory.push(entry);
-      const MAX_HISTORY = 200;
-      if (analysisHistory.length > MAX_HISTORY){
-        const removed = analysisHistory.length - MAX_HISTORY;
-        analysisHistory.splice(0, removed);
-        if (historyCursor !== -1){
-          historyCursor = Math.max(historyCursor - removed, 0);
-        }
-      }
-      rebuildHistoryPlies({ preserveCursor: wasAtTail });
-      if (wasAtTail || historyCursor === -1){
-        historyCursor = historyPlies.length ? historyPlies.length - 1 : -1;
-      }
-      renderHistory({ scrollToCursor: false });
-    }
-
     function updateHistoryControlsEnabled(){
       const disabled = !historyPlies.length;
       [historyFirstBtn, historyUpBtn, historyDownBtn, historyLastBtn].forEach((btn) => {
@@ -1537,27 +1901,36 @@
     }
 
     function scrollHistory(where){
-      if (!analysisHistoryEl || !historyPlies.length) return;
-      if (historyCursor === -1) historyCursor = historyPlies.length - 1;
+      if (!analysisHistoryEl || !historyNavNodes.length) return;
+      if (historyCursor === -1) historyCursor = historyNavNodes.length - 1;
       if (where === 'top'){
         historyCursor = 0;
       } else if (where === 'bottom'){
-        historyCursor = historyPlies.length - 1;
+        historyCursor = historyNavNodes.length - 1;
       } else {
         const step = where === 'up' ? -1 : 1;
-        historyCursor = Math.min(Math.max(historyCursor + step, 0), historyPlies.length - 1);
+        historyCursor = Math.min(Math.max(historyCursor + step, 0), historyNavNodes.length - 1);
       }
-      renderHistory({ scrollToCursor: true });
       loadHistoryPosition(historyCursor);
     }
 
     function loadHistoryPosition(index){
-      const ply = historyPlies[index];
-      if (!ply) return;
-      const row = analysisHistory[ply.rowIndex];
-      const fenForPly = ply.fen || row?.fen;
+      const item = historyNavNodes[index];
+      if (!item) return;
+      loadHistoryNode(item.id, index);
+    }
+
+    function loadHistoryNode(nodeId, knownIndex = null){
+      const node = historyNodes.get(nodeId);
+      if (!node) return;
+      const fenForPly = node.fen;
       if (!fenForPly) return;
       currentFen = fenForPly;
+      currentHistoryNodeId = node?.id || currentHistoryNodeId;
+      const resolvedIndex = Number.isInteger(knownIndex)
+        ? knownIndex
+        : historyNavNodes.findIndex((item) => item.id === node.id);
+      historyCursor = resolvedIndex >= 0 ? resolvedIndex : historyCursor;
       const parsed = parseFenState(currentFen);
       boardState = parsed.board;
       activeColor = parsed.active;
@@ -1568,15 +1941,41 @@
       if (fenTextEl) fenTextEl.textContent = currentFen;
       setBoardStatus(`Ход ${activeColor === 'w' ? 'белых' : 'чёрных'}.`);
       const viewColor = evaluationPerspective || getFenActiveColor(currentFen);
-      const normalizedLines = normalizeAnalysisLines(row?.lines || [], currentFen, activeColor);
-      if (row) row.lines = normalizedLines;
+      const normalizedLines = normalizeAnalysisLines(node?.lines || [], currentFen, activeColor);
+      if (node) node.lines = normalizedLines;
       updateArrow(normalizedLines?.[0]);
       updateEvalBar(normalizedLines?.[0], viewColor);
       updatePriorityMoves(normalizedLines || [], viewColor);
       renderAnalysisLines(normalizedLines || [], { perspective: viewColor });
       if (!normalizedLines?.length){
-        analyzePosition({ attachToHistory: false, targetRowIndex: ply.rowIndex });
+        analyzePosition({ targetNodeId: node?.id || null });
       }
+      renderHistory({ scrollToCursor: false });
+    }
+
+    function addMoveToTree({ parentId, fen, uci, label, side, moveNumber, lines = [] }){
+      ensureMoveTreeRoot();
+      const fallbackParentId = currentHistoryNodeId || moveTreeRoot.id;
+      const resolvedParentId = historyNodes.has(parentId) ? parentId : fallbackParentId;
+      const parent = historyNodes.get(resolvedParentId) || moveTreeRoot;
+      const existingChild = parent.children
+        .map((childId) => historyNodes.get(childId))
+        .find((child) => child && child.move?.uci === uci);
+      const node = existingChild || createHistoryNode({
+        parentId: parent.id,
+        fen,
+        lines,
+        move: { uci, label: label || uci || '—', side, moveNumber }
+      });
+      if (existingChild){
+        node.fen = fen;
+        node.move = { ...node.move, uci, label: label || uci || node.move?.label || '—', side, moveNumber };
+      }
+      currentHistoryNodeId = node.id;
+      rebuildHistoryPlies({ preserveCursor: true });
+      historyCursor = historyNavNodes.findIndex((item) => item.id === node.id);
+      renderHistory({ scrollToCursor: true });
+      return node;
     }
 
     function setBoardStatus(message){
@@ -1944,6 +2343,10 @@
     }
 
     function finalizeMove({ fromSquare, toSquare, movingPiece, capturedPiece, promotionPiece = null }){
+      ensureMoveTreeRoot(currentFen);
+      const parentNodeId = currentHistoryNodeId || moveTreeRoot.id;
+      const movingSide = activeColor;
+      const movingMoveNumber = fullmove;
       const { fileIdx: fromFile, rankIdx: fromRank } = squareToIndices(fromSquare);
       const { fileIdx: toFile, rankIdx: toRank } = squareToIndices(toSquare);
       const deltaFile = toFile - fromFile;
@@ -1990,10 +2393,20 @@
       activeColor = activeColor === 'w' ? 'b' : 'w';
       if (activeColor === 'w') fullmove += 1;
       currentFen = boardToFen(boardState, activeColor, fullmove);
+      const promotionSuffix = promotionPiece ? promotionPiece.toLowerCase() : '';
+      const uci = `${fromSquare}${toSquare}${promotionSuffix}`;
+      addMoveToTree({
+        parentId: parentNodeId,
+        fen: currentFen,
+        uci,
+        label: uci,
+        side: movingSide,
+        moveNumber: movingMoveNumber
+      });
       if (fenTextEl) fenTextEl.textContent = currentFen;
       renderBoardFromFen(currentFen);
       playMoveAudio();
-      analyzePosition({ force: true });
+      analyzePosition({ force: true, targetNodeId: currentHistoryNodeId });
       setBoardStatus('Ход выполнен.');
     }
 
@@ -2022,19 +2435,12 @@
       renderBoardFromFen(currentFen);
       hydrateHistoryFromStorage();
       setAnalysisStatus(statusEl?.textContent || 'Готовимся к анализу...');
-      const currentRowIndex = historyCursor >= 0 ? historyPlies[historyCursor]?.rowIndex : null;
-      const shouldAttachToHistory = !analysisHistory.length;
-      analyzePosition({
-        attachToHistory: shouldAttachToHistory,
-        targetRowIndex: shouldAttachToHistory ? null : currentRowIndex
-      });
+      analyzePosition({ targetNodeId: currentHistoryNodeId });
       if (refreshBtn){
         refreshBtn.addEventListener('click', () => {
-          const targetRowIndex = historyCursor >= 0 ? historyPlies[historyCursor]?.rowIndex : null;
           analyzePosition({
             force: true,
-            attachToHistory: targetRowIndex === null,
-            targetRowIndex
+            targetNodeId: currentHistoryNodeId
           });
         });
       }
