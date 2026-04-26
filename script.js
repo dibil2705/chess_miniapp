@@ -163,6 +163,8 @@ const analysisFrameEl = document.getElementById('analysisFrame');
 const closeAnalysisBtn = document.getElementById('closeAnalysisBtn');
 const settingsDetailsEl = document.querySelector('.floating-settings details');
 const openSettingsPageBtn = document.getElementById('openSettingsPage');
+const settingsPageOverlayEl = document.getElementById('settingsPageOverlay');
+const settingsPageFrameEl = document.getElementById('settingsPageFrame');
 const boardTitleEl = document.getElementById('boardTitle');
 const bonusPanelEl = document.getElementById('bonusPanel');
 const bonusTasksBtn = document.getElementById('bonusTasksBtn');
@@ -2360,6 +2362,34 @@ function closeAnalysisOverlay(){
   document.body.classList.remove('no-scroll');
 }
 
+function refreshEmbeddedSettings(){
+  try{
+    settingsPageFrameEl?.contentWindow?.postMessage({ type: 'chess-miniapp-refresh-settings' }, '*');
+  } catch (err){
+    console.warn('Не удалось обновить предзагруженные настройки', err);
+  }
+}
+
+function openSettingsPage(){
+  persistPuzzleState();
+  if (!settingsPageOverlayEl || !settingsPageFrameEl){
+    window.location.href = 'settings.html';
+    return;
+  }
+  refreshEmbeddedSettings();
+  settingsPageOverlayEl.classList.add('active');
+  settingsPageOverlayEl.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('no-scroll');
+  settingsPageFrameEl.contentWindow?.focus();
+}
+
+function closeSettingsPage(){
+  if (!settingsPageOverlayEl) return;
+  settingsPageOverlayEl.classList.remove('active');
+  settingsPageOverlayEl.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('no-scroll');
+}
+
 function hydratePuzzleState(options = {}){
   const { suppressRender = false, useBoardLoader = false } = options;
   const loaderReason = useBoardLoader ? 'puzzle-hydrate' : null;
@@ -2439,8 +2469,7 @@ if (doneForTodayBtn){
 
 if (openSettingsPageBtn){
   openSettingsPageBtn.addEventListener('click', () => {
-    persistPuzzleState();
-    window.location.href = 'settings.html';
+    openSettingsPage();
   });
 }
 
@@ -2478,6 +2507,19 @@ if (settingsDetailsEl){
     });
   }
 }
+
+window.addEventListener('message', (event) => {
+  if (event.source !== settingsPageFrameEl?.contentWindow) return;
+  if (event.data?.type === 'chess-miniapp-close-settings'){
+    closeSettingsPage();
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && settingsPageOverlayEl?.classList.contains('active')){
+    closeSettingsPage();
+  }
+});
 
 window.addEventListener('storage', (event) => {
   if (event.key === SOUND_STORAGE_KEY){

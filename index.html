@@ -41,7 +41,7 @@
 
     body{
       margin:0;
-      padding:calc(12px + var(--app-safe-top)) 12px 18px 12px;
+      padding:calc(32px + var(--app-safe-top)) 12px 18px 12px;
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       background:var(--bg);
       color:var(--text);
@@ -613,7 +613,7 @@
 
     /* Compact view helpers */
     @media (max-width: 768px){
-      body{ padding:calc(8px + var(--app-safe-top)) 10px 14px 10px; }
+      body{ padding:calc(32px + var(--app-safe-top)) 10px 14px 10px; }
       .wrap{ gap:10px; }
       .board-wrapper{ width:100%; }
       #puzzleStatus{
@@ -624,7 +624,7 @@
 
     .floating-settings{
       position: fixed;
-      top: calc(2px + var(--app-safe-top));
+      top: calc(32px + var(--app-safe-top));
       right: 10px;
       z-index: 5000;
       display: grid;
@@ -648,6 +648,28 @@
       font-size: 1.6em;
     }
     .settings-launcher:active{ transform: translateY(1px); }
+    .settings-page-overlay{
+      position: fixed;
+      inset: 0;
+      z-index: 9000;
+      background: var(--bg);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity .12s ease;
+    }
+    .settings-page-overlay.active{
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+    .settings-page-frame{
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+      background: var(--bg);
+    }
   </style>
 </head>
 <body>
@@ -721,6 +743,10 @@
       </div>
       <iframe id="analysisFrame" class="analysis-frame" title="Stockfish анализ" loading="lazy"></iframe>
     </div>
+  </div>
+
+  <div id="settingsPageOverlay" class="settings-page-overlay" aria-hidden="true">
+    <iframe id="settingsPageFrame" class="settings-page-frame" src="settings.html" title="Settings" loading="eager"></iframe>
   </div>
 
   <script src="script.js"></script>
