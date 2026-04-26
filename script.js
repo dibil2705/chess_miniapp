@@ -70,6 +70,7 @@ const DAILY_BASE_PUZZLE_LIMIT = 1;
 const DAILY_BONUS_PUZZLES = 2;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DAILY_RESET_UTC_OFFSET_MS = 4 * 60 * 60 * 1000; // 07:00 Мск = 04:00 UTC
+const CHESS_COM_RANDOM_COOLDOWN_MS = 20 * 1000;
 const MOVE_ANIMATION_MIN_MS = 140;
 const MOVE_ANIMATION_MAX_MS = 420;
 const MOVE_ANIMATION_PX_PER_MS = 1.6;
@@ -91,6 +92,7 @@ let puzzleSolved = false;
 let puzzleStartFen = null;
 let puzzlePlayerColor = null;
 let puzzleSolutionTargetFen = null;
+let puzzleLoadedAt = 0;
 let puzzleLoading = false;
 let moveHistory = [];
 let historyStartFen = START_FEN;
@@ -492,6 +494,23 @@ function formatDuration(ms){
   return `${hoursLabel} ${minutesLabel} ${secondsLabel}`;
 }
 
+function getPuzzleKey(data){
+  const directKey = data?.url || data?.id || '';
+  if (directKey) return String(directKey).trim();
+  return `${data?.fen || ''}|${data?.pgn || ''}|${data?.title || ''}`.trim();
+}
+
+function getRandomPuzzleCooldownRemaining(now = Date.now()){
+  if (!puzzleSolved || !puzzleLoadedAt) return 0;
+  return Math.max(0, CHESS_COM_RANDOM_COOLDOWN_MS - (now - puzzleLoadedAt));
+}
+
+function showRandomPuzzleCooldown(remainingMs){
+  const seconds = Math.max(1, Math.ceil(remainingMs / 1000));
+  updatePuzzleFeedback('info', `Новая случайная задача будет доступна примерно через ${seconds} сек. Эта задача уже решена и не будет списана повторно.`);
+  updatePuzzleStatus();
+}
+
 function stopQuotaTimer(){
   if (quotaTimerId){
     clearInterval(quotaTimerId);
@@ -756,6 +775,7 @@ function persistPuzzleState(){
       puzzleStartFen,
       puzzlePlayerColor,
       puzzleSolutionTargetFen,
+      puzzleLoadedAt,
       boardFen: boardToFen(boardState),
       castlingRights,
       activeColor,
@@ -2284,6 +2304,11 @@ function onDrop(e){
 
 async function fetchRandomPuzzle(options = {}){
   const { useBoardLoader = true } = options;
+  const cooldownRemaining = getRandomPuzzleCooldownRemaining();
+  if (cooldownRemaining > 0){
+    showRandomPuzzleCooldown(cooldownRemaining);
+    return;
+  }
   const loaderReason = useBoardLoader ? 'puzzle-load' : null;
   if (loaderReason) showBoardLoader(loaderReason);
   try {
@@ -2302,6 +2327,10 @@ async function fetchRandomPuzzle(options = {}){
       return;
     }
 
+    const previousPuzzleData = puzzleData;
+    const previousPuzzleSolved = puzzleSolved;
+    const previousPuzzleLoadedAt = puzzleLoadedAt;
+
     closePuzzleOverlay();
     puzzleMode = false;
     puzzleSolutionTargetFen = null;
@@ -2312,6 +2341,7 @@ async function fetchRandomPuzzle(options = {}){
     puzzleStartFen = null;
     puzzlePlayerColor = null;
     puzzleData = null;
+    puzzleLoadedAt = 0;
     puzzleLockedAfterError = false;
     puzzleErrorCount = 0;
     if (puzzleStatusEl) puzzleStatusEl.textContent = 'Загрузка задачи...';
@@ -2324,6 +2354,19 @@ async function fetchRandomPuzzle(options = {}){
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     puzzleLoading = false;
+    const previousKey = previousPuzzleSolved ? getPuzzleKey(previousPuzzleData) : '';
+    const nextKey = getPuzzleKey(data);
+    if (previousKey && nextKey && previousKey === nextKey){
+      hydratePuzzleState();
+      const remainingMs = Math.max(0, CHESS_COM_RANDOM_COOLDOWN_MS - (Date.now() - previousPuzzleLoadedAt));
+      if (remainingMs > 0){
+        showRandomPuzzleCooldown(remainingMs);
+      } else {
+        updatePuzzleFeedback('info', 'Chess.com вернул ту же задачу. Повтор не списан, попробуйте новую задачу через несколько секунд.');
+        updatePuzzleStatus();
+      }
+      return;
+    }
     updatePuzzleInfoDisplay(data);
     if (data?.fen) {
       if (!recordPuzzleStart()){
@@ -2331,6 +2374,7 @@ async function fetchRandomPuzzle(options = {}){
         updatePuzzleStatus();
         return;
       }
+      puzzleLoadedAt = Date.now();
       initialPieceRevealPending = true;
       loadPositionFromFen(data.fen);
     } else {
@@ -2417,6 +2461,7 @@ function hydratePuzzleState(options = {}){
     puzzleStartFen = saved.puzzleStartFen || puzzleStartFen;
     puzzlePlayerColor = saved.puzzlePlayerColor || parsed.active;
     puzzleSolutionTargetFen = saved.puzzleSolutionTargetFen || puzzleSolutionTargetFen;
+    puzzleLoadedAt = Number(saved.puzzleLoadedAt) || 0;
     puzzleLoading = false;
     puzzleLockedAfterError = false;
     puzzleErrorCount = Number.isInteger(saved.puzzleErrorCount) ? saved.puzzleErrorCount : 0;
