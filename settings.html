@@ -422,6 +422,7 @@
     const PUZZLE_QUOTA_STORAGE_PREFIX = 'chess-miniapp-quota';
     let cloudStateSaveTimerId = null;
     let isApplyingCloudState = false;
+    let cloudMissingInitDataWarned = false;
     const defaultTheme = {
       bg: '#111',
       panel: 'rgba(255,255,255,.06)',
@@ -647,7 +648,13 @@
 
     function sendCloudRequest(path, payload = {}){
       const initData = getTelegramInitData();
-      if (!initData) return Promise.resolve(null);
+      if (!initData){
+        if (!cloudMissingInitDataWarned){
+          cloudMissingInitDataWarned = true;
+          console.warn('Cloud sync disabled: Telegram initData is missing. Open the app from Telegram Mini App.');
+        }
+        return Promise.resolve(null);
+      }
       return fetch(`${ANALYTICS_API_BASE}${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -657,6 +664,12 @@
           userAgent: navigator.userAgent || '',
           ...payload
         })
+      }).then(async response => {
+        if (!response.ok){
+          const errorText = await response.text().catch(() => '');
+          console.warn(`Cloud state request failed: ${response.status} ${path}`, errorText);
+        }
+        return response;
       }).catch(err => {
         console.warn('Cloud state request failed', err);
         return null;

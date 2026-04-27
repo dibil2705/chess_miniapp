@@ -109,6 +109,7 @@ let randomPuzzleCooldownTimerId = null;
 let analyticsSessionId = null;
 let analyticsOpenSent = false;
 let analyticsOpenPromise = Promise.resolve(null);
+let analyticsMissingInitDataWarned = false;
 let cloudStateSaveTimerId = null;
 let isApplyingCloudState = false;
 let appBootstrapComplete = false;
@@ -656,7 +657,13 @@ function getTelegramInitData(){
 
 function sendAnalytics(path, payload = {}, options = {}){
   const initData = getTelegramInitData();
-  if (!initData) return Promise.resolve(null);
+  if (!initData){
+    if (!analyticsMissingInitDataWarned){
+      analyticsMissingInitDataWarned = true;
+      console.warn('Analytics disabled: Telegram initData is missing. Open the app from Telegram Mini App.');
+    }
+    return Promise.resolve(null);
+  }
 
   const body = JSON.stringify({
     initData,
@@ -677,6 +684,12 @@ function sendAnalytics(path, payload = {}, options = {}){
     headers: { 'Content-Type': 'application/json' },
     body,
     keepalive: !!options.beacon
+  }).then(async response => {
+    if (!response.ok){
+      const errorText = await response.text().catch(() => '');
+      console.warn(`Analytics request failed: ${response.status} ${path}`, errorText);
+    }
+    return response;
   }).catch(err => {
     console.warn('Analytics request failed', err);
     return null;

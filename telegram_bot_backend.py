@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import mimetypes
 import os
 import socket
 import sqlite3
@@ -31,10 +32,14 @@ def load_env_file(path=".env"):
 load_env_file()
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-MINI_APP_URL = "https://t.me/chess_every_day_bot/app?startapp=test&mode=fullscreen"
+MINI_APP_URL = os.environ.get(
+    "MINI_APP_URL",
+    "https://t.me/chess_every_day_bot/app?startapp=test&mode=fullscreen",
+)
 DATABASE_PATH = os.environ.get("ANALYTICS_DB", "analytics.sqlite3")
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8080"))
+STATIC_ROOT = os.path.abspath(os.environ.get("STATIC_ROOT", os.getcwd()))
 INITDATA_MAX_AGE_SECONDS = int(os.environ.get("INITDATA_MAX_AGE_SECONDS", "86400"))
 TELEGRAM_POLL_TIMEOUT = int(os.environ.get("TELEGRAM_POLL_TIMEOUT", "25"))
 TELEGRAM_REQUEST_TIMEOUT = TELEGRAM_POLL_TIMEOUT + 15
@@ -542,6 +547,34 @@ def json_response(handler, status, payload):
     handler.wfile.write(body)
 
 
+def text_response(handler, status, text):
+    body = text.encode("utf-8")
+    handler.send_response(status)
+    handler.send_header("Content-Type", "text/plain; charset=utf-8")
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
+def resolve_static_path(request_path):
+    parsed = urllib.parse.urlparse(request_path)
+    path = urllib.parse.unquote(parsed.path or "/")
+    if path == "/":
+        path = "/index.html"
+    path = path.lstrip("/")
+    if not path or path.startswith("api/"):
+        return None
+    full_path = os.path.abspath(os.path.join(STATIC_ROOT, path))
+    try:
+        if os.path.commonpath([STATIC_ROOT, full_path]) != STATIC_ROOT:
+            return None
+    except ValueError:
+        return None
+    if not os.path.isfile(full_path):
+        return None
+    return full_path
+
+
 class AnalyticsHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
@@ -551,8 +584,13 @@ class AnalyticsHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path == "/health":
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/health":
             json_response(self, 200, {"ok": True})
+            return
+        static_path = resolve_static_path(self.path)
+        if static_path:
+            self.serve_static_file(static_path)
             return
         json_response(self, 404, {"ok": False, "error": "Not found"})
 
@@ -575,6 +613,7 @@ class AnalyticsHandler(BaseHTTPRequestHandler):
             else:
                 json_response(self, 404, {"ok": False, "error": "Not found"})
         except ValueError as err:
+            print(f"Bad request {self.path}: {err}")
             json_response(self, 400, {"ok": False, "error": str(err)})
         except Exception as err:
             print("Backend error:", err)
@@ -584,6 +623,20 @@ class AnalyticsHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0") or "0")
         raw = self.rfile.read(length).decode("utf-8") if length else "{}"
         return json.loads(raw or "{}")
+
+    def serve_static_file(self, path):
+        content_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
+        if path.endswith(".wasm"):
+            content_type = "application/wasm"
+        with open(path, "rb") as file:
+            body = file.read()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+        self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+        self.end_headers()
+        self.wfile.write(body)
 
     def handle_app_open(self, payload, user, telegram_id):
         platform = normalize_platform(payload.get("platform"))
