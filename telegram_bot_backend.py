@@ -9,7 +9,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import UTC, datetime
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
@@ -21,10 +21,11 @@ PORT = int(os.environ.get("PORT", "8080"))
 INITDATA_MAX_AGE_SECONDS = int(os.environ.get("INITDATA_MAX_AGE_SECONDS", "86400"))
 TELEGRAM_POLL_TIMEOUT = int(os.environ.get("TELEGRAM_POLL_TIMEOUT", "25"))
 TELEGRAM_REQUEST_TIMEOUT = TELEGRAM_POLL_TIMEOUT + 15
+MSK = timezone(timedelta(hours=3))
 
 
-def utc_now():
-    return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+def msk_now():
+    return datetime.now(MSK).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def get_db():
@@ -85,7 +86,7 @@ def init_db():
 
 
 def save_user(conn, user):
-    now = utc_now()
+    now = msk_now()
     conn.execute(
         """
         INSERT INTO users (
@@ -115,7 +116,7 @@ def record_app_open(conn, telegram_id, platform=None, user_agent=None):
         INSERT INTO app_opens (telegram_id, opened_at, platform, user_agent)
         VALUES (?, ?, ?, ?)
         """,
-        (telegram_id, utc_now(), platform, user_agent),
+        (telegram_id, msk_now(), platform, user_agent),
     )
 
 
@@ -125,13 +126,13 @@ def start_session(conn, telegram_id):
         INSERT INTO sessions (telegram_id, started_at)
         VALUES (?, ?)
         """,
-        (telegram_id, utc_now()),
+        (telegram_id, msk_now()),
     )
     return cursor.lastrowid
 
 
 def end_session(conn, telegram_id, session_id):
-    ended_at = utc_now()
+    ended_at = msk_now()
     conn.execute(
         """
         UPDATE sessions
@@ -154,7 +155,7 @@ def record_event(conn, telegram_id, event_name, event_data=None):
             telegram_id,
             str(event_name),
             json.dumps(event_data or {}, ensure_ascii=False),
-            utc_now(),
+            msk_now(),
         ),
     )
 
@@ -195,7 +196,7 @@ def save_user_state(conn, telegram_id, state):
             state_json = excluded.state_json,
             updated_at = excluded.updated_at
         """,
-        (telegram_id, json.dumps(state or {}, ensure_ascii=False), utc_now()),
+        (telegram_id, json.dumps(state or {}, ensure_ascii=False), msk_now()),
     )
     return True
 

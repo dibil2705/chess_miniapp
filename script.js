@@ -346,6 +346,10 @@ function applyBoardPalette(name){
   root.style.setProperty('--light', palette.light);
 }
 
+function getActiveBoardPalette(){
+  return getBoardPalette(loadPalettePreference());
+}
+
 function getQuotaStorageKey(){
   return `${PUZZLE_QUOTA_STORAGE_PREFIX}:${getTelegramStorageUserId()}`;
 }
@@ -2183,24 +2187,56 @@ function runPendingMoveAnimations(){
   pendingMoveAnimations = [];
 }
 
-function render(){
+function ensureRenderableBoardState(){
+  const validRows = Array.isArray(boardState)
+    && boardState.length === 8
+    && boardState.every(row => Array.isArray(row) && row.length === 8);
+  if (validRows) return;
+  console.warn('Board state is invalid, resetting to empty board');
+  boardState = fenToBoard(START_FEN);
+  activeColor = 'w';
+  castlingRights = { w: { K: false, Q: false }, b: { K: false, Q: false } };
+}
+
+function renderFallbackBoard(){
+  if (!boardEl) return;
+  const palette = getActiveBoardPalette();
   boardEl.innerHTML = '';
-  updateCoordinates();
-  const whiteKingPos = getKingPosition(boardState, 'w');
-  const blackKingPos = getKingPosition(boardState, 'b');
-  const whiteInCheck = whiteKingPos && isKingInCheck(boardState, 'w');
-  const blackInCheck = blackKingPos && isKingInCheck(boardState, 'b');
-  let pieceAppearIndex = 0;
-  const shouldAnimatePieces = initialPieceRevealPending;
   for (let dr=0; dr<8; dr++){
     for (let dc=0; dc<8; dc++){
-      const { r, c } = displayToCoord(dr, dc);
-      const piece = boardState[r][c];
-
       const sq = document.createElement('div');
-      sq.className = 'sq ' + (((dr+dc)%2===0) ? 'light' : 'dark');
+      sq.className = 'sq ' + (((dr + dc) % 2 === 0) ? 'light' : 'dark');
+      sq.style.backgroundColor = ((dr + dc) % 2 === 0) ? palette.light : palette.dark;
       sq.dataset.dr = String(dr);
       sq.dataset.dc = String(dc);
+      boardEl.appendChild(sq);
+    }
+  }
+}
+
+function render(){
+  if (!boardEl) return;
+  try {
+    ensureRenderableBoardState();
+    boardEl.innerHTML = '';
+    updateCoordinates();
+    const palette = getActiveBoardPalette();
+    const whiteKingPos = getKingPosition(boardState, 'w');
+    const blackKingPos = getKingPosition(boardState, 'b');
+    const whiteInCheck = whiteKingPos && isKingInCheck(boardState, 'w');
+    const blackInCheck = blackKingPos && isKingInCheck(boardState, 'b');
+    let pieceAppearIndex = 0;
+    const shouldAnimatePieces = initialPieceRevealPending;
+    for (let dr=0; dr<8; dr++){
+      for (let dc=0; dc<8; dc++){
+        const { r, c } = displayToCoord(dr, dc);
+        const piece = boardState[r][c];
+
+        const sq = document.createElement('div');
+        sq.className = 'sq ' + (((dr+dc)%2===0) ? 'light' : 'dark');
+        sq.style.backgroundColor = ((dr + dc) % 2 === 0) ? palette.light : palette.dark;
+        sq.dataset.dr = String(dr);
+        sq.dataset.dc = String(dc);
 
       if (selectedSquare && selectedSquare.r === r && selectedSquare.c === c){
         sq.classList.add('selected');
@@ -2268,8 +2304,12 @@ function render(){
   if (fenOutEl){
     fenOutEl.textContent = boardToFen(boardState);
   }
-  updateStatus();
-  updatePuzzleStatus();
+    updateStatus();
+    updatePuzzleStatus();
+  } catch (err) {
+    console.warn('Board render failed, drawing fallback board', err);
+    renderFallbackBoard();
+  }
 }
 
 let dragFrom = null; // {r,c}
