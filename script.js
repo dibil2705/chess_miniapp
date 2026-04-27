@@ -112,6 +112,8 @@ let analyticsOpenPromise = Promise.resolve(null);
 let cloudStateSaveTimerId = null;
 let isApplyingCloudState = false;
 let appBootstrapComplete = false;
+let quotaStateCache = null;
+let cloudQuotaResetAt = 0;
 let spritePreloadPromise = null;
 let pendingMoveAnimations = [];
 let initialPieceRevealPending = shouldRevealPiecesOnLoad();
@@ -381,12 +383,13 @@ function getCurrentWindowStartMs(){
 }
 
 function loadQuotaState(){
+  if (quotaStateCache) return quotaStateCache;
   try{
     const raw = localStorage.getItem(getQuotaStorageKey());
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return null;
-    return {
+    quotaStateCache = {
       windowStart: Number(parsed.windowStart) || 0,
       started: Number(parsed.started) || 0,
       solved: Number(parsed.solved) || 0,
@@ -394,6 +397,7 @@ function loadQuotaState(){
       dayDone: Boolean(parsed.dayDone),
       bonusUnlocked: Boolean(parsed.bonusUnlocked)
     };
+    return quotaStateCache;
   } catch (err){
     console.warn('Не удалось прочитать лимит задач', err);
     return null;
@@ -401,6 +405,7 @@ function loadQuotaState(){
 }
 
 function saveQuotaState(state){
+  quotaStateCache = state;
   try{
     localStorage.setItem(getQuotaStorageKey(), JSON.stringify(state));
     scheduleCloudStateSave();
@@ -715,15 +720,43 @@ function migrateLegacyLocalState(){
   }
 }
 
+function buildCurrentPuzzleState(){
+  if (!puzzleData) return null;
+  return {
+    puzzleData,
+    puzzleMode,
+    puzzleSolutionMoves,
+    puzzleMoveIndex,
+    puzzleSolved,
+    puzzleStartFen,
+    puzzlePlayerColor,
+    puzzleSolutionTargetFen,
+    puzzleLoadedAt,
+    boardFen: boardToFen(boardState),
+    castlingRights,
+    activeColor,
+    moveHistory,
+    historyStartFen,
+    puzzleLockedAfterError,
+    puzzleErrorCount
+  };
+}
+
+function buildCurrentHistoryState(){
+  if (!historyStartFen || (historyStartFen === START_FEN && !moveHistory.length)) return null;
+  return { startFen: historyStartFen, moves: moveHistory };
+}
+
 function collectCloudState(){
   const state = {
     version: 1,
     savedAt: Date.now(),
-    quota: loadQuotaState(),
+    quota: quotaStateCache || loadQuotaState(),
     palette: loadPalettePreference()
   };
-  const puzzle = getStoredPuzzleState();
-  const history = getStoredHistoryState();
+  if (cloudQuotaResetAt) state.quotaResetAt = cloudQuotaResetAt;
+  const puzzle = buildCurrentPuzzleState() || getStoredPuzzleState();
+  const history = buildCurrentHistoryState() || getStoredHistoryState();
   if (puzzle?.puzzleData && puzzle?.boardFen) state.puzzle = puzzle;
   if (history) state.history = history;
   return state;
@@ -736,8 +769,20 @@ function applyCloudState(appState){
   isApplyingCloudState = true;
   try {
     if (Object.prototype.hasOwnProperty.call(state, 'quota')){
-      if (!state.quota) localStorage.removeItem(getQuotaStorageKey());
-      else localStorage.setItem(getQuotaStorageKey(), JSON.stringify(state.quota));
+      if (state.quota){
+        quotaStateCache = {
+          windowStart: Number(state.quota.windowStart) || 0,
+          started: Number(state.quota.started) || 0,
+          solved: Number(state.quota.solved) || 0,
+          bonusActivated: Boolean(state.quota.bonusActivated),
+          dayDone: Boolean(state.quota.dayDone),
+          bonusUnlocked: Boolean(state.quota.bonusUnlocked)
+        };
+        localStorage.setItem(getQuotaStorageKey(), JSON.stringify(quotaStateCache));
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(state, 'quotaResetAt')){
+      cloudQuotaResetAt = Number(state.quotaResetAt) || 0;
     }
     if (Object.prototype.hasOwnProperty.call(state, 'puzzle')){
       if (state.puzzle?.puzzleData && state.puzzle?.boardFen){
@@ -1008,24 +1053,8 @@ function getCastlingFen(){
 
 function persistPuzzleState(){
   try{
-    const payload = {
-      puzzleData,
-      puzzleMode,
-      puzzleSolutionMoves,
-      puzzleMoveIndex,
-      puzzleSolved,
-      puzzleStartFen,
-      puzzlePlayerColor,
-      puzzleSolutionTargetFen,
-      puzzleLoadedAt,
-      boardFen: boardToFen(boardState),
-      castlingRights,
-      activeColor,
-      moveHistory,
-      historyStartFen,
-      puzzleLockedAfterError,
-      puzzleErrorCount
-    };
+    const payload = buildCurrentPuzzleState();
+    if (!payload) return;
     localStorage.setItem(getPuzzleStorageKey(), JSON.stringify(payload));
     scheduleCloudStateSave();
   } catch (err){
@@ -1035,7 +1064,8 @@ function persistPuzzleState(){
 
 function persistMoveHistory(){
   try{
-    const payload = { startFen: historyStartFen, moves: moveHistory };
+    const payload = buildCurrentHistoryState();
+    if (!payload) return;
     localStorage.setItem(getHistoryStorageKey(), JSON.stringify(payload));
     scheduleCloudStateSave();
   } catch (err){
@@ -2883,7 +2913,7 @@ window.addEventListener('storage', (event) => {
   }
   if (event.key === PALETTE_STORAGE_KEY){
     applyBoardPalette(loadPalettePreference());
-    scheduleCloudStateSave();
+    render();
   }
 });
 

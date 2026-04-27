@@ -22,10 +22,17 @@ INITDATA_MAX_AGE_SECONDS = int(os.environ.get("INITDATA_MAX_AGE_SECONDS", "86400
 TELEGRAM_POLL_TIMEOUT = int(os.environ.get("TELEGRAM_POLL_TIMEOUT", "25"))
 TELEGRAM_REQUEST_TIMEOUT = TELEGRAM_POLL_TIMEOUT + 15
 MSK = timezone(timedelta(hours=3))
+DAY_MS = 24 * 60 * 60 * 1000
+DAILY_RESET_UTC_OFFSET_MS = 4 * 60 * 60 * 1000
 
 
 def msk_now():
     return datetime.now(MSK).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def current_window_start_ms():
+    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    return ((now_ms - DAILY_RESET_UTC_OFFSET_MS) // DAY_MS) * DAY_MS + DAILY_RESET_UTC_OFFSET_MS
 
 
 def get_db():
@@ -255,6 +262,11 @@ def has_valid_puzzle_state(state):
 def merge_user_state(existing_state, new_state):
     merged = dict(existing_state or {})
     for key, value in (new_state or {}).items():
+        if key == "quota":
+            existing_reset_at = int((existing_state or {}).get("quotaResetAt") or 0)
+            incoming_reset_at = int((new_state or {}).get("quotaResetAt") or 0)
+            if existing_reset_at and incoming_reset_at < existing_reset_at:
+                continue
         if key == "puzzle" and not has_valid_puzzle_state({"puzzle": value}):
             continue
         if key == "history" and value is None:
@@ -265,9 +277,9 @@ def merge_user_state(existing_state, new_state):
     return merged
 
 
-def save_user_state(conn, telegram_id, state):
+def save_user_state(conn, telegram_id, state, force=False):
     existing = get_user_state(conn, telegram_id)
-    if existing and get_state_saved_at(existing.get("state")) > get_state_saved_at(state):
+    if not force and existing and get_state_saved_at(existing.get("state")) > get_state_saved_at(state):
         return False
     state_to_save = merge_user_state(existing.get("state") if existing else {}, state)
     conn.execute(
@@ -281,6 +293,22 @@ def save_user_state(conn, telegram_id, state):
         (telegram_id, json.dumps(state_to_save or {}, ensure_ascii=False), msk_now()),
     )
     return True
+
+
+def reset_daily_quota(conn, telegram_id):
+    existing = get_user_state(conn, telegram_id)
+    state = dict(existing.get("state") if existing else {})
+    state["savedAt"] = int(time.time() * 1000)
+    state["quotaResetAt"] = state["savedAt"]
+    state["quota"] = {
+        "windowStart": current_window_start_ms(),
+        "started": 0,
+        "solved": 0,
+        "bonusActivated": False,
+        "dayDone": False,
+        "bonusUnlocked": False,
+    }
+    return save_user_state(conn, telegram_id, state, force=True)
 
 
 def user_from_message(message):
@@ -524,6 +552,41 @@ def send_welcome(chat_id):
     )
 
 
+def send_text(chat_id, text):
+    telegram_api(
+        "sendMessage",
+        {
+            "chat_id": chat_id,
+            "text": text,
+        },
+    )
+
+
+def get_bot_command(text):
+    if not text:
+        return ""
+    first = text.strip().split(maxsplit=1)[0].lower()
+    return first.split("@", 1)[0]
+
+
+def handle_cheat_command(message):
+    user = user_from_message(message)
+    if not user:
+        return False
+    telegram_id = int(user["id"])
+    with get_db() as conn:
+        save_user(conn, user)
+        reset_daily_quota(conn, telegram_id)
+        record_event(
+            conn,
+            telegram_id,
+            "bot_cheat",
+            {"text": message.get("text", ""), "chat_id": message.get("chat", {}).get("id")},
+        )
+    print(f"Daily quota reset by /cheat: telegram_id={telegram_id}")
+    return True
+
+
 def run_bot_polling():
     if not BOT_TOKEN:
         print("Set TELEGRAM_BOT_TOKEN to start the Telegram bot.")
@@ -542,7 +605,12 @@ def run_bot_polling():
                 message = update.get("message") or {}
                 chat = message.get("chat") or {}
                 text = message.get("text", "")
-                if chat.get("id") and (text.startswith("/start") or text):
+                command = get_bot_command(text)
+                if chat.get("id") and command == "/cheat":
+                    handle_cheat_command(message)
+                    send_text(chat["id"], "Готово. Дневной счетчик задач сброшен, можно решать еще.")
+                    continue
+                if chat.get("id") and (command == "/start" or text):
                     record_bot_message(message)
                     send_welcome(chat["id"])
         except KeyboardInterrupt:
