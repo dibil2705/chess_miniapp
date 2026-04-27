@@ -9,7 +9,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
@@ -24,7 +24,7 @@ TELEGRAM_REQUEST_TIMEOUT = TELEGRAM_POLL_TIMEOUT + 15
 
 
 def utc_now():
-    return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def get_db():
@@ -456,6 +456,9 @@ def run_bot_polling():
                 if chat.get("id") and (text.startswith("/start") or text):
                     record_bot_message(message)
                     send_welcome(chat["id"])
+        except KeyboardInterrupt:
+            print("\nStopping Telegram bot polling.")
+            break
         except (urllib.error.URLError, TimeoutError, socket.timeout) as err:
             print("Telegram polling network error:", err)
             time.sleep(3)
@@ -471,6 +474,9 @@ def run_http_server():
 
 
 if __name__ == "__main__":
-    init_db()
-    threading.Thread(target=run_http_server, daemon=True).start()
-    run_bot_polling()
+    try:
+        init_db()
+        threading.Thread(target=run_http_server, daemon=True).start()
+        run_bot_polling()
+    except KeyboardInterrupt:
+        print("\nBackend stopped.")

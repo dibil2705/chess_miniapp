@@ -111,6 +111,7 @@ let analyticsOpenSent = false;
 let analyticsOpenPromise = Promise.resolve(null);
 let cloudStateSaveTimerId = null;
 let isApplyingCloudState = false;
+let appBootstrapComplete = false;
 let spritePreloadPromise = null;
 let pendingMoveAnimations = [];
 let initialPieceRevealPending = shouldRevealPiecesOnLoad();
@@ -732,6 +733,13 @@ function saveCloudStateNow(options = {}){
   return sendAnalytics('/api/state/save', { state: collectCloudState() }, options);
 }
 
+function waitForPromise(promise, timeoutMs){
+  return Promise.race([
+    promise,
+    new Promise(resolve => setTimeout(() => resolve(null), timeoutMs))
+  ]);
+}
+
 function recordMiniAppOpen(){
   if (analyticsOpenSent) return;
   analyticsOpenSent = true;
@@ -739,7 +747,7 @@ function recordMiniAppOpen(){
     .then(response => response?.ok ? response.json() : null)
     .then(data => {
       analyticsSessionId = data?.session_id || null;
-      if (data?.app_state){
+      if (data?.app_state && !appBootstrapComplete){
         applyCloudState(data.app_state);
       }
       return data;
@@ -2799,24 +2807,30 @@ async function bootstrapApp(){
   showBoardLoader('assets');
   showBoardLoader('puzzle-init');
   try{
+    render();
     await preloadSprites();
-  } finally {
     hideBoardLoader('assets');
-  }
 
-  await analyticsOpenPromise;
-  const restoredPuzzle = hydratePuzzleState({ suppressRender: true, useBoardLoader: true });
-  if (restoredPuzzle){
+    await waitForPromise(analyticsOpenPromise, 1800);
+    const restoredPuzzle = hydratePuzzleState({ suppressRender: true, useBoardLoader: true });
+    if (restoredPuzzle){
+      render();
+      updatePuzzleStatus();
+      ensureSolvedFeedbackVisible();
+      return;
+    }
+
+    resetMoveHistory(boardToFen(boardState));
+    await fetchRandomPuzzle({ useBoardLoader: true });
+  } catch (err) {
+    console.warn('App bootstrap failed', err);
     render();
     updatePuzzleStatus();
-    ensureSolvedFeedbackVisible();
+  } finally {
+    appBootstrapComplete = true;
+    hideBoardLoader('assets');
     hideBoardLoader('puzzle-init');
-    return;
   }
-
-  resetMoveHistory(boardToFen(boardState));
-  await fetchRandomPuzzle({ useBoardLoader: true });
-  hideBoardLoader('puzzle-init');
 }
 
 bootstrapApp();
