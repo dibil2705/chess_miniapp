@@ -346,8 +346,27 @@ function applyBoardPalette(name){
 }
 
 function getQuotaStorageKey(){
-  const userId = tg?.initDataUnsafe?.user?.id;
-  return `${PUZZLE_QUOTA_STORAGE_PREFIX}:${userId ?? 'anonymous'}`;
+  return `${PUZZLE_QUOTA_STORAGE_PREFIX}:${getTelegramStorageUserId()}`;
+}
+
+function getTelegramStorageUserId(){
+  const unsafeId = tg?.initDataUnsafe?.user?.id;
+  if (unsafeId) return unsafeId;
+  try {
+    const params = new URLSearchParams(getTelegramInitData());
+    const user = JSON.parse(params.get('user') || '{}');
+    return user?.id ?? 'anonymous';
+  } catch {
+    return 'anonymous';
+  }
+}
+
+function getPuzzleStorageKey(){
+  return `${PUZZLE_STORAGE_KEY}:${getTelegramStorageUserId()}`;
+}
+
+function getHistoryStorageKey(){
+  return `${HISTORY_STORAGE_KEY}:${getTelegramStorageUserId()}`;
 }
 
 function getCurrentWindowStartMs(){
@@ -663,8 +682,8 @@ function collectCloudState(){
     version: 1,
     savedAt: Date.now(),
     quota: loadQuotaState(),
-    puzzle: parseStoredJson(PUZZLE_STORAGE_KEY),
-    history: parseStoredJson(HISTORY_STORAGE_KEY)
+    puzzle: parseStoredJson(getPuzzleStorageKey()),
+    history: parseStoredJson(getHistoryStorageKey())
   };
 }
 
@@ -679,12 +698,12 @@ function applyCloudState(appState){
       else localStorage.setItem(getQuotaStorageKey(), JSON.stringify(state.quota));
     }
     if (Object.prototype.hasOwnProperty.call(state, 'puzzle')){
-      if (!state.puzzle) localStorage.removeItem(PUZZLE_STORAGE_KEY);
-      else localStorage.setItem(PUZZLE_STORAGE_KEY, JSON.stringify(state.puzzle));
+      if (!state.puzzle) localStorage.removeItem(getPuzzleStorageKey());
+      else localStorage.setItem(getPuzzleStorageKey(), JSON.stringify(state.puzzle));
     }
     if (Object.prototype.hasOwnProperty.call(state, 'history')){
-      if (!state.history) localStorage.removeItem(HISTORY_STORAGE_KEY);
-      else localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(state.history));
+      if (!state.history) localStorage.removeItem(getHistoryStorageKey());
+      else localStorage.setItem(getHistoryStorageKey(), JSON.stringify(state.history));
     }
   } catch (err) {
     console.warn('Could not apply cloud state', err);
@@ -700,8 +719,17 @@ function scheduleCloudStateSave(){
   if (cloudStateSaveTimerId) clearTimeout(cloudStateSaveTimerId);
   cloudStateSaveTimerId = setTimeout(() => {
     cloudStateSaveTimerId = null;
-    sendAnalytics('/api/state/save', { state: collectCloudState() });
+    saveCloudStateNow();
   }, 500);
+}
+
+function saveCloudStateNow(options = {}){
+  if (isApplyingCloudState || !getTelegramInitData()) return Promise.resolve(null);
+  if (cloudStateSaveTimerId){
+    clearTimeout(cloudStateSaveTimerId);
+    cloudStateSaveTimerId = null;
+  }
+  return sendAnalytics('/api/state/save', { state: collectCloudState() }, options);
 }
 
 function recordMiniAppOpen(){
@@ -723,6 +751,7 @@ function recordMiniAppOpen(){
 }
 
 function endMiniAppSession(){
+  saveCloudStateNow({ beacon: true });
   if (!analyticsSessionId) return;
   sendAnalytics('/api/session/end', { sessionId: analyticsSessionId }, { beacon: true });
   analyticsSessionId = null;
@@ -936,7 +965,7 @@ function persistPuzzleState(){
       puzzleLockedAfterError,
       puzzleErrorCount
     };
-    localStorage.setItem(PUZZLE_STORAGE_KEY, JSON.stringify(payload));
+    localStorage.setItem(getPuzzleStorageKey(), JSON.stringify(payload));
     scheduleCloudStateSave();
   } catch (err){
     console.warn('Не удалось сохранить состояние задачи', err);
@@ -946,7 +975,7 @@ function persistPuzzleState(){
 function persistMoveHistory(){
   try{
     const payload = { startFen: historyStartFen, moves: moveHistory };
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(payload));
+    localStorage.setItem(getHistoryStorageKey(), JSON.stringify(payload));
     scheduleCloudStateSave();
   } catch (err){
     console.warn('Не удалось сохранить историю ходов', err);
@@ -2618,7 +2647,7 @@ function hydratePuzzleState(options = {}){
   const loaderReason = useBoardLoader ? 'puzzle-hydrate' : null;
   if (loaderReason) showBoardLoader(loaderReason);
   try{
-    const raw = localStorage.getItem(PUZZLE_STORAGE_KEY);
+    const raw = localStorage.getItem(getPuzzleStorageKey());
     if (!raw) return false;
     const saved = JSON.parse(raw);
     if (!saved?.puzzleData || !saved?.boardFen) return false;

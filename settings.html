@@ -600,6 +600,22 @@
       feedbackEl.appendChild(row);
     }
 
+    function getTelegramStorageUserId(){
+      const unsafeId = tg?.initDataUnsafe?.user?.id;
+      if (unsafeId) return unsafeId;
+      try {
+        const params = new URLSearchParams(tg?.initData || '');
+        const user = JSON.parse(params.get('user') || '{}');
+        return user?.id ?? 'anonymous';
+      } catch {
+        return 'anonymous';
+      }
+    }
+
+    function getPuzzleStorageKey(){
+      return `chess-miniapp-current-puzzle:${getTelegramStorageUserId()}`;
+    }
+
     function hydratePuzzle(){
       const fallback = {
         title: 'Quality vs Quantity',
@@ -610,7 +626,7 @@
         image: 'https://www.chess.com/dynboard?fen=5r1k/pp3pq1/2P3pp/4N3/3r4/1B3R2/PP3PPP/R5K1%20w%20-%20-%200%201&size=2'
       };
       try{
-        const raw = localStorage.getItem('chess-miniapp-current-puzzle');
+        const raw = localStorage.getItem(getPuzzleStorageKey()) || localStorage.getItem('chess-miniapp-current-puzzle');
         if (!raw){
           renderPuzzle(fallback, false);
           return;

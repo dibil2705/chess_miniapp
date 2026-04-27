@@ -176,7 +176,17 @@ def get_user_state(conn, telegram_id):
     }
 
 
+def get_state_saved_at(state):
+    try:
+        return int((state or {}).get("savedAt") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def save_user_state(conn, telegram_id, state):
+    existing = get_user_state(conn, telegram_id)
+    if existing and get_state_saved_at(existing.get("state")) > get_state_saved_at(state):
+        return False
     conn.execute(
         """
         INSERT INTO user_state (telegram_id, state_json, updated_at)
@@ -187,6 +197,7 @@ def save_user_state(conn, telegram_id, state):
         """,
         (telegram_id, json.dumps(state or {}, ensure_ascii=False), utc_now()),
     )
+    return True
 
 
 def user_from_message(message):
@@ -384,8 +395,8 @@ class AnalyticsHandler(BaseHTTPRequestHandler):
             raise ValueError("state object is required")
         with get_db() as conn:
             save_user(conn, user)
-            save_user_state(conn, telegram_id, state)
-        json_response(self, 200, {"ok": True})
+            saved = save_user_state(conn, telegram_id, state)
+        json_response(self, 200, {"ok": True, "saved": saved})
 
     def log_message(self, fmt, *args):
         print(f"{self.address_string()} - {fmt % args}")
@@ -409,7 +420,7 @@ def send_welcome(chat_id):
         "sendMessage",
         {
             "chat_id": chat_id,
-            "text": "Привет 👋\n\n♟ Задача дня\n1 шахматная задача каждый день — в 1 клик.\n\n⚡ Готов начать?",
+            "text": "Привет 👋\n\n♟ Задача дня\n1 шахматная задача каждый день — в 1 клик.\n\nСделано специально для шахматного сообщества на Красной Поляне: https://t.me/chesspolyana\n\n⚡ Готов начать?",
             "reply_markup": {
                 "inline_keyboard": [
                     [
