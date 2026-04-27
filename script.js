@@ -681,7 +681,10 @@ function sendAnalytics(path, payload = {}, options = {}){
 
   return fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true'
+    },
     body,
     keepalive: !!options.beacon
   }).then(async response => {

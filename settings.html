@@ -17,6 +17,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Settings • Chess Board</title>
+  <script>
+    window.CHESS_ANALYTICS_API_BASE = 'https://elza-hillier-jayde.ngrok-free.dev';
+  </script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
   <style>
@@ -657,7 +660,10 @@
       }
       return fetch(`${ANALYTICS_API_BASE}${path}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
         body: JSON.stringify({
           initData,
           platform: tg?.platform || '',

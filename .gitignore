@@ -1,3 +1,4 @@
 .env
 __pycache__/
 analytics.sqlite3
+backend_*.log
