@@ -336,6 +336,12 @@ function loadSoundPreference(){
   return stored !== 'false' && stored !== '0';
 }
 
+function saveSoundPreference(enabled){
+  soundEnabled = !!enabled;
+  localStorage.setItem(SOUND_STORAGE_KEY, soundEnabled ? 'true' : 'false');
+  scheduleCloudStateSave();
+}
+
 function loadPalettePreference(){
   const stored = localStorage.getItem(PALETTE_STORAGE_KEY);
   return boardPalettes[stored] ? stored : 'default';
@@ -752,6 +758,7 @@ function collectCloudState(){
     version: 1,
     savedAt: Date.now(),
     quota: quotaStateCache || loadQuotaState(),
+    soundEnabled: loadSoundPreference(),
     palette: loadPalettePreference()
   };
   if (cloudQuotaResetAt) state.quotaResetAt = cloudQuotaResetAt;
@@ -797,6 +804,9 @@ function applyCloudState(appState){
     if (Object.prototype.hasOwnProperty.call(state, 'palette') && boardPalettes[state.palette]){
       localStorage.setItem(PALETTE_STORAGE_KEY, state.palette);
       applyBoardPalette(state.palette);
+    }
+    if (Object.prototype.hasOwnProperty.call(state, 'soundEnabled')){
+      saveSoundPreference(Boolean(state.soundEnabled));
     }
   } catch (err) {
     console.warn('Could not apply cloud state', err);
@@ -2899,6 +2909,9 @@ window.addEventListener('message', (event) => {
     render();
     scheduleCloudStateSave();
   }
+  if (event.data?.type === 'chess-miniapp-sound-changed'){
+    saveSoundPreference(!!event.data.soundEnabled);
+  }
 });
 
 document.addEventListener('keydown', (event) => {
@@ -2910,6 +2923,7 @@ document.addEventListener('keydown', (event) => {
 window.addEventListener('storage', (event) => {
   if (event.key === SOUND_STORAGE_KEY){
     soundEnabled = loadSoundPreference();
+    scheduleCloudStateSave();
   }
   if (event.key === PALETTE_STORAGE_KEY){
     applyBoardPalette(loadPalettePreference());

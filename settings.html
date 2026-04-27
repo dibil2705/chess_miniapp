@@ -415,8 +415,13 @@
 
   <script>
     const tg = window.Telegram?.WebApp;
+    const ANALYTICS_API_BASE = window.CHESS_ANALYTICS_API_BASE || '';
+    const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
     const SOUND_STORAGE_KEY = 'chess-miniapp-sound-enabled';
     const PALETTE_STORAGE_KEY = 'chess-miniapp-board-palette';
+    const PUZZLE_QUOTA_STORAGE_PREFIX = 'chess-miniapp-quota';
+    let cloudStateSaveTimerId = null;
+    let isApplyingCloudState = false;
     const defaultTheme = {
       bg: '#111',
       panel: 'rgba(255,255,255,.06)',
@@ -443,6 +448,7 @@
 
     function savePalettePreference(name){
       localStorage.setItem(PALETTE_STORAGE_KEY, name);
+      scheduleCloudStateSave();
       try {
         window.parent?.postMessage({ type: 'chess-miniapp-palette-changed', palette: name }, '*');
       } catch (err) {
@@ -504,6 +510,12 @@
 
     function saveSoundPreference(enabled){
       localStorage.setItem(SOUND_STORAGE_KEY, enabled ? 'true' : 'false');
+      scheduleCloudStateSave();
+      try {
+        window.parent?.postMessage({ type: 'chess-miniapp-sound-changed', soundEnabled: !!enabled }, '*');
+      } catch (err) {
+        console.warn('РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ РёР·РјРµРЅРµРЅРёРµ Р·РІСѓРєР°', err);
+      }
     }
 
     function updateSoundToggleUI(enabled){
@@ -621,6 +633,101 @@
       return `chess-miniapp-current-puzzle:${getTelegramStorageUserId()}`;
     }
 
+    function getHistoryStorageKey(){
+      return `${HISTORY_STORAGE_KEY}:${getTelegramStorageUserId()}`;
+    }
+
+    function getQuotaStorageKey(){
+      return `${PUZZLE_QUOTA_STORAGE_PREFIX}:${getTelegramStorageUserId()}`;
+    }
+
+    function getTelegramInitData(){
+      return tg?.initData || '';
+    }
+
+    function sendCloudRequest(path, payload = {}){
+      const initData = getTelegramInitData();
+      if (!initData) return Promise.resolve(null);
+      return fetch(`${ANALYTICS_API_BASE}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          initData,
+          platform: tg?.platform || '',
+          userAgent: navigator.userAgent || '',
+          ...payload
+        })
+      }).catch(err => {
+        console.warn('Cloud state request failed', err);
+        return null;
+      });
+    }
+
+    function collectCloudState(){
+      return {
+        version: 1,
+        savedAt: Date.now(),
+        soundEnabled: loadSoundPreference(),
+        palette: loadPalettePreference()
+      };
+    }
+
+    function applyCloudState(appState){
+      const state = appState?.state || appState;
+      if (!state || typeof state !== 'object') return false;
+      isApplyingCloudState = true;
+      try {
+        if (Object.prototype.hasOwnProperty.call(state, 'soundEnabled')){
+          localStorage.setItem(SOUND_STORAGE_KEY, state.soundEnabled ? 'true' : 'false');
+        }
+        if (Object.prototype.hasOwnProperty.call(state, 'palette') && boardPalettes[state.palette]){
+          localStorage.setItem(PALETTE_STORAGE_KEY, state.palette);
+        }
+        if (Object.prototype.hasOwnProperty.call(state, 'quota') && state.quota){
+          localStorage.setItem(getQuotaStorageKey(), JSON.stringify(state.quota));
+        }
+        if (Object.prototype.hasOwnProperty.call(state, 'puzzle') && state.puzzle?.puzzleData && state.puzzle?.boardFen){
+          localStorage.setItem(getPuzzleStorageKey(), JSON.stringify(state.puzzle));
+        }
+        if (Object.prototype.hasOwnProperty.call(state, 'history') && state.history){
+          localStorage.setItem(getHistoryStorageKey(), JSON.stringify(state.history));
+        }
+      } catch (err) {
+        console.warn('Could not apply cloud state', err);
+        return false;
+      } finally {
+        isApplyingCloudState = false;
+      }
+      return true;
+    }
+
+    function scheduleCloudStateSave(){
+      if (isApplyingCloudState || !getTelegramInitData()) return;
+      if (cloudStateSaveTimerId) clearTimeout(cloudStateSaveTimerId);
+      cloudStateSaveTimerId = setTimeout(() => {
+        cloudStateSaveTimerId = null;
+        saveCloudStateNow();
+      }, 500);
+    }
+
+    function saveCloudStateNow(){
+      if (isApplyingCloudState || !getTelegramInitData()) return Promise.resolve(null);
+      if (cloudStateSaveTimerId){
+        clearTimeout(cloudStateSaveTimerId);
+        cloudStateSaveTimerId = null;
+      }
+      return sendCloudRequest('/api/state/save', { state: collectCloudState() });
+    }
+
+    async function loadCloudState(){
+      const response = await sendCloudRequest('/api/state/load');
+      const data = response?.ok ? await response.json() : null;
+      if (data?.app_state && applyCloudState(data.app_state)){
+        refreshSettingsPage();
+      }
+      return data;
+    }
+
     function hydratePuzzle(){
       const fallback = {
         title: 'Quality vs Quantity',
@@ -679,7 +786,9 @@
     initSoundToggle();
     initPalettePicker();
     hydratePuzzle();
+    loadCloudState();
     initEmbeddedMode();
+    window.addEventListener('pagehide', saveCloudStateNow);
   </script>
 </body>
 </html>

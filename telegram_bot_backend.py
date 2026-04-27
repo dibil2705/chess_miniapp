@@ -273,6 +273,8 @@ def merge_user_state(existing_state, new_state):
             continue
         if key == "palette" and not value:
             continue
+        if key == "soundEnabled" and not isinstance(value, bool):
+            continue
         merged[key] = value
     return merged
 
@@ -450,6 +452,8 @@ class AnalyticsHandler(BaseHTTPRequestHandler):
                 self.handle_session_end(payload, user, telegram_id)
             elif self.path == "/api/events":
                 self.handle_event(payload, user, telegram_id)
+            elif self.path == "/api/state/load":
+                self.handle_state_load(payload, user, telegram_id)
             elif self.path == "/api/state/save":
                 self.handle_state_save(payload, user, telegram_id)
             else:
@@ -505,6 +509,12 @@ class AnalyticsHandler(BaseHTTPRequestHandler):
             record_event(conn, telegram_id, event_name, event_data)
         print(f"Recorded event: telegram_id={telegram_id}, event_name={event_name}")
         json_response(self, 200, {"ok": True})
+
+    def handle_state_load(self, payload, user, telegram_id):
+        with get_db() as conn:
+            save_user(conn, user)
+            app_state = get_user_state(conn, telegram_id)
+        json_response(self, 200, {"ok": True, "app_state": app_state})
 
     def handle_state_save(self, payload, user, telegram_id):
         state = payload.get("state")
