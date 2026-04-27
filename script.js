@@ -27,6 +27,7 @@ const STAR_SPRITES = ['assets/stars/gold-star.svg'];
 const START_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 
 const tg = window.Telegram?.WebApp;
+const ANALYTICS_API_BASE = window.CHESS_ANALYTICS_API_BASE || '';
 
 const AUDIO_SOURCES = {
   move: {
@@ -70,7 +71,7 @@ const DAILY_BASE_PUZZLE_LIMIT = 1;
 const DAILY_BONUS_PUZZLES = 2;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DAILY_RESET_UTC_OFFSET_MS = 4 * 60 * 60 * 1000; // 07:00 Мск = 04:00 UTC
-const CHESS_COM_RANDOM_COOLDOWN_MS = 20 * 1000;
+const CHESS_COM_RANDOM_COOLDOWN_MS = 15 * 1000;
 const MOVE_ANIMATION_MIN_MS = 140;
 const MOVE_ANIMATION_MAX_MS = 420;
 const MOVE_ANIMATION_PX_PER_MS = 1.6;
@@ -104,6 +105,12 @@ let audioUnlockPromise = null;
 let puzzleLockedAfterError = false;
 let puzzleErrorCount = 0;
 let quotaTimerId = null;
+let randomPuzzleCooldownTimerId = null;
+let analyticsSessionId = null;
+let analyticsOpenSent = false;
+let analyticsOpenPromise = Promise.resolve(null);
+let cloudStateSaveTimerId = null;
+let isApplyingCloudState = false;
 let spritePreloadPromise = null;
 let pendingMoveAnimations = [];
 let initialPieceRevealPending = shouldRevealPiecesOnLoad();
@@ -372,6 +379,7 @@ function loadQuotaState(){
 function saveQuotaState(state){
   try{
     localStorage.setItem(getQuotaStorageKey(), JSON.stringify(state));
+    scheduleCloudStateSave();
   } catch (err){
     console.warn('Не удалось сохранить лимит задач', err);
   }
@@ -505,10 +513,35 @@ function getRandomPuzzleCooldownRemaining(now = Date.now()){
   return Math.max(0, CHESS_COM_RANDOM_COOLDOWN_MS - (now - puzzleLoadedAt));
 }
 
-function showRandomPuzzleCooldown(remainingMs){
-  const seconds = Math.max(1, Math.ceil(remainingMs / 1000));
-  updatePuzzleFeedback('info', `Новая случайная задача будет доступна примерно через ${seconds} сек. Эта задача уже решена и не будет списана повторно.`);
+function stopRandomPuzzleCooldownTimer(){
+  if (randomPuzzleCooldownTimerId){
+    clearInterval(randomPuzzleCooldownTimerId);
+    randomPuzzleCooldownTimerId = null;
+  }
+}
+
+function formatRandomPuzzleCooldownMessage(remainingMs){
+  const seconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  return `Ты решил слишком быстро. Следующая через ${seconds} секунд`;
+}
+
+function renderRandomPuzzleCooldown(){
+  const remainingMs = getRandomPuzzleCooldownRemaining();
+  updatePuzzleFeedback('info', formatRandomPuzzleCooldownMessage(remainingMs), {
+    hideIcon: true,
+    preserveCooldownTimer: true,
+    rowClass: 'cooldown'
+  });
   updatePuzzleStatus();
+  if (remainingMs <= 0) stopRandomPuzzleCooldownTimer();
+}
+
+function showRandomPuzzleCooldown(){
+  stopRandomPuzzleCooldownTimer();
+  renderRandomPuzzleCooldown();
+  if (getRandomPuzzleCooldownRemaining() > 0){
+    randomPuzzleCooldownTimerId = setInterval(renderRandomPuzzleCooldown, 1000);
+  }
 }
 
 function stopQuotaTimer(){
@@ -582,6 +615,124 @@ function bindTelegramEvent(eventName, handler){
   }
 }
 
+function getTelegramInitData(){
+  return tg?.initData || '';
+}
+
+function sendAnalytics(path, payload = {}, options = {}){
+  const initData = getTelegramInitData();
+  if (!initData) return Promise.resolve(null);
+
+  const body = JSON.stringify({
+    initData,
+    platform: tg?.platform || '',
+    userAgent: navigator.userAgent || '',
+    ...payload
+  });
+  const url = `${ANALYTICS_API_BASE}${path}`;
+
+  if (options.beacon && navigator.sendBeacon){
+    const blob = new Blob([body], { type: 'application/json' });
+    navigator.sendBeacon(url, blob);
+    return Promise.resolve(null);
+  }
+
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    keepalive: !!options.beacon
+  }).catch(err => {
+    console.warn('Analytics request failed', err);
+    return null;
+  });
+}
+
+function parseStoredJson(key){
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    console.warn(`Could not parse stored value ${key}`, err);
+    return null;
+  }
+}
+
+function collectCloudState(){
+  return {
+    version: 1,
+    savedAt: Date.now(),
+    quota: loadQuotaState(),
+    puzzle: parseStoredJson(PUZZLE_STORAGE_KEY),
+    history: parseStoredJson(HISTORY_STORAGE_KEY)
+  };
+}
+
+function applyCloudState(appState){
+  const state = appState?.state || appState;
+  if (!state || typeof state !== 'object') return false;
+
+  isApplyingCloudState = true;
+  try {
+    if (Object.prototype.hasOwnProperty.call(state, 'quota')){
+      if (!state.quota) localStorage.removeItem(getQuotaStorageKey());
+      else localStorage.setItem(getQuotaStorageKey(), JSON.stringify(state.quota));
+    }
+    if (Object.prototype.hasOwnProperty.call(state, 'puzzle')){
+      if (!state.puzzle) localStorage.removeItem(PUZZLE_STORAGE_KEY);
+      else localStorage.setItem(PUZZLE_STORAGE_KEY, JSON.stringify(state.puzzle));
+    }
+    if (Object.prototype.hasOwnProperty.call(state, 'history')){
+      if (!state.history) localStorage.removeItem(HISTORY_STORAGE_KEY);
+      else localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(state.history));
+    }
+  } catch (err) {
+    console.warn('Could not apply cloud state', err);
+    return false;
+  } finally {
+    isApplyingCloudState = false;
+  }
+  return true;
+}
+
+function scheduleCloudStateSave(){
+  if (isApplyingCloudState || !getTelegramInitData()) return;
+  if (cloudStateSaveTimerId) clearTimeout(cloudStateSaveTimerId);
+  cloudStateSaveTimerId = setTimeout(() => {
+    cloudStateSaveTimerId = null;
+    sendAnalytics('/api/state/save', { state: collectCloudState() });
+  }, 500);
+}
+
+function recordMiniAppOpen(){
+  if (analyticsOpenSent) return;
+  analyticsOpenSent = true;
+  analyticsOpenPromise = sendAnalytics('/api/app/open')
+    .then(response => response?.ok ? response.json() : null)
+    .then(data => {
+      analyticsSessionId = data?.session_id || null;
+      if (data?.app_state){
+        applyCloudState(data.app_state);
+      }
+      return data;
+    })
+    .catch(err => {
+      console.warn('Mini App open analytics failed', err);
+      return null;
+    });
+}
+
+function endMiniAppSession(){
+  if (!analyticsSessionId) return;
+  sendAnalytics('/api/session/end', { sessionId: analyticsSessionId }, { beacon: true });
+  analyticsSessionId = null;
+}
+
+function trackMiniAppEvent(eventName, eventData = {}, options = {}){
+  if (!eventName) return;
+  sendAnalytics('/api/events', { eventName, eventData }, options);
+}
+
 function initTelegram(){
   if (!tg) return;
   updateAppSafeArea();
@@ -592,6 +743,7 @@ function initTelegram(){
   bindTelegramEvent('viewportChanged', updateAppSafeArea);
   bindTelegramEvent('safeAreaChanged', updateAppSafeArea);
   bindTelegramEvent('contentSafeAreaChanged', updateAppSafeArea);
+  recordMiniAppOpen();
 }
 
 function setPromotionIcons(color){
@@ -785,6 +937,7 @@ function persistPuzzleState(){
       puzzleErrorCount
     };
     localStorage.setItem(PUZZLE_STORAGE_KEY, JSON.stringify(payload));
+    scheduleCloudStateSave();
   } catch (err){
     console.warn('Не удалось сохранить состояние задачи', err);
   }
@@ -794,6 +947,7 @@ function persistMoveHistory(){
   try{
     const payload = { startFen: historyStartFen, moves: moveHistory };
     localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(payload));
+    scheduleCloudStateSave();
   } catch (err){
     console.warn('Не удалось сохранить историю ходов', err);
   }
@@ -1539,12 +1693,15 @@ function restartCurrentPuzzle(){
 
 function updatePuzzleFeedback(state, message = '', options = {}){
   if (!puzzleFeedbackEl) return;
+  if (!options.preserveCooldownTimer) stopRandomPuzzleCooldownTimer();
   closePuzzleOverlay();
   puzzleFeedbackEl.className = 'puzzle-feedback';
   puzzleFeedbackEl.innerHTML = '';
 
   const wrapper = document.createElement('div');
   wrapper.className = 'puzzle-feedback-row';
+  const extraRowClasses = String(options.rowClass || '').split(/\s+/).filter(Boolean);
+  if (extraRowClasses.length) wrapper.classList.add(...extraRowClasses);
   const shouldRenderRow = state !== 'solved';
 
   const icon = document.createElement('span');
@@ -1596,7 +1753,7 @@ function updatePuzzleFeedback(state, message = '', options = {}){
   }
 
   if (shouldRenderRow){
-    wrapper.prepend(icon);
+    if (!options.hideIcon) wrapper.prepend(icon);
     wrapper.append(text);
   }
 
@@ -1680,6 +1837,12 @@ function finalizePuzzleSolved(message = ''){
   const finalMessage = message || (getQuotaInfo().state.solved === 1 ? 'Первая задача готова!' : 'Задача решена.');
   updatePuzzleFeedback('solved', finalMessage, { actions, overlayRating: calculatePuzzleStarRating() });
   updatePuzzleStatus();
+  trackMiniAppEvent('puzzle_completed', {
+    title: puzzleData?.title || '',
+    url: puzzleData?.url || '',
+    rating: calculatePuzzleStarRating(),
+    errors: puzzleErrorCount
+  });
 }
 
 function ensureSolvedFeedbackVisible(message = 'Задача решена.'){
@@ -1772,6 +1935,7 @@ function needsPromotion(piece, toR){
 
 function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null, animate = true }){
   const moveKey = buildMoveKey({ fromR, fromC, toR, toC, promotionPiece });
+  const isUserMove = !puzzleMode || activeColor === puzzlePlayerColor;
   if (!verifyPuzzleMove(moveKey)){
     return;
   }
@@ -1803,6 +1967,15 @@ function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null, anima
   activeColor = activeColor === 'w' ? 'b' : 'w';
   const fenAfter = boardToFen(boardState);
   recordMoveToHistory({ fromR, fromC, toR, toC, promotionPiece, fenBefore, fenAfter });
+  if (isUserMove){
+    trackMiniAppEvent('move_made', {
+      move: moveKey,
+      from: `${files[fromC]}${ranks[fromR]}`,
+      to: `${files[toC]}${ranks[toR]}`,
+      promotion: promotionPiece || '',
+      puzzle_mode: puzzleMode
+    });
+  }
   playMoveAudio();
   resetSelection();
   render();
@@ -2306,7 +2479,7 @@ async function fetchRandomPuzzle(options = {}){
   const { useBoardLoader = true } = options;
   const cooldownRemaining = getRandomPuzzleCooldownRemaining();
   if (cooldownRemaining > 0){
-    showRandomPuzzleCooldown(cooldownRemaining);
+    showRandomPuzzleCooldown();
     return;
   }
   const loaderReason = useBoardLoader ? 'puzzle-load' : null;
@@ -2360,7 +2533,7 @@ async function fetchRandomPuzzle(options = {}){
       hydratePuzzleState();
       const remainingMs = Math.max(0, CHESS_COM_RANDOM_COOLDOWN_MS - (Date.now() - previousPuzzleLoadedAt));
       if (remainingMs > 0){
-        showRandomPuzzleCooldown(remainingMs);
+        showRandomPuzzleCooldown();
       } else {
         updatePuzzleFeedback('info', 'Chess.com вернул ту же задачу. Повтор не списан, попробуйте новую задачу через несколько секунд.');
         updatePuzzleStatus();
@@ -2377,6 +2550,11 @@ async function fetchRandomPuzzle(options = {}){
       puzzleLoadedAt = Date.now();
       initialPieceRevealPending = true;
       loadPositionFromFen(data.fen);
+      trackMiniAppEvent('puzzle_started', {
+        title: data?.title || '',
+        url: data?.url || '',
+        publish_time: data?.publish_time || null
+      });
     } else {
       puzzleMode = false;
       updatePuzzleStatus();
@@ -2395,6 +2573,7 @@ async function fetchRandomPuzzle(options = {}){
 function openAnalysisPage(){
   const fen = boardToFen(boardState);
   const url = `analysis.html?fen=${encodeURIComponent(fen)}`;
+  trackMiniAppEvent('analysis_opened', { fen }, { beacon: true });
   persistPuzzleState();
   window.location.href = url;
 }
@@ -2575,6 +2754,9 @@ window.addEventListener('storage', (event) => {
   }
 });
 
+window.addEventListener('pagehide', endMiniAppSession);
+window.addEventListener('beforeunload', endMiniAppSession);
+
 promotionButtons.forEach(btn => {
   btn.addEventListener('click', () => handlePromotionChoice(btn.dataset.piece));
 });
@@ -2593,6 +2775,7 @@ async function bootstrapApp(){
     hideBoardLoader('assets');
   }
 
+  await analyticsOpenPromise;
   const restoredPuzzle = hydratePuzzleState({ suppressRender: true, useBoardLoader: true });
   if (restoredPuzzle){
     render();
