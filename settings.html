@@ -664,11 +664,16 @@
     }
 
     function collectCloudState(){
+      const settings = {
+        soundEnabled: loadSoundPreference(),
+        palette: loadPalettePreference()
+      };
       return {
         version: 1,
         savedAt: Date.now(),
-        soundEnabled: loadSoundPreference(),
-        palette: loadPalettePreference()
+        settings,
+        soundEnabled: settings.soundEnabled,
+        palette: settings.palette
       };
     }
 
@@ -677,6 +682,13 @@
       if (!state || typeof state !== 'object') return false;
       isApplyingCloudState = true;
       try {
+        const settings = state.settings && typeof state.settings === 'object' ? state.settings : {};
+        if (Object.prototype.hasOwnProperty.call(settings, 'soundEnabled')){
+          localStorage.setItem(SOUND_STORAGE_KEY, settings.soundEnabled ? 'true' : 'false');
+        }
+        if (Object.prototype.hasOwnProperty.call(settings, 'palette') && boardPalettes[settings.palette]){
+          localStorage.setItem(PALETTE_STORAGE_KEY, settings.palette);
+        }
         if (Object.prototype.hasOwnProperty.call(state, 'soundEnabled')){
           localStorage.setItem(SOUND_STORAGE_KEY, state.soundEnabled ? 'true' : 'false');
         }

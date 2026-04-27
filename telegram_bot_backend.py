@@ -13,6 +13,23 @@ from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
+def load_env_file(path=".env"):
+    if not os.path.exists(path):
+        return
+    with open(path, "r", encoding="utf-8") as env_file:
+        for raw_line in env_file:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+load_env_file()
+
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 MINI_APP_URL = "https://t.me/chess_every_day_bot/app?startapp=test&mode=fullscreen"
 DATABASE_PATH = os.environ.get("ANALYTICS_DB", "analytics.sqlite3")
@@ -89,12 +106,17 @@ def init_db():
             CREATE TABLE IF NOT EXISTS user_state (
                 telegram_id INTEGER PRIMARY KEY,
                 state_json TEXT NOT NULL,
+                current_puzzle_json TEXT,
+                settings_json TEXT,
+                quota_json TEXT,
+                history_json TEXT,
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (telegram_id) REFERENCES users (telegram_id)
             );
             """
         )
         ensure_user_stat_columns(conn)
+        ensure_user_state_columns(conn)
         rebuild_user_counters(conn)
 
 
@@ -112,6 +134,22 @@ def ensure_user_stat_columns(conn):
     for name, definition in columns.items():
         if name not in existing:
             conn.execute(f"ALTER TABLE users ADD COLUMN {name} {definition}")
+
+
+def ensure_user_state_columns(conn):
+    existing = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(user_state)").fetchall()
+    }
+    columns = {
+        "current_puzzle_json": "TEXT",
+        "settings_json": "TEXT",
+        "quota_json": "TEXT",
+        "history_json": "TEXT",
+    }
+    for name, definition in columns.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE user_state ADD COLUMN {name} {definition}")
 
 
 def update_user_counters(conn, telegram_id):
@@ -230,17 +268,71 @@ def record_event(conn, telegram_id, event_name, event_data=None):
         update_user_counters(conn, telegram_id)
 
 
+def decode_json_value(value, fallback=None):
+    if not value:
+        return fallback
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return fallback
+
+
+def encode_json_value(value):
+    if value is None:
+        return None
+    return json.dumps(value, ensure_ascii=False)
+
+
+def extract_settings_state(state):
+    settings = dict((state or {}).get("settings") or {})
+    if "palette" in (state or {}):
+        settings["palette"] = state.get("palette")
+    if "soundEnabled" in (state or {}):
+        settings["soundEnabled"] = state.get("soundEnabled")
+    return settings or None
+
+
+def hydrate_state_components(row, state):
+    state = dict(state or {})
+    current_puzzle = decode_json_value(row["current_puzzle_json"])
+    settings = decode_json_value(row["settings_json"])
+    quota = decode_json_value(row["quota_json"])
+    history = decode_json_value(row["history_json"])
+
+    if current_puzzle:
+        state["puzzle"] = current_puzzle
+    if settings:
+        state["settings"] = settings
+        if "palette" in settings:
+            state["palette"] = settings["palette"]
+        if "soundEnabled" in settings:
+            state["soundEnabled"] = settings["soundEnabled"]
+    if quota:
+        state["quota"] = quota
+    if history:
+        state["history"] = history
+    return state
+
+
 def get_user_state(conn, telegram_id):
     row = conn.execute(
-        "SELECT state_json, updated_at FROM user_state WHERE telegram_id = ?",
+        """
+        SELECT
+            state_json,
+            current_puzzle_json,
+            settings_json,
+            quota_json,
+            history_json,
+            updated_at
+        FROM user_state
+        WHERE telegram_id = ?
+        """,
         (telegram_id,),
     ).fetchone()
     if not row:
         return None
-    try:
-        state = json.loads(row["state_json"])
-    except json.JSONDecodeError:
-        return None
+    state = decode_json_value(row["state_json"], {})
+    state = hydrate_state_components(row, state)
     return {
         "state": state,
         "updated_at": row["updated_at"],
@@ -284,15 +376,39 @@ def save_user_state(conn, telegram_id, state, force=False):
     if not force and existing and get_state_saved_at(existing.get("state")) > get_state_saved_at(state):
         return False
     state_to_save = merge_user_state(existing.get("state") if existing else {}, state)
+    current_puzzle = state_to_save.get("puzzle") if has_valid_puzzle_state(state_to_save) else None
+    settings = extract_settings_state(state_to_save)
+    quota = state_to_save.get("quota") if isinstance(state_to_save.get("quota"), dict) else None
+    history = state_to_save.get("history") if state_to_save.get("history") else None
     conn.execute(
         """
-        INSERT INTO user_state (telegram_id, state_json, updated_at)
-        VALUES (?, ?, ?)
+        INSERT INTO user_state (
+            telegram_id,
+            state_json,
+            current_puzzle_json,
+            settings_json,
+            quota_json,
+            history_json,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(telegram_id) DO UPDATE SET
             state_json = excluded.state_json,
+            current_puzzle_json = excluded.current_puzzle_json,
+            settings_json = excluded.settings_json,
+            quota_json = excluded.quota_json,
+            history_json = excluded.history_json,
             updated_at = excluded.updated_at
         """,
-        (telegram_id, json.dumps(state_to_save or {}, ensure_ascii=False), msk_now()),
+        (
+            telegram_id,
+            encode_json_value(state_to_save or {}),
+            encode_json_value(current_puzzle),
+            encode_json_value(settings),
+            encode_json_value(quota),
+            encode_json_value(history),
+            msk_now(),
+        ),
     )
     return True
 

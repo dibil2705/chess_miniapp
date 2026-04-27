@@ -754,12 +754,17 @@ function buildCurrentHistoryState(){
 }
 
 function collectCloudState(){
+  const settings = {
+    soundEnabled: loadSoundPreference(),
+    palette: loadPalettePreference()
+  };
   const state = {
     version: 1,
     savedAt: Date.now(),
     quota: quotaStateCache || loadQuotaState(),
-    soundEnabled: loadSoundPreference(),
-    palette: loadPalettePreference()
+    settings,
+    soundEnabled: settings.soundEnabled,
+    palette: settings.palette
   };
   if (cloudQuotaResetAt) state.quotaResetAt = cloudQuotaResetAt;
   const puzzle = buildCurrentPuzzleState() || getStoredPuzzleState();
@@ -800,6 +805,14 @@ function applyCloudState(appState){
       if (state.history){
         localStorage.setItem(getHistoryStorageKey(), JSON.stringify(state.history));
       }
+    }
+    const settings = state.settings && typeof state.settings === 'object' ? state.settings : {};
+    if (Object.prototype.hasOwnProperty.call(settings, 'palette') && boardPalettes[settings.palette]){
+      localStorage.setItem(PALETTE_STORAGE_KEY, settings.palette);
+      applyBoardPalette(settings.palette);
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'soundEnabled')){
+      saveSoundPreference(Boolean(settings.soundEnabled));
     }
     if (Object.prototype.hasOwnProperty.call(state, 'palette') && boardPalettes[state.palette]){
       localStorage.setItem(PALETTE_STORAGE_KEY, state.palette);
