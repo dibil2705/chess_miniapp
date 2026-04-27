@@ -45,7 +45,11 @@ def init_db():
                 first_name TEXT,
                 last_name TEXT,
                 first_seen_at TEXT NOT NULL,
-                last_seen_at TEXT NOT NULL
+                last_seen_at TEXT NOT NULL,
+                solved_tasks_count INTEGER NOT NULL DEFAULT 0,
+                app_opens_count INTEGER NOT NULL DEFAULT 0,
+                total_time_seconds INTEGER NOT NULL DEFAULT 0,
+                average_session_seconds REAL NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS app_opens (
@@ -83,6 +87,61 @@ def init_db():
             );
             """
         )
+        ensure_user_stat_columns(conn)
+        rebuild_user_counters(conn)
+
+
+def ensure_user_stat_columns(conn):
+    existing = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(users)").fetchall()
+    }
+    columns = {
+        "solved_tasks_count": "INTEGER NOT NULL DEFAULT 0",
+        "app_opens_count": "INTEGER NOT NULL DEFAULT 0",
+        "total_time_seconds": "INTEGER NOT NULL DEFAULT 0",
+        "average_session_seconds": "REAL NOT NULL DEFAULT 0",
+    }
+    for name, definition in columns.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {name} {definition}")
+
+
+def update_user_counters(conn, telegram_id):
+    stats = conn.execute(
+        """
+        SELECT
+            (SELECT COUNT(*) FROM events WHERE telegram_id = ? AND event_name = 'puzzle_completed') AS solved_tasks_count,
+            (SELECT COUNT(*) FROM app_opens WHERE telegram_id = ?) AS app_opens_count,
+            COALESCE((SELECT SUM(duration_seconds) FROM sessions WHERE telegram_id = ? AND duration_seconds IS NOT NULL), 0) AS total_time_seconds,
+            COALESCE((SELECT AVG(duration_seconds) FROM sessions WHERE telegram_id = ? AND duration_seconds IS NOT NULL), 0) AS average_session_seconds
+        """,
+        (telegram_id, telegram_id, telegram_id, telegram_id),
+    ).fetchone()
+    conn.execute(
+        """
+        UPDATE users
+        SET
+            solved_tasks_count = ?,
+            app_opens_count = ?,
+            total_time_seconds = ?,
+            average_session_seconds = ?
+        WHERE telegram_id = ?
+        """,
+        (
+            int(stats["solved_tasks_count"] or 0),
+            int(stats["app_opens_count"] or 0),
+            int(stats["total_time_seconds"] or 0),
+            float(stats["average_session_seconds"] or 0),
+            telegram_id,
+        ),
+    )
+
+
+def rebuild_user_counters(conn):
+    rows = conn.execute("SELECT telegram_id FROM users").fetchall()
+    for row in rows:
+        update_user_counters(conn, row["telegram_id"])
 
 
 def save_user(conn, user):
@@ -118,6 +177,7 @@ def record_app_open(conn, telegram_id, platform=None, user_agent=None):
         """,
         (telegram_id, msk_now(), platform, user_agent),
     )
+    update_user_counters(conn, telegram_id)
 
 
 def start_session(conn, telegram_id):
@@ -143,6 +203,7 @@ def end_session(conn, telegram_id, session_id):
         """,
         (ended_at, ended_at, session_id, telegram_id),
     )
+    update_user_counters(conn, telegram_id)
 
 
 def record_event(conn, telegram_id, event_name, event_data=None):
@@ -158,6 +219,8 @@ def record_event(conn, telegram_id, event_name, event_data=None):
             msk_now(),
         ),
     )
+    if str(event_name) == "puzzle_completed":
+        update_user_counters(conn, telegram_id)
 
 
 def get_user_state(conn, telegram_id):
@@ -184,10 +247,29 @@ def get_state_saved_at(state):
         return 0
 
 
+def has_valid_puzzle_state(state):
+    puzzle = (state or {}).get("puzzle")
+    return isinstance(puzzle, dict) and bool(puzzle.get("puzzleData")) and bool(puzzle.get("boardFen"))
+
+
+def merge_user_state(existing_state, new_state):
+    merged = dict(existing_state or {})
+    for key, value in (new_state or {}).items():
+        if key == "puzzle" and not has_valid_puzzle_state({"puzzle": value}):
+            continue
+        if key == "history" and value is None:
+            continue
+        if key == "palette" and not value:
+            continue
+        merged[key] = value
+    return merged
+
+
 def save_user_state(conn, telegram_id, state):
     existing = get_user_state(conn, telegram_id)
     if existing and get_state_saved_at(existing.get("state")) > get_state_saved_at(state):
         return False
+    state_to_save = merge_user_state(existing.get("state") if existing else {}, state)
     conn.execute(
         """
         INSERT INTO user_state (telegram_id, state_json, updated_at)
@@ -196,7 +278,7 @@ def save_user_state(conn, telegram_id, state):
             state_json = excluded.state_json,
             updated_at = excluded.updated_at
         """,
-        (telegram_id, json.dumps(state or {}, ensure_ascii=False), msk_now()),
+        (telegram_id, json.dumps(state_to_save or {}, ensure_ascii=False), msk_now()),
     )
     return True
 
@@ -234,19 +316,25 @@ def record_bot_message(message):
 def get_user_stats(conn, telegram_id):
     user = conn.execute(
         """
-        SELECT telegram_id, first_seen_at, last_seen_at
+        SELECT
+            telegram_id,
+            first_seen_at,
+            last_seen_at,
+            solved_tasks_count,
+            app_opens_count,
+            total_time_seconds,
+            average_session_seconds
         FROM users
         WHERE telegram_id = ?
         """,
         (telegram_id,),
     ).fetchone()
-    opens_count = conn.execute(
-        "SELECT COUNT(*) AS count FROM app_opens WHERE telegram_id = ?",
-        (telegram_id,),
-    ).fetchone()["count"]
     return {
         "telegram_id": telegram_id,
-        "opens_count": opens_count,
+        "solved_tasks_count": int(user["solved_tasks_count"] or 0) if user else 0,
+        "app_opens_count": int(user["app_opens_count"] or 0) if user else 0,
+        "total_time_seconds": int(user["total_time_seconds"] or 0) if user else 0,
+        "average_session_seconds": float(user["average_session_seconds"] or 0) if user else 0,
         "first_seen_at": user["first_seen_at"] if user else None,
         "last_seen_at": user["last_seen_at"] if user else None,
     }

@@ -443,6 +443,11 @@
 
     function savePalettePreference(name){
       localStorage.setItem(PALETTE_STORAGE_KEY, name);
+      try {
+        window.parent?.postMessage({ type: 'chess-miniapp-palette-changed', palette: name }, '*');
+      } catch (err) {
+        console.warn('Не удалось отправить изменение палитры', err);
+      }
     }
 
     function applyBoardPalette(name){

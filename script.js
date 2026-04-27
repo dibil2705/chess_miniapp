@@ -682,14 +682,51 @@ function parseStoredJson(key){
   }
 }
 
+function isValidStoredPuzzleState(state){
+  return Boolean(state?.puzzleData && state?.boardFen);
+}
+
+function getStoredPuzzleState(){
+  const scoped = parseStoredJson(getPuzzleStorageKey());
+  if (isValidStoredPuzzleState(scoped)) return scoped;
+  const legacy = parseStoredJson(PUZZLE_STORAGE_KEY);
+  return isValidStoredPuzzleState(legacy) ? legacy : null;
+}
+
+function getStoredHistoryState(){
+  return parseStoredJson(getHistoryStorageKey()) || parseStoredJson(HISTORY_STORAGE_KEY);
+}
+
+function migrateLegacyLocalState(){
+  try {
+    const scopedPuzzle = parseStoredJson(getPuzzleStorageKey());
+    const legacyPuzzle = parseStoredJson(PUZZLE_STORAGE_KEY);
+    if (!isValidStoredPuzzleState(scopedPuzzle) && isValidStoredPuzzleState(legacyPuzzle)){
+      localStorage.setItem(getPuzzleStorageKey(), JSON.stringify(legacyPuzzle));
+    }
+
+    const scopedHistory = parseStoredJson(getHistoryStorageKey());
+    const legacyHistory = parseStoredJson(HISTORY_STORAGE_KEY);
+    if (!scopedHistory && legacyHistory){
+      localStorage.setItem(getHistoryStorageKey(), JSON.stringify(legacyHistory));
+    }
+  } catch (err) {
+    console.warn('Could not migrate legacy local state', err);
+  }
+}
+
 function collectCloudState(){
-  return {
+  const state = {
     version: 1,
     savedAt: Date.now(),
     quota: loadQuotaState(),
-    puzzle: parseStoredJson(getPuzzleStorageKey()),
-    history: parseStoredJson(getHistoryStorageKey())
+    palette: loadPalettePreference()
   };
+  const puzzle = getStoredPuzzleState();
+  const history = getStoredHistoryState();
+  if (puzzle?.puzzleData && puzzle?.boardFen) state.puzzle = puzzle;
+  if (history) state.history = history;
+  return state;
 }
 
 function applyCloudState(appState){
@@ -703,12 +740,18 @@ function applyCloudState(appState){
       else localStorage.setItem(getQuotaStorageKey(), JSON.stringify(state.quota));
     }
     if (Object.prototype.hasOwnProperty.call(state, 'puzzle')){
-      if (!state.puzzle) localStorage.removeItem(getPuzzleStorageKey());
-      else localStorage.setItem(getPuzzleStorageKey(), JSON.stringify(state.puzzle));
+      if (state.puzzle?.puzzleData && state.puzzle?.boardFen){
+        localStorage.setItem(getPuzzleStorageKey(), JSON.stringify(state.puzzle));
+      }
     }
     if (Object.prototype.hasOwnProperty.call(state, 'history')){
-      if (!state.history) localStorage.removeItem(getHistoryStorageKey());
-      else localStorage.setItem(getHistoryStorageKey(), JSON.stringify(state.history));
+      if (state.history){
+        localStorage.setItem(getHistoryStorageKey(), JSON.stringify(state.history));
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(state, 'palette') && boardPalettes[state.palette]){
+      localStorage.setItem(PALETTE_STORAGE_KEY, state.palette);
+      applyBoardPalette(state.palette);
     }
   } catch (err) {
     console.warn('Could not apply cloud state', err);
@@ -753,6 +796,12 @@ function recordMiniAppOpen(){
       analyticsSessionId = data?.session_id || null;
       if (data?.app_state && !appBootstrapComplete){
         applyCloudState(data.app_state);
+      } else if (data?.app_state){
+        const cloudPuzzle = data.app_state?.state?.puzzle || data.app_state?.puzzle;
+        applyCloudState(data.app_state);
+        if (cloudPuzzle?.puzzleData && cloudPuzzle?.boardFen && !puzzleData){
+          hydratePuzzleState({ suppressRender: false });
+        }
       }
       return data;
     })
@@ -2570,6 +2619,7 @@ async function fetchRandomPuzzle(options = {}){
       return;
     }
     if (quota.blocked){
+      hydratePuzzleState({ suppressRender: false });
       const remaining = formatDuration(quota.remainingMs);
       updatePuzzleFeedback('info', `Новая задача будет доступна в 07:00 Мск через ${remaining}.`);
       updatePuzzleStatus();
@@ -2695,9 +2745,7 @@ function hydratePuzzleState(options = {}){
   const loaderReason = useBoardLoader ? 'puzzle-hydrate' : null;
   if (loaderReason) showBoardLoader(loaderReason);
   try{
-    const raw = localStorage.getItem(getPuzzleStorageKey());
-    if (!raw) return false;
-    const saved = JSON.parse(raw);
+    const saved = getStoredPuzzleState();
     if (!saved?.puzzleData || !saved?.boardFen) return false;
 
     updatePuzzleInfoDisplay(saved.puzzleData);
@@ -2814,6 +2862,13 @@ window.addEventListener('message', (event) => {
   if (event.data?.type === 'chess-miniapp-close-settings'){
     closeSettingsPage();
   }
+  if (event.data?.type === 'chess-miniapp-palette-changed'){
+    const paletteName = boardPalettes[event.data.palette] ? event.data.palette : 'default';
+    localStorage.setItem(PALETTE_STORAGE_KEY, paletteName);
+    applyBoardPalette(paletteName);
+    render();
+    scheduleCloudStateSave();
+  }
 });
 
 document.addEventListener('keydown', (event) => {
@@ -2828,6 +2883,7 @@ window.addEventListener('storage', (event) => {
   }
   if (event.key === PALETTE_STORAGE_KEY){
     applyBoardPalette(loadPalettePreference());
+    scheduleCloudStateSave();
   }
 });
 
@@ -2842,6 +2898,7 @@ applyBoardPalette(loadPalettePreference());
 preventZoom();
 initTelegram();
 setupAudioUnlock();
+migrateLegacyLocalState();
 
 async function bootstrapApp(){
   showBoardLoader('assets');
