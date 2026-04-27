@@ -713,15 +713,20 @@ function isValidStoredPuzzleState(state){
 function getStoredPuzzleState(){
   const scoped = parseStoredJson(getPuzzleStorageKey());
   if (isValidStoredPuzzleState(scoped)) return scoped;
+  if (getTelegramInitData()) return null;
   const legacy = parseStoredJson(PUZZLE_STORAGE_KEY);
   return isValidStoredPuzzleState(legacy) ? legacy : null;
 }
 
 function getStoredHistoryState(){
-  return parseStoredJson(getHistoryStorageKey()) || parseStoredJson(HISTORY_STORAGE_KEY);
+  const scoped = parseStoredJson(getHistoryStorageKey());
+  if (scoped) return scoped;
+  if (getTelegramInitData()) return null;
+  return parseStoredJson(HISTORY_STORAGE_KEY);
 }
 
 function migrateLegacyLocalState(){
+  if (getTelegramInitData()) return;
   try {
     const scopedPuzzle = parseStoredJson(getPuzzleStorageKey());
     const legacyPuzzle = parseStoredJson(PUZZLE_STORAGE_KEY);
@@ -868,6 +873,10 @@ function waitForPromise(promise, timeoutMs){
   ]);
 }
 
+function getCloudPuzzleFromState(appState){
+  return appState?.state?.puzzle || appState?.puzzle || null;
+}
+
 function recordMiniAppOpen(){
   if (analyticsOpenSent) return;
   analyticsOpenSent = true;
@@ -875,12 +884,23 @@ function recordMiniAppOpen(){
     .then(response => response?.ok ? response.json() : null)
     .then(data => {
       analyticsSessionId = data?.session_id || null;
-      if (data?.app_state && !appBootstrapComplete){
+      if (data?.app_state){
+        const cloudPuzzle = getCloudPuzzleFromState(data.app_state);
+        const cloudPuzzleKey = getPuzzleKey(cloudPuzzle?.puzzleData || null) || '';
+        const currentPuzzleKey = getPuzzleKey(puzzleData || null) || '';
+        const shouldHydrateCloudPuzzle = Boolean(
+          cloudPuzzle?.puzzleData &&
+          cloudPuzzle?.boardFen &&
+          (
+            !appBootstrapComplete ||
+            !puzzleData ||
+            !currentPuzzleKey ||
+            !cloudPuzzleKey ||
+            currentPuzzleKey !== cloudPuzzleKey
+          )
+        );
         applyCloudState(data.app_state);
-      } else if (data?.app_state){
-        const cloudPuzzle = data.app_state?.state?.puzzle || data.app_state?.puzzle;
-        applyCloudState(data.app_state);
-        if (cloudPuzzle?.puzzleData && cloudPuzzle?.boardFen && !puzzleData){
+        if (shouldHydrateCloudPuzzle){
           hydratePuzzleState({ suppressRender: false });
         }
       }
@@ -2978,7 +2998,27 @@ async function bootstrapApp(){
     await preloadSprites();
     hideBoardLoader('assets');
 
-    await waitForPromise(analyticsOpenPromise, 1800);
+    const hasTelegramProfile = Boolean(getTelegramInitData());
+    const openData = await waitForPromise(analyticsOpenPromise, hasTelegramProfile ? 6000 : 1800);
+    const cloudPuzzle = getCloudPuzzleFromState(openData?.app_state);
+    const hasCloudPuzzle = Boolean(cloudPuzzle?.puzzleData && cloudPuzzle?.boardFen);
+
+    if (hasTelegramProfile && openData){
+      if (hasCloudPuzzle){
+        const restoredCloudPuzzle = hydratePuzzleState({ suppressRender: true, useBoardLoader: true });
+        if (restoredCloudPuzzle){
+          render();
+          updatePuzzleStatus();
+          ensureSolvedFeedbackVisible();
+          return;
+        }
+      }
+      resetMoveHistory(boardToFen(boardState));
+      await fetchRandomPuzzle({ useBoardLoader: true });
+      await saveCloudStateNow();
+      return;
+    }
+
     const restoredPuzzle = hydratePuzzleState({ suppressRender: true, useBoardLoader: true });
     if (restoredPuzzle){
       render();
