@@ -15,7 +15,7 @@
   <noscript><div><img src="https://mc.yandex.ru/watch/106322156" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
   <!-- /Yandex.Metrika counter -->
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Stockfish анализ</title>
   <script>
     window.CHESS_ANALYTICS_API_BASE = 'https://elza-hillier-jayde.ngrok-free.dev';
@@ -33,14 +33,27 @@
       --tg-safe-area-top:0px;
       --app-safe-top:max(env(safe-area-inset-top), var(--tg-safe-area-top));
     }
+    html{
+      width:100%;
+      min-height:100%;
+      min-height:100svh;
+      min-height:100dvh;
+      background:var(--bg);
+      -webkit-text-size-adjust:100%;
+    }
     *, *::before, *::after{ box-sizing: border-box; }
     body{
       margin:0;
-      padding:calc(68px + var(--app-safe-top)) 16px 120px;
+      min-height:100%;
+      min-height:100svh;
+      min-height:100dvh;
+      padding:calc(68px + var(--app-safe-top)) 16px calc(120px + env(safe-area-inset-bottom));
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       background:var(--bg);
       color:var(--text);
       overflow-x:hidden;
+      overscroll-behavior-y:contain;
+      -webkit-overflow-scrolling:touch;
     }
     .wrap{
       max-width: 1180px;
@@ -103,7 +116,7 @@
       width:min(620px, 100%);
       margin:0 auto;
       display:grid;
-      grid-template-columns: 34px auto 1fr;
+      grid-template-columns: 20px auto 1fr;
       grid-template-rows: 1fr auto;
       grid-template-areas:
         "cp ranks board"
@@ -157,7 +170,8 @@
     .eval-bar{
       grid-area: cp;
       position: relative;
-      width: 100%;
+      width: 12px;
+      justify-self: center;
       background:
         linear-gradient(90deg, rgba(255,255,255,.14), rgba(255,255,255,.02) 28%, rgba(255,255,255,.02) 72%, rgba(255,255,255,.12)),
         linear-gradient(180deg, #3d3b37 0%, #2d2b28 50%, #252320 100%);
@@ -299,7 +313,7 @@
       gap:12px;
       justify-content:space-between;
       align-items:center;
-      padding:12px 12px calc(12px + env(safe-area-inset-bottom));
+      padding:12px 12px calc(12px + max(env(safe-area-inset-bottom), 8px));
       border-radius:16px 16px 0 0;
       border:1px solid var(--border);
       background: rgba(0,0,0,.7);
@@ -341,7 +355,7 @@
       .board-wrapper{
         width: 100%;
         margin: 0;
-        grid-template-columns: 30px 13px 1fr;
+        grid-template-columns: 18px 13px 1fr;
         grid-template-rows: 1fr auto;
         grid-template-areas:
           "cp ranks board"
@@ -392,7 +406,7 @@
     }
     @media (max-width: 520px){
       .history-controls{
-        padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+        padding: 10px 10px calc(10px + max(env(safe-area-inset-bottom), 8px));
         gap: 10px;
       }
       .history-btn{ height:60px; font-size: clamp(18px, 6vw, 24px); }
