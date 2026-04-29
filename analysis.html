@@ -332,7 +332,11 @@
     .history-btn:disabled{ opacity:.45; cursor:not-allowed; }
     @media (max-width: 640px){
       .wrap{ padding: 0; width: 100%; max-width: none; }
-      body{ padding-left: 10px; padding-right: 0; }
+      body{
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+      .panel{ padding: 10px; }
       .board-panel{ justify-items: stretch; }
       .board-wrapper{
         width: 100%;
@@ -347,6 +351,44 @@
       }
       .coord-ranks{ justify-items: start; padding-right: 0; margin-left: 4px; }
       .coord-files{ padding: 0; }
+      .priority-moves{ grid-template-columns: 1fr; }
+      .history-body{ padding-right: 0; }
+      .analysis-history{
+        --tree-step: 16px;
+        --tree-trunk-x: 8px;
+        padding: 6px 2px 8px 16px;
+      }
+      .move-tree-node{
+        grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1fr) 56px;
+        gap: 7px;
+        margin-left: calc(var(--tree-depth, 0) * var(--tree-step));
+        width: calc(100% - (var(--tree-depth, 0) * var(--tree-step)));
+        min-width: 0;
+        padding: 7px 8px;
+        font-size: 13px;
+      }
+      .move-tree-node.is-root{
+        grid-template-columns: minmax(0, 1fr) 56px;
+        min-width: 0;
+        width: 100%;
+      }
+      .move-tree-prefix{
+        font-size: 12px;
+      }
+      .move-tree-node.is-mainline .move-tree-prefix::before{
+        left: -16px;
+        width: 8px;
+        height: 8px;
+      }
+      .move-tree-node.is-mainline .move-tree-prefix::after{
+        left: -13px;
+        width: 12px;
+      }
+      .move-tree-eval{
+        min-width: 0;
+        padding: 4px 6px;
+        font-size: 12px;
+      }
     }
     @media (max-width: 520px){
       .history-controls{
