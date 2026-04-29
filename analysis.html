@@ -61,8 +61,9 @@
       margin:0 auto;
       display:grid;
       gap:14px;
+      overflow-x: clip;
     }
-    .layout{ display:flex; flex-direction:column; gap:14px; align-items:stretch; border:none; }
+    .layout{ display:flex; flex-direction:column; gap:14px; align-items:stretch; border:none; min-width:0; }
     .top-bar{
       display:flex;
       flex-direction:column;
@@ -70,11 +71,15 @@
       gap:10px;
     }
     .back-btn{
+      --liquid-position: fixed;
+      --liquid-overflow: visible;
       position: fixed;
       top: calc(68px + var(--app-safe-top));
-      right: 12px;
+      right: 10px;
+      min-width: 46px;
+      height: 46px;
       padding:10px 12px;
-      border-radius:12px;
+      border-radius:999px;
       border: 1px solid rgba(255,255,255,.18);
       background: linear-gradient(145deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
       color:#fff;
@@ -85,7 +90,7 @@
       gap: 8px;
       text-decoration: none;
       width: fit-content;
-      z-index: 20;
+      z-index: 9000;
     }
     .back-btn:active{ transform: translateY(1px); }
     .panel{
@@ -93,6 +98,7 @@
       border-radius:12px;
       border:1px solid var(--border);
       background: none;
+      min-width:0;
     }
     .panel.board-panel{ border:none; }
     h2{ margin:0 0 6px 0; }
@@ -113,15 +119,15 @@
     .board-panel{ display:grid; gap:12px; justify-items:center; }
     .board-wrapper{
       position: relative;
-      width:min(620px, 100%);
+      width:min(760px, 100%);
       margin:0 auto;
       display:grid;
-      grid-template-columns: 20px auto 1fr;
+      grid-template-columns: 20px 10px minmax(0, 1fr);
       grid-template-rows: 1fr auto;
       grid-template-areas:
         "cp ranks board"
         "cp . files";
-      column-gap: 10px;
+      column-gap: 6px;
       row-gap: 8px;
       align-items: stretch;
     }
@@ -170,7 +176,7 @@
     .eval-bar{
       grid-area: cp;
       position: relative;
-      width: 12px;
+      width: 16px;
       justify-self: center;
       background:
         linear-gradient(90deg, rgba(255,255,255,.14), rgba(255,255,255,.02) 28%, rgba(255,255,255,.02) 72%, rgba(255,255,255,.12)),
@@ -198,7 +204,7 @@
       transform:translate(-50%, -50%);
       color:#fff;
       mix-blend-mode:difference;
-      font-size:10px;
+      font-size:11px;
       line-height:1;
       font-weight:800;
       pointer-events:none;
@@ -224,8 +230,8 @@
       grid-template-rows: repeat(8, 1fr);
       align-items: center;
       justify-items: end;
-      width: 13px;
-      padding-right: 2px;
+      width: 10px;
+      padding-right: 0;
       align-self: stretch;
       height: 100%;
     }
@@ -293,6 +299,7 @@
       display:flex;
       flex-direction:column;
       gap:10px;
+      min-width:0;
     }
     .history-head{
       display:flex;
@@ -303,23 +310,31 @@
     }
     .history-head .status{ margin:2px 0 0 0; font-size:12px; opacity:.7; }
     .history-controls{
+      --liquid-position: fixed;
+      --liquid-overflow: hidden;
       position: fixed;
       left: 0;
       right: 0;
       bottom: 0;
       transform: none;
-      width: 100%;
+      width: auto;
+      max-width: none;
       display:flex;
       gap:12px;
       justify-content:space-between;
       align-items:center;
       padding:12px 12px calc(12px + max(env(safe-area-inset-bottom), 8px));
-      border-radius:16px 16px 0 0;
-      border:1px solid var(--border);
-      background: rgba(0,0,0,.7);
-      box-shadow: 0 18px 46px rgba(0,0,0,.55);
-      backdrop-filter: blur(12px);
-      z-index:5000;
+      border-radius:18px 18px 0 0;
+      border:1px solid rgba(255,255,255,.1);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.08) 0%, rgba(255,255,255,.02) 100%),
+        rgba(16,16,16,.74);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.18),
+        0 20px 44px rgba(0,0,0,.5);
+      backdrop-filter: blur(8px) saturate(112%);
+      -webkit-backdrop-filter: blur(8px) saturate(112%);
+      z-index:9000;
     }
     .history-btn{
       flex:1;
@@ -328,15 +343,25 @@
       display:grid;
       place-items:center;
       padding:0;
-      border-radius:14px;
-      border:1px solid var(--border);
-      background: linear-gradient(180deg, rgba(255,255,255,.14) 0%, rgba(255,255,255,.04) 100%);
+      border-radius:13px;
+      border:1px solid rgba(255,255,255,.1);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.015) 100%),
+        rgba(12,12,12,.9);
       color:var(--text);
       cursor:pointer;
       font-size: clamp(20px, 5vw, 26px);
       transition: background .15s ease, transform .1s ease, box-shadow .15s ease;
-      box-shadow: 0 10px 30px rgba(0,0,0,.35);
-      backdrop-filter: inherit;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.12),
+        0 10px 24px rgba(0,0,0,.45);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    .history-btn:hover{
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.08) 0%, rgba(255,255,255,.02) 100%),
+        rgba(20,20,20,.94);
     }
     .history-btn .iconify{
       font-size: clamp(22px, 6vw, 30px);
@@ -347,23 +372,27 @@
     @media (max-width: 640px){
       .wrap{ padding: 0; width: 100%; max-width: none; }
       body{
-        padding-left: 10px;
-        padding-right: 10px;
+        padding-left: 6px;
+        padding-right: 6px;
+      }
+      .back-btn{
+        right: 10px;
       }
       .panel{ padding: 10px; }
       .board-panel{ justify-items: stretch; }
       .board-wrapper{
         width: 100%;
         margin: 0;
-        grid-template-columns: 18px 13px 1fr;
+        grid-template-columns: 18px 10px 1fr;
         grid-template-rows: 1fr auto;
         grid-template-areas:
           "cp ranks board"
           "cp ranks files";
-        column-gap: 6px;
+        column-gap: 4px;
         row-gap: 6px;
       }
-      .coord-ranks{ justify-items: start; padding-right: 0; margin-left: 4px; }
+      .coord-ranks{ justify-items: end; padding-right: 0; margin-left: 0; width: 10px; }
+      .eval-bar{ width: 14px; }
       .coord-files{ padding: 0; }
       .priority-moves{ grid-template-columns: 1fr; }
       .history-body{ padding-right: 0; }
@@ -532,8 +561,10 @@
       gap:10px;
       max-height:360px;
       overflow:auto;
+      overflow-x:hidden;
       padding-right:6px;
       scroll-behavior:smooth;
+      min-width:0;
     }
     .history-body::-webkit-scrollbar{ width:8px; }
     .history-body::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.2); border-radius:999px; }
@@ -553,6 +584,7 @@
       width:100%;
       background:transparent;
       border-radius:12px;
+      min-width:0;
     }
     .analysis-history::before{
       content:"";
@@ -634,6 +666,7 @@
       background:#fff;
       transition:transform .15s ease;
       box-shadow:0 2px 6px rgba(0,0,0,.3);
+      z-index: 1;
     }
     .coach-hints-input:checked + .coach-hints-track{
       background:rgba(120,190,120,.45);
@@ -674,12 +707,13 @@
     .move-tree-node{
       position:relative;
       display:grid;
-      grid-template-columns: 42px minmax(76px, 1fr) minmax(76px, 1fr) 72px;
+      grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1fr) 72px;
       align-items:center;
       gap:12px;
       margin-left:calc(var(--tree-depth, 0) * var(--tree-step));
       width:calc(100% - (var(--tree-depth, 0) * var(--tree-step)));
-      min-width:430px;
+      min-width:min(430px, 100%);
+      max-width:100%;
       min-height:38px;
       padding:7px 10px;
       color:var(--text);
@@ -765,7 +799,7 @@
       margin-left:0;
       max-width:100%;
       width:100%;
-      min-width:260px;
+      min-width:min(260px, 100%);
       background:transparent;
     }
     .move-tree-node.is-root::before{ display:none; }
@@ -880,11 +914,20 @@
     .promotion-btn:active{ transform: translateY(1px); }
     .promotion-icon{ width: 36px; height: 36px; }
   </style>
+  <link rel="stylesheet" href="assets/liquid-glass.css">
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute;pointer-events:none" aria-hidden="true" focusable="false">
+    <filter id="liquid-glass-filter" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.018" numOctaves="2" seed="8" result="noise"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="10" xChannelSelector="R" yChannelSelector="G" result="displaced"></feDisplacementMap>
+      <feGaussianBlur in="displaced" stdDeviation="0.2" result="softened"></feGaussianBlur>
+      <feComposite in="softened" in2="SourceGraphic" operator="over"></feComposite>
+    </filter>
+  </svg>
   <div class="wrap">
     <div class="top-bar">
-      <a class="back-btn" href="index.html">
+      <a class="back-btn liquid-glass-pill" href="index.html">
         <span class="iconify" data-icon="mdi:chevron-left" aria-hidden="true"></span>
         Назад
       </a>
@@ -906,7 +949,7 @@
           <div id="filesBottom" class="coord-files"></div>
         </div>
         <div class="board-meta">
-          <div class="coach-card">
+          <div class="coach-card liquid-glass-subtle">
             <div id="moveQuality" class="move-quality" aria-live="polite"></div>
             <div id="coachComment" class="coach-comment">AI-комментарий появится после анализа позиции.</div>
           </div>
@@ -914,7 +957,7 @@
             <label class="coach-hints-label" for="coachHintsToggle">
               <span>Стрелка и AI</span>
               <input id="coachHintsToggle" class="coach-hints-input" type="checkbox" checked />
-              <span class="coach-hints-track" aria-hidden="true"><span class="coach-hints-thumb"></span></span>
+              <span class="coach-hints-track liquid-glass-toggle" aria-hidden="true"><span class="coach-hints-thumb"></span></span>
             </label>
           </div>
           <div class="priority-wrap" id="boardPriorityWrap">
@@ -954,7 +997,7 @@
   </div>
 
   <div id="promotionOverlay" class="promotion-overlay" role="dialog" aria-modal="true" aria-label="Выбор фигуры для превращения">
-    <div class="promotion-dialog">
+    <div class="promotion-dialog liquid-glass-panel">
       <div class="promotion-title">Превратить пешку в:</div>
       <div class="promotion-grid">
         <button class="promotion-btn" data-piece="q">
