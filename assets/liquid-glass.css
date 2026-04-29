@@ -11,6 +11,9 @@
   --lg-blur-level: 12px;
   --lg-progressive-blur-strength: 1.00;
   --lg-glass-bg-opacity: .28;
+  --lg-backdrop-sat: 140%;
+  --lg-subtle-sat: 116%;
+  --lg-toggle-sat: 116%;
 }
 
 .liquid-glass,
@@ -79,18 +82,18 @@
   .liquid-glass-panel{
     backdrop-filter:
       blur(calc(var(--lg-blur-level) * var(--lg-progressive-blur-strength)))
-      saturate(140%);
+      saturate(var(--lg-backdrop-sat));
     -webkit-backdrop-filter:
       blur(calc(var(--lg-blur-level) * var(--lg-progressive-blur-strength)))
-      saturate(140%);
+      saturate(var(--lg-backdrop-sat));
   }
   .liquid-glass-subtle{
     backdrop-filter:
       blur(calc(var(--lg-blur-level) * .78))
-      saturate(116%);
+      saturate(var(--lg-subtle-sat));
     -webkit-backdrop-filter:
       blur(calc(var(--lg-blur-level) * .78))
-      saturate(116%);
+      saturate(var(--lg-subtle-sat));
   }
 }
 
@@ -123,6 +126,63 @@
   }
 }
 
+/* Firefox-specific hard fallback: keep predictable frosted look */
+@-moz-document url-prefix() {
+  .liquid-glass,
+  .liquid-glass-subtle,
+  .liquid-glass-pill,
+  .liquid-glass-panel{
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(var(--lg-surface-rgb), .72);
+  }
+}
+
+/* iOS Safari / iOS WebView: avoid SVG-url refraction artifacts */
+@supports (-webkit-touch-callout: none) {
+  .liquid-glass,
+  .liquid-glass-pill,
+  .liquid-glass-panel{
+    backdrop-filter:
+      blur(calc(var(--lg-blur-level) * .72))
+      saturate(122%) !important;
+    -webkit-backdrop-filter:
+      blur(calc(var(--lg-blur-level) * .72))
+      saturate(122%) !important;
+  }
+  .liquid-glass-subtle{
+    backdrop-filter:
+      blur(calc(var(--lg-blur-level) * .58))
+      saturate(108%) !important;
+    -webkit-backdrop-filter:
+      blur(calc(var(--lg-blur-level) * .58))
+      saturate(108%) !important;
+  }
+}
+
+/* Touch + small screens: lighter effect for mobile browsers/WebView perf */
+@media (pointer: coarse), (max-width: 900px){
+  :root{
+    --lg-blur-level: 9px;
+    --lg-backdrop-sat: 126%;
+    --lg-subtle-sat: 108%;
+    --lg-toggle-sat: 108%;
+    --lg-specular-opacity: .28;
+  }
+  .liquid-glass::before,
+  .liquid-glass-subtle::before,
+  .liquid-glass-pill::before,
+  .liquid-glass-panel::before{
+    opacity: calc(var(--lg-specular-opacity) * .82);
+  }
+  .liquid-glass::after,
+  .liquid-glass-subtle::after,
+  .liquid-glass-pill::after,
+  .liquid-glass-panel::after{
+    opacity: .18;
+  }
+}
+
 /* switch track */
 .liquid-glass-toggle{
   position: relative;
@@ -146,13 +206,13 @@
 }
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
   .liquid-glass-toggle{
-    backdrop-filter: blur(calc(var(--lg-blur-level) * .55)) saturate(116%);
-    -webkit-backdrop-filter: blur(calc(var(--lg-blur-level) * .55)) saturate(116%);
+    backdrop-filter: blur(calc(var(--lg-blur-level) * .55)) saturate(var(--lg-toggle-sat));
+    -webkit-backdrop-filter: blur(calc(var(--lg-blur-level) * .55)) saturate(var(--lg-toggle-sat));
   }
 }
 @supports (backdrop-filter: url("#liquid-glass-filter") blur(1px)){
   .liquid-glass-toggle{
-    backdrop-filter: url(#liquid-glass-filter) blur(calc(var(--lg-blur-level) * .55)) saturate(116%);
+    backdrop-filter: url(#liquid-glass-filter) blur(calc(var(--lg-blur-level) * .55)) saturate(var(--lg-toggle-sat));
   }
 }
 .coach-hints-input:checked + .coach-hints-track.liquid-glass-toggle{
