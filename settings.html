@@ -107,6 +107,7 @@
       border: 1px solid var(--border);
       background: var(--panel);
     }
+    .collapsible.is-hidden{ display:none; }
     .collapsible summary{
       list-style: none;
       cursor: pointer;
@@ -146,6 +147,38 @@
       gap: 8px;
     }
     .settings-puzzle-grid .mono{ word-break: break-all; }
+    .access-code-row{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      margin-top:8px;
+    }
+    .access-code-input{
+      flex:1;
+      min-width:0;
+      background:rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.16);
+      border-radius:10px;
+      color:var(--text);
+      padding:10px 12px;
+      font:inherit;
+    }
+    .access-code-btn{
+      border:1px solid rgba(255,255,255,.2);
+      background:rgba(255,255,255,.08);
+      color:var(--text);
+      border-radius:10px;
+      padding:10px 12px;
+      font:inherit;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .access-code-status{
+      margin-top:8px;
+      font-size:13px;
+      color:rgba(255,255,255,.84);
+      min-height:18px;
+    }
 
     .puzzle-feedback{ margin-top: 8px; min-height: 22px; display: flex; justify-content: center; }
     .puzzle-feedback-row{
@@ -312,7 +345,7 @@
       <div class="sound-row">
         <div class="sound-copy">
           <h3 class="section-title">
-            <span class="iconify" data-icon="mdi:volume-high" aria-hidden="true"></span>
+            <span id="soundSecretIcon" class="iconify" data-icon="mdi:volume-high" aria-hidden="true"></span>
             Звук
           </h3>
           <p class="hint" id="soundToggleStatus">Включен</p>
@@ -388,7 +421,7 @@
       </div>
     </div>
 
-    <details class="collapsible">
+    <details id="puzzleDataDetails" class="collapsible is-hidden">
       <summary>
         <div class="section-title">
           <span class="iconify" data-icon="mdi:clipboard-text-outline" aria-hidden="true"></span>
@@ -412,6 +445,17 @@
           </div>
           <div id="puzzleFeedback" class="puzzle-feedback"></div>
         </div>
+        <div class="settings-panel" role="region" aria-label="Секретный код">
+          <div class="info-title">
+            <span class="iconify" data-icon="mdi:form-textbox-password" aria-hidden="true"></span>
+            <span>Код</span>
+          </div>
+          <div class="access-code-row">
+            <input id="accessCodeInput" class="access-code-input mono" type="text" inputmode="numeric" autocomplete="off" placeholder="Введите код" maxlength="12" />
+            <button id="accessCodeBtn" class="access-code-btn" type="button">Применить</button>
+          </div>
+          <div id="accessCodeStatus" class="access-code-status"></div>
+        </div>
       </div>
     </details>
   </div>
@@ -423,6 +467,11 @@
     const SOUND_STORAGE_KEY = 'chess-miniapp-sound-enabled';
     const PALETTE_STORAGE_KEY = 'chess-miniapp-board-palette';
     const PUZZLE_QUOTA_STORAGE_PREFIX = 'chess-miniapp-quota';
+    const PUZZLE_DATA_UNLOCKED_KEY_PREFIX = 'chess-miniapp-puzzle-data-unlocked';
+    const ADMIN_ACCESS_STORAGE_PREFIX = 'chess-miniapp-admin-access';
+    const ACCESS_CODE_ATTEMPTS_MAX = 3;
+    const ACCESS_CODE_UNLOCK = '322';
+    const ACCESS_CODE_RESET = '999';
     let cloudStateSaveTimerId = null;
     let isApplyingCloudState = false;
     let cloudMissingInitDataWarned = false;
@@ -447,7 +496,7 @@
 
     function loadPalettePreference(){
       const stored = localStorage.getItem(PALETTE_STORAGE_KEY);
-      return boardPalettes[stored] ? stored : 'default';
+      return boardPalettes[stored] ? stored : 'coffee';
     }
 
     function savePalettePreference(name){
@@ -541,6 +590,39 @@
         enabled = !enabled;
         saveSoundPreference(enabled);
         updateSoundToggleUI(enabled);
+      });
+    }
+
+    function initPuzzleDataUnlock(){
+      const soundRow = document.querySelector('.sound-row');
+      const details = document.getElementById('puzzleDataDetails');
+      const icon = document.getElementById('soundSecretIcon');
+      if (!soundRow || !details) return;
+      const revealDetails = () => {
+        details.classList.remove('is-hidden');
+        details.open = true;
+        renderAccessCodeState();
+      };
+      try {
+        if (localStorage.getItem(getPuzzleDataUnlockedStorageKey()) === '1'){
+          revealDetails();
+          return;
+        }
+      } catch (_) {}
+      let taps = 0;
+      if (icon) icon.style.cursor = 'pointer';
+      soundRow.addEventListener('click', (event) => {
+        const target = event.target;
+        const clickedSecretIcon = target?.closest?.('#soundSecretIcon');
+        const clickedSoundToggle = target?.closest?.('#soundToggle');
+        if (!clickedSecretIcon && !clickedSoundToggle) return;
+        taps += 1;
+        if (taps >= 7){
+          try {
+            localStorage.setItem(getPuzzleDataUnlockedStorageKey(), '1');
+          } catch (_) {}
+          revealDetails();
+        }
       });
     }
 
@@ -645,6 +727,115 @@
       return `${PUZZLE_QUOTA_STORAGE_PREFIX}:${getTelegramStorageUserId()}`;
     }
 
+    function getPuzzleDataUnlockedStorageKey(){
+      return `${PUZZLE_DATA_UNLOCKED_KEY_PREFIX}:${getTelegramStorageUserId()}`;
+    }
+
+    function getAdminAccessStorageKey(){
+      return `${ADMIN_ACCESS_STORAGE_PREFIX}:${getTelegramStorageUserId()}`;
+    }
+
+    function loadAdminAccessState(){
+      try{
+        const raw = localStorage.getItem(getAdminAccessStorageKey());
+        if (!raw) return { unlimitedTasks: false, attemptsLeft: ACCESS_CODE_ATTEMPTS_MAX, updatedAt: 0 };
+        const parsed = JSON.parse(raw);
+        const attempts = Number(parsed?.attemptsLeft);
+        return {
+          unlimitedTasks: Boolean(parsed?.unlimitedTasks),
+          attemptsLeft: Number.isFinite(attempts) ? Math.max(0, Math.min(ACCESS_CODE_ATTEMPTS_MAX, attempts)) : ACCESS_CODE_ATTEMPTS_MAX,
+          updatedAt: Number(parsed?.updatedAt) || 0
+        };
+      } catch (_) {
+        return { unlimitedTasks: false, attemptsLeft: ACCESS_CODE_ATTEMPTS_MAX, updatedAt: 0 };
+      }
+    }
+
+    function saveAdminAccessState(nextState){
+      const attempts = Number(nextState?.attemptsLeft);
+      const state = {
+        unlimitedTasks: Boolean(nextState?.unlimitedTasks),
+        attemptsLeft: Number.isFinite(attempts) ? Math.max(0, Math.min(ACCESS_CODE_ATTEMPTS_MAX, attempts)) : ACCESS_CODE_ATTEMPTS_MAX,
+        updatedAt: Date.now()
+      };
+      try{
+        localStorage.setItem(getAdminAccessStorageKey(), JSON.stringify(state));
+      } catch (_) {}
+      scheduleCloudStateSave();
+      try{
+        window.parent?.postMessage({ type: 'chess-miniapp-access-updated', accessState: state }, '*');
+      } catch (_) {}
+      return state;
+    }
+
+    function renderAccessCodeState(){
+      const statusEl = document.getElementById('accessCodeStatus');
+      const inputEl = document.getElementById('accessCodeInput');
+      const btnEl = document.getElementById('accessCodeBtn');
+      if (!statusEl || !inputEl || !btnEl) return;
+      const state = loadAdminAccessState();
+      if (state.unlimitedTasks){
+        statusEl.textContent = 'Безлимит задач включен.';
+      } else if (state.attemptsLeft <= 0){
+        statusEl.textContent = 'Попытки закончились. Введите код 999 для сброса.';
+      } else {
+        statusEl.textContent = `Осталось попыток: ${state.attemptsLeft}.`;
+      }
+      inputEl.disabled = false;
+      btnEl.disabled = false;
+    }
+
+    function applyAccessCode(){
+      const inputEl = document.getElementById('accessCodeInput');
+      const statusEl = document.getElementById('accessCodeStatus');
+      if (!inputEl || !statusEl) return;
+      const code = String(inputEl.value || '').trim();
+      let state = loadAdminAccessState();
+      if (!code){
+        statusEl.textContent = 'Введите код.';
+        return;
+      }
+      if (code === ACCESS_CODE_RESET){
+        state = saveAdminAccessState({ ...state, attemptsLeft: ACCESS_CODE_ATTEMPTS_MAX });
+        statusEl.textContent = 'Счетчик попыток сброшен.';
+        inputEl.value = '';
+        renderAccessCodeState();
+        return;
+      }
+      if (state.attemptsLeft <= 0){
+        statusEl.textContent = 'Попытки закончились. Код 999 сбрасывает счетчик.';
+        return;
+      }
+      if (code === ACCESS_CODE_UNLOCK){
+        state = saveAdminAccessState({ ...state, unlimitedTasks: true });
+        statusEl.textContent = 'Код принят. Безлимит задач включен.';
+        inputEl.value = '';
+        renderAccessCodeState();
+        return;
+      }
+      state = saveAdminAccessState({ ...state, attemptsLeft: Math.max(0, state.attemptsLeft - 1) });
+      if (state.attemptsLeft <= 0){
+        statusEl.textContent = 'Неверный код. Попытки закончились. Введите 999 для сброса.';
+      } else {
+        statusEl.textContent = `Неверный код. Осталось попыток: ${state.attemptsLeft}.`;
+      }
+      inputEl.select();
+    }
+
+    function initAccessCodeControls(){
+      const inputEl = document.getElementById('accessCodeInput');
+      const btnEl = document.getElementById('accessCodeBtn');
+      if (!inputEl || !btnEl) return;
+      btnEl.addEventListener('click', applyAccessCode);
+      inputEl.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter'){
+          event.preventDefault();
+          applyAccessCode();
+        }
+      });
+      renderAccessCodeState();
+    }
+
     function getTelegramInitData(){
       return tg?.initData || '';
     }
@@ -687,10 +878,12 @@
         soundEnabled: loadSoundPreference(),
         palette: loadPalettePreference()
       };
+      const adminAccess = loadAdminAccessState();
       return {
         version: 1,
         savedAt: Date.now(),
         settings,
+        adminAccess,
         soundEnabled: settings.soundEnabled,
         palette: settings.palette
       };
@@ -722,6 +915,14 @@
         }
         if (Object.prototype.hasOwnProperty.call(state, 'history') && state.history){
           localStorage.setItem(getHistoryStorageKey(), JSON.stringify(state.history));
+        }
+        if (Object.prototype.hasOwnProperty.call(state, 'adminAccess') && state.adminAccess){
+          const attempts = Number(state.adminAccess.attemptsLeft);
+          localStorage.setItem(getAdminAccessStorageKey(), JSON.stringify({
+            unlimitedTasks: Boolean(state.adminAccess.unlimitedTasks),
+            attemptsLeft: Number.isFinite(attempts) ? Math.max(0, Math.min(ACCESS_CODE_ATTEMPTS_MAX, attempts)) : ACCESS_CODE_ATTEMPTS_MAX,
+            updatedAt: Number(state.adminAccess.updatedAt) || 0
+          }));
         }
       } catch (err) {
         console.warn('Could not apply cloud state', err);
@@ -791,6 +992,7 @@
       applyBoardPalette(paletteName);
       updatePaletteSelection(paletteName);
       hydratePuzzle();
+      renderAccessCodeState();
     }
 
     function initEmbeddedMode(){
@@ -815,6 +1017,8 @@
 
     initTelegram();
     initSoundToggle();
+    initPuzzleDataUnlock();
+    initAccessCodeControls();
     initPalettePicker();
     hydratePuzzle();
     loadCloudState();

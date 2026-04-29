@@ -17,6 +17,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Stockfish анализ</title>
+  <script>
+    window.CHESS_ANALYTICS_API_BASE = 'https://elza-hillier-jayde.ngrok-free.dev';
+  </script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
   <style>
@@ -122,6 +125,8 @@
       position:relative;
     }
     .board-squares{
+      position:relative;
+      z-index:1;
       display:grid;
       grid-template-columns: repeat(8, 1fr);
       grid-template-rows: repeat(8, 1fr);
@@ -133,18 +138,21 @@
       position:absolute;
       inset:0;
       pointer-events:none;
+      z-index:4;
+      overflow:visible;
     }
     .arrow-path{
-      stroke:#6ccf70;
-      stroke-width:10;
-      stroke-linecap:round;
-      stroke-linejoin:round;
       fill:none;
-      opacity:0.65;
+      stroke:rgba(255,255,255,.38);
+      stroke-width:28;
+      stroke-linecap:butt;
+      stroke-linejoin:miter;
+      opacity:1;
     }
     .arrow-head{
-      fill:#6ccf70;
-      opacity:0.65;
+      fill:rgba(255,255,255,.38);
+      stroke:none;
+      opacity:1;
     }
     .eval-bar{
       grid-area: cp;
@@ -364,6 +372,42 @@
       opacity:1;
       letter-spacing:0.3px;
     }
+    .coach-card{
+      width:100%;
+      min-height:58px;
+      padding:12px 14px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.055);
+      display:flex;
+      flex-direction:column;
+      gap:7px;
+    }
+    .coach-card.hidden{ display:none; }
+    .coach-comment{
+      width:100%;
+      color:rgba(255,255,255,.9);
+      font-size:15px;
+      line-height:1.35;
+    }
+    .coach-comment.loading{ opacity:.72; }
+    .move-quality{
+      display:none;
+      width:100%;
+      color:rgba(255,255,255,.92);
+      font-weight:900;
+      font-size:15px;
+      line-height:1.2;
+      letter-spacing:.2px;
+    }
+    .move-quality.visible{ display:block; }
+    .move-quality.brilliant{ color:#f7e27b; }
+    .move-quality.best{ color:#aef2d0; }
+    .move-quality.excellent{ color:#8fe8ff; }
+    .move-quality.good{ color:#c7e77c; }
+    .move-quality.inaccuracy{ color:#ffd166; }
+    .move-quality.mistake{ color:#ff9f6e; }
+    .move-quality.blunder{ color:#ff8fa3; }
     .priority-moves{
       display:grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -391,16 +435,17 @@
       gap:10px;
       flex-wrap: wrap;
     }
-    .priority-piece-icon{
+    .priority-number-icon{
       display:grid;
       place-items:center;
       width:38px;
       height:38px;
-      border-radius:10px;
+      border-radius:50%;
       background: rgba(255,255,255,.06);
       border:1px solid rgba(255,255,255,.12);
       color:#cfe0f7;
-      font-size:28px;
+      font-size:18px;
+      font-weight:900;
       flex-shrink:0;
     }
     .priority-move{
@@ -492,6 +537,54 @@
       border:none;
       background:none;
       font-weight:600;
+    }
+    .coach-hints-control{
+      width:100%;
+      display:flex;
+      align-items:center;
+    }
+    .coach-hints-label{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      font-size:14px;
+      font-weight:600;
+      color:rgba(255,255,255,.9);
+      cursor:pointer;
+      user-select:none;
+    }
+    .coach-hints-input{
+      position:absolute;
+      opacity:0;
+      pointer-events:none;
+    }
+    .coach-hints-track{
+      position:relative;
+      width:44px;
+      height:24px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.2);
+      background:rgba(255,255,255,.12);
+      transition:background .15s ease, border-color .15s ease;
+      flex-shrink:0;
+    }
+    .coach-hints-thumb{
+      position:absolute;
+      top:2px;
+      left:2px;
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      background:#fff;
+      transition:transform .15s ease;
+      box-shadow:0 2px 6px rgba(0,0,0,.3);
+    }
+    .coach-hints-input:checked + .coach-hints-track{
+      background:rgba(120,190,120,.45);
+      border-color:rgba(120,190,120,.8);
+    }
+    .coach-hints-input:checked + .coach-hints-track .coach-hints-thumb{
+      transform:translateX(20px);
     }
     .move-num{
       display:grid;
@@ -757,6 +850,17 @@
           <div id="filesBottom" class="coord-files"></div>
         </div>
         <div class="board-meta">
+          <div class="coach-card">
+            <div id="moveQuality" class="move-quality" aria-live="polite"></div>
+            <div id="coachComment" class="coach-comment">AI-комментарий появится после анализа позиции.</div>
+          </div>
+          <div class="coach-hints-control">
+            <label class="coach-hints-label" for="coachHintsToggle">
+              <span>Стрелка и AI</span>
+              <input id="coachHintsToggle" class="coach-hints-input" type="checkbox" checked />
+              <span class="coach-hints-track" aria-hidden="true"><span class="coach-hints-thumb"></span></span>
+            </label>
+          </div>
           <div class="priority-wrap" id="boardPriorityWrap">
             <div class="priority-title">Приоритетные ходы</div>
             <div id="boardPriorityMoves" class="priority-moves"></div>
@@ -819,16 +923,99 @@
 
   <script>
     const params = new URLSearchParams(window.location.search);
-    const initialFen = params.get('fen');
     const tg = window.Telegram?.WebApp;
     const PALETTE_STORAGE_KEY = 'chess-miniapp-board-palette';
     const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
+    const PUZZLE_STORAGE_KEY = 'chess-miniapp-current-puzzle';
+    const COACH_HINTS_STORAGE_KEY = 'chess-miniapp-coach-hints-enabled';
     const boardPalettes = {
       default: { dark: '#769656', light: '#eeeed2' },
       coffee: { dark: '#8b5e3c', light: '#d7c9aa' },
       sea: { dark: '#466b8a', light: '#e9ddc5' },
       warm: { dark: '#b83c3c', light: '#f0e7d8' }
     };
+
+    function parseStoredJson(key){
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function readCoachHintsEnabled(){
+      try {
+        const raw = localStorage.getItem(COACH_HINTS_STORAGE_KEY);
+        if (raw === null) return true;
+        return raw === '1' || raw === 'true';
+      } catch (_) {
+        return true;
+      }
+    }
+
+    function setCoachHintsEnabled(enabled, { syncControl = true } = {}){
+      coachHintsEnabled = enabled !== false;
+      try {
+        localStorage.setItem(COACH_HINTS_STORAGE_KEY, coachHintsEnabled ? '1' : '0');
+      } catch (_) {}
+      if (coachCardEl){
+        coachCardEl.classList.toggle('hidden', !coachHintsEnabled);
+      }
+      if (coachHintsToggleEl && syncControl){
+        coachHintsToggleEl.checked = coachHintsEnabled;
+      }
+      if (!coachHintsEnabled){
+        updateArrow(null);
+        if (coachCommentEl){
+          coachCommentEl.classList.remove('loading');
+          coachCommentEl.textContent = 'AI-комментарий и стрелка отключены.';
+        }
+        return;
+      }
+      const node = currentHistoryNodeId ? historyNodes.get(currentHistoryNodeId) : null;
+      const lines = Array.isArray(node?.lines) ? node.lines : [];
+      updateArrow(lines?.[0]);
+      updateCoachComment(lines);
+    }
+
+    function getTelegramStorageUserId(){
+      const unsafeId = tg?.initDataUnsafe?.user?.id;
+      if (unsafeId) return unsafeId;
+      try {
+        const params = new URLSearchParams(getTelegramInitData());
+        const user = JSON.parse(params.get('user') || '{}');
+        return user?.id ?? 'anonymous';
+      } catch {
+        return 'anonymous';
+      }
+    }
+
+    function getPuzzleStorageKey(){
+      return `${PUZZLE_STORAGE_KEY}:${getTelegramStorageUserId()}`;
+    }
+
+    function getHistoryStorageKey(){
+      return `${HISTORY_STORAGE_KEY}:${getTelegramStorageUserId()}`;
+    }
+
+    function getInitialFenFromPuzzleState(){
+      const scoped = parseStoredJson(getPuzzleStorageKey());
+      if (scoped?.boardFen) return scoped.boardFen;
+      const legacy = parseStoredJson(PUZZLE_STORAGE_KEY);
+      if (legacy?.boardFen) return legacy.boardFen;
+      return '';
+    }
+
+    function getStoredPuzzleState(){
+      const scoped = parseStoredJson(getPuzzleStorageKey());
+      if (scoped?.puzzleData && Array.isArray(scoped?.puzzleSolutionMoves)) return scoped;
+      const legacy = parseStoredJson(PUZZLE_STORAGE_KEY);
+      if (legacy?.puzzleData && Array.isArray(legacy?.puzzleSolutionMoves)) return legacy;
+      return null;
+    }
+
+    const initialFen = params.get('fen') || getInitialFenFromPuzzleState();
 
     const files = ['a','b','c','d','e','f','g','h'];
     const ranks = ['8','7','6','5','4','3','2','1'];
@@ -866,6 +1053,10 @@
     const arrowsEl = document.getElementById('boardArrows');
     const boardPriorityWrapEl = document.getElementById('boardPriorityWrap');
     const boardPriorityMovesEl = document.getElementById('boardPriorityMoves');
+    const coachCardEl = document.querySelector('.coach-card');
+    const moveQualityEl = document.getElementById('moveQuality');
+    const coachCommentEl = document.getElementById('coachComment');
+    const coachHintsToggleEl = document.getElementById('coachHintsToggle');
     const analysisStatusEl = document.getElementById('analysisStatus');
     const boardStatusEl = document.getElementById('boardStatus');
     const filesBottomEl = document.getElementById('filesBottom');
@@ -878,9 +1069,21 @@
       { wrap: boardPriorityWrapEl, list: boardPriorityMovesEl }
     ].filter((item) => item.wrap && item.list);
 
+    const ANALYTICS_API_BASE = window.CHESS_ANALYTICS_API_BASE || '';
     const ANALYZE_URL = 'http://127.0.0.1:8000/analyze';
     const CACHE_TTL_MS = 10_000;
+    const ANALYZE_MOVETIME_BASE_MS = 280;
+    const ANALYZE_MOVETIME_TACTICAL_MS = 520;
+    const ANALYZE_MOVETIME_MATE_MS = 800;
+    const ANALYZE_MULTIPV_BASE = 1;
+    const ANALYZE_MULTIPV_TACTICAL = 2;
+    const ANALYZE_MULTIPV_MATE = 3;
     const analyzeCache = new Map();
+    const coachCommentCache = new Map();
+    const coachMateState = {
+      announced: { white: false, black: false },
+      lastMoveAnnounced: { white: false, black: false }
+    };
     const historyNodes = new Map();
     let moveTreeRoot = null;
     let historyNodeSeq = 0;
@@ -904,10 +1107,12 @@
     let selectedSq = null;
     let possibleMoves = [];
     let promotionState = null;
+    let coachHintsEnabled = true;
     let audioContext = null;
     let audioBuffers = new Map();
     let audioPreloadPromise = null;
     let audioUnlockPromise = null;
+    const storedPuzzleState = getStoredPuzzleState();
 
     function getBoardPalette(name){
       return boardPalettes[name] || boardPalettes.default;
@@ -969,7 +1174,7 @@
 
     function loadPalettePreference(){
       const stored = localStorage.getItem(PALETTE_STORAGE_KEY);
-      return boardPalettes[stored] ? stored : 'default';
+      return boardPalettes[stored] ? stored : 'coffee';
     }
 
     function applyBoardPalette(name){
@@ -1045,17 +1250,26 @@
       return Number.isFinite(num) ? num : null;
     }
 
+    function coerceScoreToCp(value){
+      const num = coerceNumber(value);
+      if (num === null) return null;
+      return Math.abs(num) <= 20 && !Number.isInteger(num) ? Math.round(num * 100) : Math.round(num);
+    }
+
     function extractCp(line){
       const score = line?.score && typeof line.score === 'object' ? line.score : null;
       const candidates = [
         score?.cp,
         score?.centipawns,
+        score?.pawns,
+        line?.score_pawns,
+        line?.pawns,
         line?.score_cp,
         line?.cp
       ];
       for (const candidate of candidates){
-        const num = coerceNumber(candidate);
-        if (num !== null) return num;
+        const cp = coerceScoreToCp(candidate);
+        if (cp !== null) return cp;
       }
       return null;
     }
@@ -1113,10 +1327,99 @@
       return { cp: signedCp, label: (signedCp / 100).toFixed(2), mate: null };
     }
 
+    function clearMoveQuality(){
+      if (!moveQualityEl) return;
+      moveQualityEl.className = 'move-quality';
+      moveQualityEl.textContent = '';
+    }
+
+    function hasBrilliantMoveIdea(move, currentMate, previousMate){
+      if (!move) return false;
+      if (move.discoveredAttack?.attacker_piece || move.discoveredAttack?.attacker_piece === '') return Boolean(move.discoveredAttack?.attacker_piece);
+      if (Array.isArray(move.sharedPressure) && move.sharedPressure.length) return true;
+      if (currentMate?.mating_side && currentMate.mating_side === toCoachSide(move.side)) return true;
+      if (previousMate?.mating_side && previousMate.defending_side === toCoachSide(move.side) && move.resolvedCheck) return true;
+      return false;
+    }
+
+    function getMoveQualityCategory(lossCp, { currentMate = null, previousMate = null, move = null } = {}){
+      const mover = toCoachSide(move?.side);
+      const currentMatesForMover = currentMate?.mating_side && currentMate.mating_side === mover;
+      const currentMatesAgainstMover = currentMate?.mating_side && currentMate.mating_side !== mover;
+      const previousMatedMover = previousMate?.mating_side && previousMate.mating_side !== mover;
+      const previousMoverHadMate = previousMate?.mating_side && previousMate.mating_side === mover;
+      if (currentMatesAgainstMover){
+        return { label: 'Зевок', className: 'blunder' };
+      }
+      if (previousMatedMover && !currentMatesAgainstMover){
+        return { label: 'Лучший ход', className: 'best' };
+      }
+      if (previousMoverHadMate && !currentMatesForMover){
+        const previousMateMoves = Number(previousMate.moves) || 99;
+        return previousMateMoves <= 2
+          ? { label: 'Зевок', className: 'blunder' }
+          : { label: 'Ошибка', className: 'mistake' };
+      }
+      if (lossCp <= 30 && hasBrilliantMoveIdea(move, currentMate, previousMate)){
+        return { label: 'Блестящий ход', className: 'brilliant' };
+      }
+      if (lossCp <= 15) return { label: 'Лучший ход', className: 'best' };
+      if (lossCp <= 40) return { label: 'Отличный ход', className: 'excellent' };
+      if (lossCp <= 80) return { label: 'Хороший ход', className: 'good' };
+      if (lossCp <= 150) return { label: 'Неточность', className: 'inaccuracy' };
+      if (lossCp <= 300) return { label: 'Ошибка', className: 'mistake' };
+      return { label: 'Зевок', className: 'blunder' };
+    }
+
+    function updateMoveQuality(lines = []){
+      if (!moveQualityEl) return;
+      const node = currentHistoryNodeId ? historyNodes.get(currentHistoryNodeId) : null;
+      const parent = node?.parentId ? historyNodes.get(node.parentId) : null;
+      const move = node?.move || null;
+      const bestLine = parent?.lines?.[0] || null;
+      const playedLine = lines?.[0] || node?.lines?.[0] || null;
+      if (!move?.uci || !bestLine || !playedLine){
+        clearMoveQuality();
+        return;
+      }
+      const moverSide = move.side || getFenActiveColor(parent?.fen || '');
+      const bestScore = normalizeScore(bestLine, moverSide);
+      const playedScore = normalizeScore(playedLine, moverSide);
+      let lossCp = Math.max(0, Math.round(bestScore.cp - playedScore.cp));
+      const currentMate = getForcedMateContext(playedLine, activeColor);
+      const previousMate = getForcedMateContext(bestLine, moverSide);
+      if (bestScore.mate !== null || playedScore.mate !== null){
+        if (playedScore.mate !== null && playedScore.mate < 0) lossCp = Math.max(lossCp, 301);
+        if (bestScore.mate !== null && bestScore.mate > 0 && !(playedScore.mate !== null && playedScore.mate > 0)) lossCp = Math.max(lossCp, 151);
+      }
+      const category = getMoveQualityCategory(lossCp, { currentMate, previousMate, move });
+      moveQualityEl.className = `move-quality visible ${category.className}`;
+      moveQualityEl.textContent = category.label;
+    }
+
     function renderAnalysisLines(lines = [], { fromCache = false, perspective = null } = {}){
       const viewColor = perspective || evaluationPerspective;
+      const gameEnd = getGameEndState();
+      const hasEngineLines = Array.isArray(lines) && lines.length > 0;
       if (analysisListEl){
         analysisListEl.innerHTML = '';
+      }
+      if (gameEnd?.kind){
+        if (analysisListEl){
+          const empty = document.createElement('li');
+          empty.textContent = gameEnd?.kind === 'checkmate'
+            ? `${gameEnd.winner_label} поставили мат.`
+            : 'Пат. Легальных ходов нет.';
+          analysisListEl.appendChild(empty);
+        }
+        updateArrow(null);
+        if (hasEngineLines) updateEvalBar(lines?.[0], viewColor);
+        updatePriorityMoves([], viewColor);
+        clearMoveQuality();
+        if (gameEnd?.kind === 'checkmate'){
+          updateCoachComment([]);
+        }
+        return;
       }
       if (!lines.length){
         if (analysisListEl){
@@ -1125,7 +1428,8 @@
           analysisListEl.appendChild(empty);
         }
         updateArrow(null);
-        updateEvalBar(null, viewColor);
+        updatePriorityMoves([], viewColor);
+        clearMoveQuality();
         return;
       }
       if (analysisListEl){
@@ -1152,6 +1456,8 @@
       updatePriorityMoves(lines, viewColor);
       updateArrow(lines?.[0]);
       updateEvalBar(lines?.[0], viewColor);
+      updateMoveQuality(lines);
+      updateCoachComment(lines);
     }
 
     function normalizeTokenToString(token){
@@ -1180,6 +1486,14 @@
       const span = document.createElement('span');
       span.className = 'iconify priority-piece-icon';
       span.dataset.icon = iconName;
+      span.setAttribute('aria-hidden', 'true');
+      return span;
+    }
+
+    function createPriorityNumberIcon(index){
+      const span = document.createElement('span');
+      span.className = 'priority-number-icon';
+      span.textContent = String(index + 1);
       span.setAttribute('aria-hidden', 'true');
       return span;
     }
@@ -1240,10 +1554,15 @@
       });
       const top = lines.slice(0,3);
       if (!top.length){
+        const gameEnd = getGameEndState();
         priorityTargets.forEach(({ list }) => {
           const empty = document.createElement('div');
           empty.className = 'priority-item mono is-empty';
-          empty.textContent = 'Нет приоритетных ходов';
+          empty.textContent = gameEnd?.kind === 'checkmate'
+            ? `${gameEnd.winner_label} поставили мат`
+            : gameEnd?.kind === 'stalemate'
+              ? 'Пат'
+              : 'Нет приоритетных ходов';
           list.appendChild(empty);
         });
         return;
@@ -1255,16 +1574,12 @@
 
           const head = document.createElement('div');
           head.className = 'priority-head';
-          const icon = createPieceIcon(getPieceIconName(line.pv_san || line.best_move_uci || ''));
+          const icon = createPriorityNumberIcon(idx);
           const title = document.createElement('div');
           title.className = 'priority-move';
-          const index = document.createElement('span');
-          index.className = 'priority-index';
-          index.textContent = `${idx + 1}.`;
           const moveText = document.createElement('span');
           moveText.className = 'priority-move-text mono';
           moveText.textContent = line.best_move_uci || '—';
-          title.appendChild(index);
           title.appendChild(moveText);
           head.appendChild(icon);
           head.appendChild(title);
@@ -1419,10 +1734,87 @@
       return { from: uci.slice(0,2), to: uci.slice(2,4) };
     }
 
+    function normalizeUciMove(uci){
+      const token = String(uci || '').trim().toLowerCase();
+      return /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(token) ? token : '';
+    }
+
+    function normalizeFenKey(fenStr){
+      const parts = String(fenStr || '').trim().split(/\s+/).slice(0, 4);
+      return parts.join(' ');
+    }
+
+    function getCurrentMovePathUci(nodeId){
+      const path = [];
+      let node = nodeId ? historyNodes.get(nodeId) : null;
+      while (node && node.parentId){
+        const uci = normalizeUciMove(node?.move?.uci || '');
+        if (uci) path.push(uci);
+        node = historyNodes.get(node.parentId);
+      }
+      return path.reverse();
+    }
+
+    function getPuzzleHintMoveUci(){
+      const puzzle = storedPuzzleState;
+      if (!puzzle?.puzzleMode || !Array.isArray(puzzle?.puzzleSolutionMoves) || !puzzle.puzzleSolutionMoves.length){
+        return '';
+      }
+      const startFen = normalizeFenKey(puzzle.puzzleStartFen || '');
+      const rootFen = normalizeFenKey(moveTreeRoot?.fen || '');
+      const solutionMoves = puzzle.puzzleSolutionMoves
+        .map((move) => normalizeUciMove(move))
+        .filter(Boolean);
+      if (!solutionMoves.length) return '';
+      if (!startFen || !rootFen || startFen !== rootFen){
+        const currentKey = normalizeFenKey(currentFen || '');
+        const puzzleBoardKey = normalizeFenKey(puzzle.boardFen || '');
+        const idx = Number.isInteger(puzzle.puzzleMoveIndex) ? puzzle.puzzleMoveIndex : -1;
+        if (currentKey && puzzleBoardKey && currentKey === puzzleBoardKey && idx >= 0 && idx < solutionMoves.length){
+          return solutionMoves[idx] || '';
+        }
+        return '';
+      }
+      const currentPath = getCurrentMovePathUci(currentHistoryNodeId);
+      if (currentPath.length >= solutionMoves.length) return '';
+      for (let i = 0; i < currentPath.length; i++){
+        if (currentPath[i] !== solutionMoves[i]) return '';
+      }
+      return solutionMoves[currentPath.length] || '';
+    }
+
+    function getPriorityMoveUci(line){
+      const candidates = [
+        line?.best_move_uci,
+        line?.bestmove,
+        line?.move,
+        Array.isArray(line?.pv_uci) ? line.pv_uci[0] : null,
+        Array.isArray(line?.pv) ? line.pv[0] : null,
+        typeof line?.pv_uci === 'string' ? line.pv_uci.split(/\s+/)[0] : null,
+        typeof line?.pv === 'string' ? line.pv.split(/\s+/)[0] : null
+      ];
+      return candidates.find((candidate) => /^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(candidate || '')) || '';
+    }
+
+    function getAnalyzeRequestProfile(targetNode){
+      const activeNode = targetNode || (currentHistoryNodeId ? historyNodes.get(currentHistoryNodeId) : null);
+      const parentNode = activeNode?.parentId ? historyNodes.get(activeNode.parentId) : null;
+      const currentMate = extractMate(activeNode?.lines?.[0] || null);
+      const previousMate = extractMate(parentNode?.lines?.[0] || null);
+      if (isKingInCheck(activeColor) || currentMate !== null || previousMate !== null){
+        return { movetimeMs: ANALYZE_MOVETIME_MATE_MS, multipv: ANALYZE_MULTIPV_MATE };
+      }
+      if (getPuzzleHintMoveUci()){
+        return { movetimeMs: ANALYZE_MOVETIME_TACTICAL_MS, multipv: ANALYZE_MULTIPV_TACTICAL };
+      }
+      return { movetimeMs: ANALYZE_MOVETIME_BASE_MS, multipv: ANALYZE_MULTIPV_BASE };
+    }
+
     function updateArrow(line){
       if (!arrowsEl) return;
       arrowsEl.innerHTML = '';
-      const move = line?.best_move_uci;
+      if (!coachHintsEnabled) return;
+      const move = getPuzzleHintMoveUci() || getPriorityMoveUci(line);
       const coords = uciToCoords(move);
       if (!coords) return;
       const startFile = files.indexOf(coords.from[0]);
@@ -1436,34 +1828,51 @@
       const y1 = startRank * cell + offset;
       const x2 = endFile * cell + offset;
       const y2 = endRank * cell + offset;
-
-      const path = document.createElementNS('http://www.w3.org/2000/svg','line');
-      path.setAttribute('x1', x1);
-      path.setAttribute('y1', y1);
-      path.setAttribute('x2', x2);
-      path.setAttribute('y2', y2);
-      path.classList.add('arrow-path');
-
-      const marker = document.createElementNS('http://www.w3.org/2000/svg','polygon');
       const angle = Math.atan2(y2 - y1, x2 - x1);
-      const headLength = 22;
-      const headWidth = 16;
-      const hx = x2 - Math.cos(angle) * headLength;
-      const hy = y2 - Math.sin(angle) * headLength;
-      const p1x = hx + Math.cos(angle + Math.PI / 2) * headWidth;
-      const p1y = hy + Math.sin(angle + Math.PI / 2) * headWidth;
-      const p2x = hx + Math.cos(angle - Math.PI / 2) * headWidth;
-      const p2y = hy + Math.sin(angle - Math.PI / 2) * headWidth;
-      marker.setAttribute('points', `${x2},${y2} ${p1x},${p1y} ${p2x},${p2y}`);
-      marker.classList.add('arrow-head');
+      if (!Number.isFinite(angle)) return;
+      const headLength = 64;
+      const headWidth = 46;
+      const ux = Math.cos(angle);
+      const uy = Math.sin(angle);
+      const px = Math.cos(angle + Math.PI / 2);
+      const py = Math.sin(angle + Math.PI / 2);
+      const hx = x2 - ux * headLength;
+      const hy = y2 - uy * headLength;
+      const lineEndX = x2 - ux * headLength;
+      const lineEndY = y2 - uy * headLength;
 
-      arrowsEl.appendChild(path);
-      arrowsEl.appendChild(marker);
+      const headLeftX = hx + px * headWidth;
+      const headLeftY = hy + py * headWidth;
+      const headRightX = hx - px * headWidth;
+      const headRightY = hy - py * headWidth;
+
+      const shaft = document.createElementNS('http://www.w3.org/2000/svg','line');
+      shaft.setAttribute('x1', x1);
+      shaft.setAttribute('y1', y1);
+      shaft.setAttribute('x2', lineEndX);
+      shaft.setAttribute('y2', lineEndY);
+      shaft.classList.add('arrow-path');
+
+      const head = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+      head.setAttribute('points', `${x2},${y2} ${headLeftX},${headLeftY} ${headRightX},${headRightY}`);
+      head.classList.add('arrow-head');
+
+      arrowsEl.appendChild(shaft);
+      arrowsEl.appendChild(head);
     }
 
     function updateEvalBar(line, perspective = null){
       if (!evalFillEl || !evalLabelEl) return;
       const viewColor = perspective || evaluationPerspective;
+      const gameEnd = getGameEndState();
+      if (gameEnd?.kind === 'checkmate'){
+        const winnerColor = gameEnd.winner === 'white' ? 'w' : 'b';
+        const isWinningForView = winnerColor === viewColor;
+        evalFillEl.style.height = isWinningForView ? '100%' : '0%';
+        evalLabelEl.style.top = isWinningForView ? '94%' : '8%';
+        evalLabelEl.textContent = 'Мат';
+        return;
+      }
       const { cp, label, mate } = normalizeScore(line, viewColor);
       const percent = mate !== null
         ? (mate > 0 ? 100 : 0)
@@ -1495,6 +1904,269 @@
         throw new Error(detail);
       }
       return data;
+    }
+
+    function getTelegramInitData(){
+      return tg?.initData || '';
+    }
+
+    function toCoachSide(side){
+      const normalized = normalizeSideToken(side, null);
+      if (normalized === 'w') return 'white';
+      if (normalized === 'b') return 'black';
+      if (side === 'white' || side === 'black') return side;
+      return null;
+    }
+
+    function coachSideLabel(side){
+      if (side === 'white') return 'Белые';
+      if (side === 'black') return 'Черные';
+      return 'Сторона';
+    }
+
+    function oppositeCoachSide(side){
+      if (side === 'white') return 'black';
+      if (side === 'black') return 'white';
+      return null;
+    }
+
+    function getGameEndState(){
+      const sideToMove = toCoachSide(activeColor);
+      if (!sideToMove) return null;
+      if (!findKing('w', boardState) || !findKing('b', boardState)) return null;
+      const inCheck = isKingInCheck(activeColor);
+      const hasMoves = playerHasLegalMoves(activeColor);
+      if (inCheck && !hasMoves){
+        const winner = oppositeCoachSide(sideToMove);
+        return {
+          kind: 'checkmate',
+          winner,
+          loser: sideToMove,
+          winner_label: coachSideLabel(winner),
+          loser_label: coachSideLabel(sideToMove)
+        };
+      }
+      if (!inCheck && !hasMoves){
+        return { kind: 'stalemate', player: sideToMove };
+      }
+      return null;
+    }
+
+    function getForcedMateContext(line, sideFallback = null){
+      const mate = extractMate(line);
+      if (mate === null) return null;
+      const scoreSide = toCoachSide(getLineScoreSide(line, sideFallback, line?.position_fen));
+      if (!scoreSide) return null;
+      const matingSide = mate > 0 ? scoreSide : oppositeCoachSide(scoreSide);
+      const defendingSide = oppositeCoachSide(matingSide);
+      if (!matingSide || !defendingSide) return null;
+      return {
+        moves: Math.abs(Math.trunc(mate)),
+        mating_side: matingSide,
+        defending_side: defendingSide
+      };
+    }
+
+    function buildCoachEvent({ currentMate, previousMate, movingSide, activeSide }){
+      const mover = toCoachSide(movingSide);
+      const activePlayer = toCoachSide(activeSide);
+      const gameEnd = getGameEndState();
+      if (gameEnd?.kind === 'checkmate'){
+        return {
+          kind: 'checkmate',
+          player_to_advise: gameEnd.winner,
+          moving_side: mover,
+          current_forced_mate: {
+            moves: 0,
+            mating_side: gameEnd.winner,
+            defending_side: gameEnd.loser
+          },
+          previous_forced_mate: previousMate,
+          announce_mate: false,
+          suppress_mate_count: true
+        };
+      }
+      const event = {
+        kind: 'position',
+        player_to_advise: activePlayer,
+        moving_side: mover,
+        current_forced_mate: currentMate,
+        previous_forced_mate: previousMate,
+        announce_mate: false,
+        suppress_mate_count: false
+      };
+      if (previousMate && mover && previousMate.mating_side === mover && (!currentMate || currentMate.mating_side !== mover)){
+        event.kind = 'missed_mate';
+        return event;
+      }
+      if (!currentMate) return event;
+      if (currentMate.moves === 1 && !coachMateState.lastMoveAnnounced[currentMate.mating_side]){
+        event.kind = 'mate_in_one';
+        event.announce_mate = true;
+        return event;
+      }
+      if (!coachMateState.announced[currentMate.mating_side]){
+        event.kind = 'mate_appeared';
+        event.announce_mate = true;
+        return event;
+      }
+      event.kind = 'mate_continues';
+      event.suppress_mate_count = true;
+      return event;
+    }
+
+    function rememberCoachEvent(event){
+      const currentMate = event?.current_forced_mate || null;
+      const previousMate = event?.previous_forced_mate || null;
+      if (event?.kind === 'missed_mate' && previousMate?.mating_side){
+        coachMateState.announced[previousMate.mating_side] = false;
+        coachMateState.lastMoveAnnounced[previousMate.mating_side] = false;
+      }
+      if (!currentMate){
+        coachMateState.announced.white = false;
+        coachMateState.announced.black = false;
+        coachMateState.lastMoveAnnounced.white = false;
+        coachMateState.lastMoveAnnounced.black = false;
+        return;
+      }
+      if (event.kind === 'mate_appeared' || event.kind === 'mate_in_one'){
+        coachMateState.announced[currentMate.mating_side] = true;
+      }
+      if (event.kind === 'mate_in_one'){
+        coachMateState.lastMoveAnnounced[currentMate.mating_side] = true;
+      }
+    }
+
+    function getCoachCommentUrls(){
+      const configuredBase = String(ANALYTICS_API_BASE || '').replace(/\/+$/, '');
+      const configuredUrl = configuredBase ? `${configuredBase}/api/coach/comment` : '/api/coach/comment';
+      const hasHttpOrigin = location.protocol === 'http:' || location.protocol === 'https:';
+      const sameOriginUrl = hasHttpOrigin ? '/api/coach/comment' : 'http://127.0.0.1:8080/api/coach/comment';
+      const urls = [];
+      if (getTelegramInitData() && configuredBase) urls.push(configuredUrl);
+      urls.push(sameOriginUrl);
+      if (!getTelegramInitData()) urls.push('http://127.0.0.1:8080/api/coach/comment');
+      if (!getTelegramInitData() && configuredBase) urls.push(configuredUrl);
+      return [...new Set(urls)];
+    }
+
+    function getRecentCoachComments(limit = 4){
+      const comments = [];
+      let node = currentHistoryNodeId ? historyNodes.get(currentHistoryNodeId) : null;
+      node = node?.parentId ? historyNodes.get(node.parentId) : null;
+      while (node && comments.length < limit){
+        const text = String(node.coachComment || '').trim();
+        if (text) comments.push(text);
+        node = node.parentId ? historyNodes.get(node.parentId) : null;
+      }
+      return comments.reverse();
+    }
+
+    function buildCoachCommentPayload(lines = []){
+      const node = currentHistoryNodeId ? historyNodes.get(currentHistoryNodeId) : null;
+      const parent = node?.parentId ? historyNodes.get(node.parentId) : null;
+      const previousBestLine = parent?.lines?.[0] || null;
+      const previousBestMove = previousBestLine?.best_move_uci || '';
+      const playedMove = node?.move?.uci || '';
+      const previousActiveColor = parent?.fen ? getFenActiveColor(parent.fen) : node?.move?.side || null;
+      const currentMate = getForcedMateContext(lines?.[0] || null, activeColor);
+      const previousMate = getForcedMateContext(previousBestLine, previousActiveColor);
+      const gameEnd = getGameEndState();
+      const coachEvent = buildCoachEvent({
+        currentMate,
+        previousMate,
+        movingSide: node?.move?.side || previousActiveColor,
+        activeSide: activeColor
+      });
+      return {
+        fen: currentFen,
+        active_color: activeColor,
+        previous_active_color: previousActiveColor,
+        board_snapshot: serializeBoardSnapshot(),
+        played_move: playedMove,
+        played_move_details: node?.move || null,
+        current_line: lines?.[0] || null,
+        previous_best_line: previousBestLine,
+        deviated: Boolean(playedMove && previousBestMove && playedMove !== previousBestMove),
+        coach_event: coachEvent,
+        game_status: gameEnd,
+        recent_comments: getRecentCoachComments(4)
+      };
+    }
+
+    async function updateCoachComment(lines = []){
+      if (!coachCommentEl) return;
+      if (!coachHintsEnabled){
+        coachCommentEl.classList.remove('loading');
+        coachCommentEl.textContent = 'AI-комментарий и стрелка отключены.';
+        return;
+      }
+      const gameEnd = getGameEndState();
+      if (!lines?.length && gameEnd?.kind !== 'checkmate'){
+        coachCommentEl.textContent = 'AI-комментарий появится после анализа позиции.';
+        return;
+      }
+      const initData = getTelegramInitData();
+      const commentPayload = buildCoachCommentPayload(lines);
+      const cacheKey = JSON.stringify({
+        fen: commentPayload.fen,
+        move: commentPayload.played_move,
+        best: commentPayload.current_line?.best_move_uci || '',
+        previous: commentPayload.previous_best_line?.best_move_uci || '',
+        event: commentPayload.coach_event?.kind || '',
+        game: commentPayload.game_status?.kind || '',
+        recent: (commentPayload.recent_comments || []).join('|')
+      });
+      const cached = coachCommentCache.get(cacheKey);
+      if (cached){
+        coachCommentEl.textContent = cached;
+        if (currentHistoryNodeId && historyNodes.has(currentHistoryNodeId)){
+          historyNodes.get(currentHistoryNodeId).coachComment = cached;
+        }
+        rememberCoachEvent(commentPayload.coach_event);
+        return;
+      }
+      coachCommentEl.textContent = 'AI оценивает позицию...';
+      coachCommentEl.classList.add('loading');
+      try {
+        let data = null;
+        let lastError = null;
+        for (const url of getCoachCommentUrls()){
+          try {
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true'
+              },
+              body: JSON.stringify({
+                initData,
+                userId: getTelegramStorageUserId(),
+                commentPayload
+              })
+            });
+            data = await response.json().catch(() => null);
+            if (response.ok) break;
+            lastError = new Error(data?.error || `${response.status} ${response.statusText}`);
+            data = null;
+          } catch (err){
+            lastError = err;
+          }
+        }
+        if (!data) throw lastError || new Error('Coach comment request failed');
+        const comment = data?.comment || 'Держись первой линии: она лучше всего сохраняет план позиции.';
+        coachCommentCache.set(cacheKey, comment);
+        coachCommentEl.textContent = comment;
+        if (currentHistoryNodeId && historyNodes.has(currentHistoryNodeId)){
+          historyNodes.get(currentHistoryNodeId).coachComment = comment;
+        }
+        rememberCoachEvent(commentPayload.coach_event);
+      } catch (err){
+        console.warn('AI coach comment failed', err);
+        coachCommentEl.textContent = 'AI-комментарий временно недоступен, ориентируйся на первую линию анализа.';
+      } finally {
+        coachCommentEl.classList.remove('loading');
+      }
     }
 
     async function analyzePosition(options = {}){
@@ -1538,7 +2210,13 @@
       setAnalysisStatus('Запрашиваем анализ у сервера...');
       if (refreshBtn) refreshBtn.disabled = true;
       try {
-        const payload = { fen: currentFen, movetime_ms: 250, multipv: 3, side: 'turn' };
+        const analyzeProfile = getAnalyzeRequestProfile(targetNode);
+        const payload = {
+          fen: currentFen,
+          movetime_ms: analyzeProfile.movetimeMs,
+          multipv: analyzeProfile.multipv,
+          side: 'turn'
+        };
         const data = await fetchJson(ANALYZE_URL, payload);
         const lines = data?.lines || data?.analysis || [];
         const normalizedLines = normalizeForCurrent(lines);
@@ -1558,14 +2236,10 @@
     }
 
     function readStoredMoveHistory(){
-      try {
-        const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
-        if (!raw) return null;
-        return JSON.parse(raw);
-      } catch (err){
-        console.warn('Не удалось прочитать историю ходов', err);
-        return null;
-      }
+      const scoped = parseStoredJson(getHistoryStorageKey());
+      if (scoped) return scoped;
+      if (getTelegramInitData()) return null;
+      return parseStoredJson(HISTORY_STORAGE_KEY);
     }
 
     function createHistoryNode({ parentId = null, fen, move = null, lines = [] }){
@@ -1576,6 +2250,7 @@
         fen,
         move,
         lines,
+        coachComment: '',
         children: [],
         createdAt: Date.now()
       };
@@ -1944,7 +2619,7 @@
       const normalizedLines = normalizeAnalysisLines(node?.lines || [], currentFen, activeColor);
       if (node) node.lines = normalizedLines;
       updateArrow(normalizedLines?.[0]);
-      updateEvalBar(normalizedLines?.[0], viewColor);
+      if (normalizedLines?.length) updateEvalBar(normalizedLines?.[0], viewColor);
       updatePriorityMoves(normalizedLines || [], viewColor);
       renderAnalysisLines(normalizedLines || [], { perspective: viewColor });
       if (!normalizedLines?.length){
@@ -1953,7 +2628,7 @@
       renderHistory({ scrollToCursor: false });
     }
 
-    function addMoveToTree({ parentId, fen, uci, label, side, moveNumber, lines = [] }){
+    function addMoveToTree({ parentId, fen, uci, label, side, moveNumber, lines = [], from = '', to = '', movingPiece = '', capturedPiece = '', promotionPiece = '', attackedPieces = [], newAttackedPieces = [], wasInCheckBefore = false, resolvedCheck = false, defendedByKing = false, sharedPressure = [], discoveredAttack = null }){
       ensureMoveTreeRoot();
       const fallbackParentId = currentHistoryNodeId || moveTreeRoot.id;
       const resolvedParentId = historyNodes.has(parentId) ? parentId : fallbackParentId;
@@ -1965,11 +2640,11 @@
         parentId: parent.id,
         fen,
         lines,
-        move: { uci, label: label || uci || '—', side, moveNumber }
+        move: { uci, label: label || uci || '—', side, moveNumber, from, to, movingPiece, capturedPiece, promotionPiece, attackedPieces, newAttackedPieces, wasInCheckBefore, resolvedCheck, defendedByKing, sharedPressure, discoveredAttack }
       });
       if (existingChild){
         node.fen = fen;
-        node.move = { ...node.move, uci, label: label || uci || node.move?.label || '—', side, moveNumber };
+        node.move = { ...node.move, uci, label: label || uci || node.move?.label || '—', side, moveNumber, from, to, movingPiece, capturedPiece, promotionPiece, attackedPieces, newAttackedPieces, wasInCheckBefore, resolvedCheck, defendedByKing, sharedPressure, discoveredAttack };
       }
       currentHistoryNodeId = node.id;
       rebuildHistoryPlies({ preserveCursor: true });
@@ -2247,6 +2922,173 @@
       return boardState[rankIdx]?.[fileIdx] || '';
     }
 
+    function pieceCoachName(piece){
+      switch ((piece || '').toUpperCase()){
+        case 'P': return 'пешка';
+        case 'N': return 'конь';
+        case 'B': return 'слон';
+        case 'R': return 'ладья';
+        case 'Q': return 'ферзь';
+        case 'K': return 'король';
+        default: return '';
+      }
+    }
+
+    function isSquareOnLineSegment(fromSquare, toSquare, pointSquare){
+      const a = squareToIndices(fromSquare);
+      const b = squareToIndices(toSquare);
+      const p = squareToIndices(pointSquare);
+      if (!isInsideBoard(a.rankIdx, a.fileIdx) || !isInsideBoard(b.rankIdx, b.fileIdx) || !isInsideBoard(p.rankIdx, p.fileIdx)){
+        return false;
+      }
+      const dr = b.rankIdx - a.rankIdx;
+      const df = b.fileIdx - a.fileIdx;
+      const pr = p.rankIdx - a.rankIdx;
+      const pf = p.fileIdx - a.fileIdx;
+      const aligned = (dr === 0 && pr === 0) || (df === 0 && pf === 0) || (Math.abs(dr) === Math.abs(df) && Math.abs(pr) === Math.abs(pf));
+      if (!aligned) return false;
+      const withinRank = (p.rankIdx - a.rankIdx) * (p.rankIdx - b.rankIdx) <= 0;
+      const withinFile = (p.fileIdx - a.fileIdx) * (p.fileIdx - b.fileIdx) <= 0;
+      return withinRank && withinFile;
+    }
+
+    function getAttackersOnSquare(board, targetSquare, attackerColor){
+      const attackers = [];
+      for (let r = 0; r < 8; r++){
+        for (let f = 0; f < 8; f++){
+          const piece = board[r]?.[f];
+          if (!piece || getPieceColor(piece) !== attackerColor) continue;
+          const from = `${files[f]}${ranks[r]}`;
+          if (!isLegalPieceMove(piece, from, targetSquare, board)) continue;
+          attackers.push({
+            square: from,
+            piece,
+            piece_name: pieceCoachName(piece)
+          });
+        }
+      }
+      return attackers;
+    }
+
+    function buildSharedPressureAfterMove({ movingSide, movedToSquare, movedTargets = [], board }){
+      if (!movingSide || !movedToSquare || !Array.isArray(movedTargets) || !movedTargets.length) return [];
+      const result = [];
+      const movedIdx = squareToIndices(movedToSquare);
+      const movedPieceCode = isInsideBoard(movedIdx.rankIdx, movedIdx.fileIdx)
+        ? board[movedIdx.rankIdx]?.[movedIdx.fileIdx] || ''
+        : '';
+      const movedPieceName = pieceCoachName(movedPieceCode);
+      movedTargets.forEach((target) => {
+        if (!target?.square) return;
+        const allies = getAttackersOnSquare(board, target.square, movingSide)
+          .filter((attacker) => attacker.square !== movedToSquare);
+        if (!allies.length) return;
+        result.push({
+          moved_piece: movedPieceName,
+          ally_pieces: allies.map((item) => item.piece_name).filter(Boolean).slice(0, 2),
+          target_square: target.square,
+          target_piece: target.piece_name || pieceCoachName(target.piece || '')
+        });
+      });
+      return result.slice(0, 2);
+    }
+
+    function detectDiscoveredAttackAfterMove({ beforeBoard, afterBoard, movingSide, fromSquare, movedToSquare }){
+      if (!beforeBoard || !afterBoard || !movingSide || !fromSquare || !movedToSquare) return null;
+      const opponentSide = movingSide === 'w' ? 'b' : 'w';
+      const movedPiece = beforeBoard[squareToIndices(fromSquare).rankIdx]?.[squareToIndices(fromSquare).fileIdx] || '';
+      for (let r = 0; r < 8; r++){
+        for (let f = 0; f < 8; f++){
+          const piece = afterBoard[r]?.[f];
+          if (!piece || getPieceColor(piece) !== movingSide) continue;
+          if (piece.toUpperCase() !== 'B' && piece.toUpperCase() !== 'R' && piece.toUpperCase() !== 'Q') continue;
+          const attackerSquare = `${files[f]}${ranks[r]}`;
+          if (attackerSquare === movedToSquare) continue;
+          const beforeTargets = getAttackedPiecesFromSquare(piece, attackerSquare, beforeBoard);
+          const afterTargets = getAttackedPiecesFromSquare(piece, attackerSquare, afterBoard);
+          const beforeSet = new Set(beforeTargets.map((item) => `${item.square}:${item.piece}`));
+          const fresh = afterTargets.filter((item) => !beforeSet.has(`${item.square}:${item.piece}`));
+          for (const target of fresh){
+            if (!target?.square || String(target.piece || '').toUpperCase() === 'K') continue;
+            if (!isSquareOnLineSegment(attackerSquare, target.square, fromSquare)) continue;
+            const defenders = getAttackersOnSquare(afterBoard, target.square, opponentSide).length;
+            const attackers = getAttackersOnSquare(afterBoard, target.square, movingSide).length;
+            let defense_state = '';
+            if (defenders === 0){
+              defense_state = 'undefended';
+            } else if (attackers > defenders){
+              defense_state = 'overloaded';
+            } else {
+              continue;
+            }
+            return {
+              opener_piece: pieceCoachName(movedPiece),
+              attacker_piece: pieceCoachName(piece),
+              attacker_square: attackerSquare,
+              target_piece: target.piece_name || pieceCoachName(target.piece || ''),
+              target_square: target.square,
+              defense_state
+            };
+          }
+        }
+      }
+      return null;
+    }
+
+    function getAttackedPiecesFromSquare(piece, square, board){
+      if (!piece) return [];
+      const { fileIdx, rankIdx } = squareToIndices(square);
+      if (!isInsideBoard(rankIdx, fileIdx)) return [];
+      const targets = [];
+      for (let r = 0; r < 8; r++){
+        for (let f = 0; f < 8; f++){
+          const target = board[r]?.[f];
+          if (!target || getPieceColor(target) === getPieceColor(piece)) continue;
+          const targetSquare = `${files[f]}${ranks[r]}`;
+          if (!isLegalPieceMove(piece, square, targetSquare, board)) continue;
+          targets.push({
+            square: targetSquare,
+            piece: target,
+            piece_name: pieceCoachName(target)
+          });
+        }
+      }
+      return targets;
+    }
+
+    function getAttackedPiecesByMove(piece, fromSquare, toSquare){
+      if (!piece) return [];
+      const simulated = boardState.map((row) => row.slice());
+      const { fileIdx: fromFile, rankIdx: fromRank } = squareToIndices(fromSquare);
+      const { fileIdx: toFile, rankIdx: toRank } = squareToIndices(toSquare);
+      if (!isInsideBoard(fromRank, fromFile) || !isInsideBoard(toRank, toFile)) return [];
+      simulated[fromRank][fromFile] = '';
+      simulated[toRank][toFile] = piece;
+      return getAttackedPiecesFromSquare(piece, toSquare, simulated);
+    }
+
+    function getNewAttackedPieces(previousTargets = [], nextTargets = []){
+      const previousKeys = new Set(previousTargets.map((item) => `${item.square}:${item.piece}`));
+      return nextTargets.filter((item) => !previousKeys.has(`${item.square}:${item.piece}`));
+    }
+
+    function serializeBoardSnapshot(){
+      const snapshot = [];
+      for (let r = 0; r < 8; r++){
+        for (let f = 0; f < 8; f++){
+          const piece = boardState[r]?.[f];
+          if (!piece) continue;
+          snapshot.push({
+            square: `${files[f]}${ranks[r]}`,
+            piece,
+            color: getPieceColor(piece) === 'w' ? 'white' : 'black',
+            piece_name: pieceCoachName(piece)
+          });
+        }
+      }
+      return snapshot;
+    }
+
     function setPieceAt(square, value){
       const fileIdx = files.indexOf(square[0]);
       const rankIdx = ranks.indexOf(square[1]);
@@ -2347,6 +3189,9 @@
       const parentNodeId = currentHistoryNodeId || moveTreeRoot.id;
       const movingSide = activeColor;
       const movingMoveNumber = fullmove;
+      const wasInCheckBefore = isKingInCheck(movingSide);
+      const beforeBoard = boardState.map((row) => row.slice());
+      const previousAttackedPieces = getAttackedPiecesFromSquare(movingPiece, fromSquare, boardState);
       const { fileIdx: fromFile, rankIdx: fromRank } = squareToIndices(fromSquare);
       const { fileIdx: toFile, rankIdx: toRank } = squareToIndices(toSquare);
       const deltaFile = toFile - fromFile;
@@ -2392,16 +3237,44 @@
       possibleMoves = [];
       activeColor = activeColor === 'w' ? 'b' : 'w';
       if (activeColor === 'w') fullmove += 1;
+      const resolvedCheck = wasInCheckBefore ? !isKingInCheck(movingSide) : false;
       currentFen = boardToFen(boardState, activeColor, fullmove);
       const promotionSuffix = promotionPiece ? promotionPiece.toLowerCase() : '';
       const uci = `${fromSquare}${toSquare}${promotionSuffix}`;
+      const attackedPieces = getAttackedPiecesByMove(promotionPiece || movingPiece, fromSquare, toSquare);
+      const newAttackedPieces = getNewAttackedPieces(previousAttackedPieces, attackedPieces);
+      const sharedPressure = buildSharedPressureAfterMove({
+        movingSide,
+        movedToSquare: toSquare,
+        movedTargets: newAttackedPieces,
+        board: boardState
+      });
+      const discoveredAttack = detectDiscoveredAttackAfterMove({
+        beforeBoard,
+        afterBoard: boardState,
+        movingSide,
+        fromSquare,
+        movedToSquare: toSquare
+      });
       addMoveToTree({
         parentId: parentNodeId,
         fen: currentFen,
         uci,
         label: uci,
         side: movingSide,
-        moveNumber: movingMoveNumber
+        moveNumber: movingMoveNumber,
+        from: fromSquare,
+        to: toSquare,
+        movingPiece,
+        capturedPiece,
+        promotionPiece: promotionPiece || '',
+        attackedPieces,
+        newAttackedPieces,
+        wasInCheckBefore,
+        resolvedCheck,
+        defendedByKing: upper === 'K',
+        sharedPressure,
+        discoveredAttack
       });
       if (fenTextEl) fenTextEl.textContent = currentFen;
       renderBoardFromFen(currentFen);
@@ -2435,6 +3308,12 @@
       renderBoardFromFen(currentFen);
       hydrateHistoryFromStorage();
       setAnalysisStatus(statusEl?.textContent || 'Готовимся к анализу...');
+      setCoachHintsEnabled(readCoachHintsEnabled());
+      if (coachHintsToggleEl){
+        coachHintsToggleEl.addEventListener('change', () => {
+          setCoachHintsEnabled(Boolean(coachHintsToggleEl.checked), { syncControl: false });
+        });
+      }
       analyzePosition({ targetNodeId: currentHistoryNodeId });
       if (refreshBtn){
         refreshBtn.addEventListener('click', () => {

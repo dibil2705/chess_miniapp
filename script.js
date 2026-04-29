@@ -67,6 +67,7 @@ const SOUND_STORAGE_KEY = 'chess-miniapp-sound-enabled';
 const PALETTE_STORAGE_KEY = 'chess-miniapp-board-palette';
 const PIECE_REVEAL_STORAGE_KEY = 'chess-miniapp-piece-reveal-complete';
 const PUZZLE_QUOTA_STORAGE_PREFIX = 'chess-miniapp-quota';
+const ADMIN_ACCESS_STORAGE_PREFIX = 'chess-miniapp-admin-access';
 const DAILY_BASE_PUZZLE_LIMIT = 1;
 const DAILY_BONUS_PUZZLES = 2;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -81,6 +82,7 @@ let flipped = false;
 let boardState = fenToBoard(START_FEN);
 let activeColor = 'w';
 let castlingRights = { w: { K: true, Q: true }, b: { K: true, Q: true } };
+let enPassantTarget = '-';
 
 let selectedSquare = null;
 let highlightedMoves = [];
@@ -114,6 +116,7 @@ let cloudStateSaveTimerId = null;
 let isApplyingCloudState = false;
 let appBootstrapComplete = false;
 let quotaStateCache = null;
+let adminAccessStateCache = null;
 let cloudQuotaResetAt = 0;
 let spritePreloadPromise = null;
 let pendingMoveAnimations = [];
@@ -345,7 +348,7 @@ function saveSoundPreference(enabled){
 
 function loadPalettePreference(){
   const stored = localStorage.getItem(PALETTE_STORAGE_KEY);
-  return boardPalettes[stored] ? stored : 'default';
+  return boardPalettes[stored] ? stored : 'coffee';
 }
 
 function applyBoardPalette(name){
@@ -361,6 +364,54 @@ function getActiveBoardPalette(){
 
 function getQuotaStorageKey(){
   return `${PUZZLE_QUOTA_STORAGE_PREFIX}:${getTelegramStorageUserId()}`;
+}
+
+function getAdminAccessStorageKey(){
+  return `${ADMIN_ACCESS_STORAGE_PREFIX}:${getTelegramStorageUserId()}`;
+}
+
+function loadAdminAccessState(){
+  if (adminAccessStateCache) return adminAccessStateCache;
+  try{
+    const raw = localStorage.getItem(getAdminAccessStorageKey());
+    if (!raw){
+      adminAccessStateCache = { unlimitedTasks: false, attemptsLeft: 3, updatedAt: 0 };
+      return adminAccessStateCache;
+    }
+    const parsed = JSON.parse(raw);
+    const attempts = Number(parsed?.attemptsLeft);
+    adminAccessStateCache = {
+      unlimitedTasks: Boolean(parsed?.unlimitedTasks),
+      attemptsLeft: Number.isFinite(attempts) ? Math.max(0, Math.min(3, attempts)) : 3,
+      updatedAt: Number(parsed?.updatedAt) || 0
+    };
+    return adminAccessStateCache;
+  } catch (_){
+    adminAccessStateCache = { unlimitedTasks: false, attemptsLeft: 3, updatedAt: 0 };
+    return adminAccessStateCache;
+  }
+}
+
+function saveAdminAccessState(state){
+  const attempts = Number(state?.attemptsLeft);
+  const updatedAt = Number(state?.updatedAt);
+  const normalized = {
+    unlimitedTasks: Boolean(state?.unlimitedTasks),
+    attemptsLeft: Number.isFinite(attempts) ? Math.max(0, Math.min(3, attempts)) : 3,
+    updatedAt: Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : Date.now()
+  };
+  adminAccessStateCache = normalized;
+  try{
+    localStorage.setItem(getAdminAccessStorageKey(), JSON.stringify(normalized));
+    scheduleCloudStateSave();
+  } catch (err){
+    console.warn('Could not save admin access state', err);
+  }
+  return normalized;
+}
+
+function isUnlimitedTasksEnabled(){
+  return Boolean(loadAdminAccessState()?.unlimitedTasks);
 }
 
 function getTelegramStorageUserId(){
@@ -445,6 +496,19 @@ function normalizeQuotaState(){
 
 function getQuotaInfo(){
   const state = normalizeQuotaState();
+  const unlimited = isUnlimitedTasksEnabled();
+  if (unlimited){
+    return {
+      state,
+      blocked: false,
+      remaining: 999,
+      limit: 999,
+      windowEnd: state.windowStart + DAY_MS,
+      remainingMs: 0,
+      bonusAvailable: false,
+      unlimited: true
+    };
+  }
   const windowEnd = state.windowStart + DAY_MS;
   const bonusLimit = state.bonusActivated ? DAILY_BONUS_PUZZLES : 0;
   const limit = DAILY_BASE_PUZZLE_LIMIT + bonusLimit;
@@ -459,12 +523,14 @@ function getQuotaInfo(){
     limit,
     windowEnd,
     remainingMs,
-    bonusAvailable
+    bonusAvailable,
+    unlimited: false
   };
 }
 
 function recordPuzzleStart(){
   const info = getQuotaInfo();
+  if (info.unlimited) return true;
   if (info.blocked) return false;
   const updated = {
     windowStart: info.state.windowStart,
@@ -783,6 +849,7 @@ function collectCloudState(){
     version: 1,
     savedAt: Date.now(),
     quota: quotaStateCache || loadQuotaState(),
+    adminAccess: loadAdminAccessState(),
     settings,
     soundEnabled: settings.soundEnabled,
     palette: settings.palette
@@ -816,6 +883,14 @@ function applyCloudState(appState){
     }
     if (Object.prototype.hasOwnProperty.call(state, 'quotaResetAt')){
       cloudQuotaResetAt = Number(state.quotaResetAt) || 0;
+    }
+    if (Object.prototype.hasOwnProperty.call(state, 'adminAccess') && state.adminAccess){
+      const attempts = Number(state.adminAccess.attemptsLeft);
+      saveAdminAccessState({
+        unlimitedTasks: Boolean(state.adminAccess.unlimitedTasks),
+        attemptsLeft: Number.isFinite(attempts) ? Math.max(0, Math.min(3, attempts)) : 3,
+        updatedAt: Number(state.adminAccess.updatedAt) || 0
+      });
     }
     if (Object.prototype.hasOwnProperty.call(state, 'puzzle')){
       if (state.puzzle?.puzzleData && state.puzzle?.boardFen){
@@ -1042,6 +1117,7 @@ function parseFenState(fen){
   const board = fenToBoard(fen);
   const active = parts[1] === 'b' ? 'b' : 'w';
   const castlingPart = parts[2] || '-';
+  const epPart = parts[3] || '-';
   const castling = { w: { K: false, Q: false }, b: { K: false, Q: false } };
   if (castlingPart && castlingPart !== '-'){
     for (const ch of castlingPart){
@@ -1051,7 +1127,8 @@ function parseFenState(fen){
       if (ch === 'q') castling.b.Q = true;
     }
   }
-  return { board, active, castling };
+  const enPassant = /^[a-h][1-8]$/.test(epPart) ? epPart : '-';
+  return { board, active, castling, enPassant };
 }
 
 function loadPositionFromFen(fen, options = {}){
@@ -1060,6 +1137,7 @@ function loadPositionFromFen(fen, options = {}){
   boardState = parsed.board;
   activeColor = parsed.active;
   castlingRights = parsed.castling;
+  enPassantTarget = parsed.enPassant || '-';
   resetMoveHistory(fen);
   const hasSolution = puzzleSolutionMoves.length > 0;
   if (!preservePuzzleProgress){
@@ -1098,7 +1176,8 @@ function boardToFen(b){
     return out;
   });
   const castle = getCastlingFen();
-  return rows.join('/') + ` ${activeColor} ${castle} - 0 1`;
+  const ep = enPassantTarget || '-';
+  return rows.join('/') + ` ${activeColor} ${castle} ${ep} 0 1`;
 }
 
 function getCastlingFen(){
@@ -1201,14 +1280,22 @@ function isPathClear(fromR, fromC, toR, toC, board = boardState){
   return true;
 }
 
-function isLegalPawnMove(piece, fromR, fromC, toR, toC, board = boardState){
+function isLegalPawnMove(piece, fromR, fromC, toR, toC, board = boardState, enPassant = enPassantTarget){
   const dir = piece === 'P' ? -1 : 1;
   const startRow = piece === 'P' ? 6 : 1;
   const target = board[toR][toC];
   const forward = fromC === toC && target === '';
   const doubleForward = fromC === toC && target === '' && fromR === startRow && toR === fromR + 2*dir && board[fromR + dir][fromC] === '';
   const capture = Math.abs(toC - fromC) === 1 && toR === fromR + dir && target && ((isWhite(piece) && isBlack(target)) || (isBlack(piece) && isWhite(target)));
-  return (forward && toR === fromR + dir) || doubleForward || capture;
+  const enPassantCapture =
+    Math.abs(toC - fromC) === 1 &&
+    toR === fromR + dir &&
+    target === '' &&
+    typeof enPassant === 'string' &&
+    enPassant !== '-' &&
+    files.indexOf(enPassant[0]) === toC &&
+    ranks.indexOf(enPassant[1]) === toR;
+  return (forward && toR === fromR + dir) || doubleForward || capture || enPassantCapture;
 }
 
 function isLegalKnightMove(fromR, fromC, toR, toC){
@@ -1245,7 +1332,7 @@ function isLegalKingMove(fromR, fromC, toR, toC, board = boardState, rights = ca
   return false;
 }
 
-function isLegalMove(fromR, fromC, toR, toC, board = boardState, rights = castlingRights, opts = {}){
+function isLegalMove(fromR, fromC, toR, toC, board = boardState, rights = castlingRights, enPassant = enPassantTarget, opts = {}){
   const { allowCastling = true } = opts;
   if (fromR === toR && fromC === toC) return false;
   if (toR < 0 || toR > 7 || toC < 0 || toC > 7) return false;
@@ -1260,7 +1347,7 @@ function isLegalMove(fromR, fromC, toR, toC, board = boardState, rights = castli
 
   switch (piece.toLowerCase()){
     case 'p':
-      return isLegalPawnMove(piece, fromR, fromC, toR, toC, board);
+      return isLegalPawnMove(piece, fromR, fromC, toR, toC, board, enPassant);
     case 'n':
       return isLegalKnightMove(fromR, fromC, toR, toC);
     case 'b':
@@ -1341,7 +1428,7 @@ function isCastlingMove(piece, fromR, fromC, toR, toC){
   return Math.abs(toC - fromC) === 2;
 }
 
-function moveLeavesKingInCheck(fromR, fromC, toR, toC, board = boardState, rights = castlingRights){
+function moveLeavesKingInCheck(fromR, fromC, toR, toC, board = boardState, rights = castlingRights, enPassant = enPassantTarget){
   const piece = board[fromR][fromC];
   const movingColor = isWhite(piece) ? 'w' : 'b';
   const next = cloneBoard(board);
@@ -1355,6 +1442,18 @@ function moveLeavesKingInCheck(fromR, fromC, toR, toC, board = boardState, right
     next[fromR][rookFromC] = '';
     next[fromR][rookToC] = isWhite(piece) ? 'R' : 'r';
   } else {
+    const isEnPassantCapture =
+      piece &&
+      piece.toLowerCase() === 'p' &&
+      fromC !== toC &&
+      !next[toR][toC] &&
+      typeof enPassant === 'string' &&
+      enPassant !== '-' &&
+      files.indexOf(enPassant[0]) === toC &&
+      ranks.indexOf(enPassant[1]) === toR;
+    if (isEnPassantCapture){
+      next[fromR][toC] = '';
+    }
     next[toR][toC] = piece;
     next[fromR][fromC] = '';
   }
@@ -1362,8 +1461,8 @@ function moveLeavesKingInCheck(fromR, fromC, toR, toC, board = boardState, right
 }
 
 function isMoveAllowed(fromR, fromC, toR, toC){
-  if (!isLegalMove(fromR, fromC, toR, toC, boardState, castlingRights)) return false;
-  return !moveLeavesKingInCheck(fromR, fromC, toR, toC, boardState, castlingRights);
+  if (!isLegalMove(fromR, fromC, toR, toC, boardState, castlingRights, enPassantTarget)) return false;
+  return !moveLeavesKingInCheck(fromR, fromC, toR, toC, boardState, castlingRights, enPassantTarget);
 }
 
 function getLegalMovesForPiece(fromR, fromC, color = activeColor){
@@ -1498,6 +1597,20 @@ function updatePuzzleStatus(){
   if (!puzzleStatusEl) return;
   const quota = getQuotaInfo();
   toggleBonusPanel(quota.bonusAvailable);
+  if (quota.unlimited){
+    setPuzzleButtonDisabled(false);
+    stopQuotaTimer();
+    if (puzzleLoading){
+      puzzleStatusEl.textContent = 'Загрузка задачи...';
+      return;
+    }
+    if (puzzleMode && puzzleData && !puzzleSolved){
+      puzzleStatusEl.textContent = `Ход ${activeColor === 'w' ? 'белых' : 'черных'}\nНайди выигрышное продолжение`;
+      return;
+    }
+    puzzleStatusEl.textContent = puzzleSolved ? 'Задача решена. Безлимит задач включен.' : 'Безлимит задач включен.';
+    return;
+  }
 
   if (puzzleLoading){
     puzzleStatusEl.textContent = 'Загрузка задачи...';
@@ -1598,7 +1711,8 @@ function stateFromFen(fen){
   return {
     board: parsed.board,
     active: parsed.active,
-    castling: parsed.castling
+    castling: parsed.castling,
+    enPassant: parsed.enPassant || '-'
   };
 }
 
@@ -1606,7 +1720,8 @@ function cloneState(state){
   return {
     board: cloneBoard(state.board),
     active: state.active,
-    castling: JSON.parse(JSON.stringify(state.castling || {}))
+    castling: JSON.parse(JSON.stringify(state.castling || {})),
+    enPassant: state.enPassant || '-'
   };
 }
 
@@ -1634,12 +1749,13 @@ function stateToFen(state){
     if (empties) out += String(empties);
     return out;
   });
-  return `${rows.join('/')}` + ` ${state.active} ${castlingToFen(state.castling)} - 0 1`;
+  const ep = state.enPassant || '-';
+  return `${rows.join('/')}` + ` ${state.active} ${castlingToFen(state.castling)} ${ep} 0 1`;
 }
 
 function isMoveAllowedInState(state, fromR, fromC, toR, toC){
-  if (!isLegalMove(fromR, fromC, toR, toC, state.board, state.castling)) return false;
-  return !moveLeavesKingInCheck(fromR, fromC, toR, toC, state.board, state.castling);
+  if (!isLegalMove(fromR, fromC, toR, toC, state.board, state.castling, state.enPassant || '-')) return false;
+  return !moveLeavesKingInCheck(fromR, fromC, toR, toC, state.board, state.castling, state.enPassant || '-');
 }
 
 function getLegalMovesForPieceInState(state, fromR, fromC){
@@ -1663,6 +1779,16 @@ function applyMoveToState(state, { fromR, fromC, toR, toC, promotionPiece = null
   const piece = state.board[fromR][fromC];
   updateCastlingRightsForState(state, fromR, fromC, toR, toC, piece);
 
+  const isPawn = piece && piece.toLowerCase() === 'p';
+  const isEnPassantCapture =
+    isPawn &&
+    fromC !== toC &&
+    !state.board[toR][toC] &&
+    typeof state.enPassant === 'string' &&
+    state.enPassant !== '-' &&
+    files.indexOf(state.enPassant[0]) === toC &&
+    ranks.indexOf(state.enPassant[1]) === toR;
+
   const normalizedPromotion = promotionPiece
     ? (isWhite(piece) ? promotionPiece.toUpperCase() : promotionPiece.toLowerCase())
     : null;
@@ -1676,10 +1802,18 @@ function applyMoveToState(state, { fromR, fromC, toR, toC, promotionPiece = null
     state.board[fromR][rookFromC] = '';
     state.board[fromR][rookToC] = isWhite(piece) ? 'R' : 'r';
   } else {
+    if (isEnPassantCapture){
+      state.board[fromR][toC] = '';
+    }
     state.board[fromR][fromC] = '';
     state.board[toR][toC] = pieceToPlace;
   }
 
+  state.enPassant = '-';
+  if (isPawn && Math.abs(toR - fromR) === 2){
+    const epR = (fromR + toR) / 2;
+    state.enPassant = coordToNotation(epR, fromC);
+  }
   state.active = state.active === 'w' ? 'b' : 'w';
 }
 
@@ -1779,7 +1913,15 @@ function sanToMoveKey(state, san){
       if (!isMoveAllowedInState(state, r, c, targetR, targetC)) continue;
       const promotionNeeded = needsPromotion(piece, targetR);
       const moveKey = buildMoveKey({ fromR: r, fromC: c, toR: targetR, toC: targetC, promotionPiece: promotionPiece || undefined });
-      const moveCaptures = Boolean(state.board[targetR][targetC]);
+      const enPassantCapture =
+        normalized === 'P' &&
+        Math.abs(targetC - c) === 1 &&
+        !state.board[targetR][targetC] &&
+        typeof state.enPassant === 'string' &&
+        state.enPassant !== '-' &&
+        files.indexOf(state.enPassant[0]) === targetC &&
+        ranks.indexOf(state.enPassant[1]) === targetR;
+      const moveCaptures = Boolean(state.board[targetR][targetC]) || enPassantCapture;
       if (capture && !moveCaptures) continue;
       if (!capture && moveCaptures && pieceLetter === 'P') continue;
       if (disambig){
@@ -1809,11 +1951,56 @@ function parseSolutionMovesFromPgn(pgn, startFen = null){
 
   const fenFromTag = (pgn.match(/\[FEN\s+"([^"]+)"\]/i) || [])[1];
   const initialFen = fenFromTag || startFen || START_FEN;
-  let state = stateFromFen(initialFen);
-
   const tokens = tokenizePgnMoves(pgn);
-  const moves = [];
 
+  if (typeof Chess === 'function'){
+    try{
+      const chess = new Chess(initialFen);
+      const moves = [];
+      for (const token of tokens){
+        if (/^(1-0|0-1|1\/2-1\/2|\*)$/.test(token)) break;
+        let moved = null;
+        try{
+          moved = chess.move(token, { sloppy: true });
+        } catch (_) {
+          moved = null;
+        }
+        if (!moved){
+          try{
+            moved = chess.move(token);
+          } catch (_) {
+            moved = null;
+          }
+        }
+        if (!moved){
+          return fail(`Не найден допустимый ход для SAN: ${token}`);
+        }
+        const fromC = files.indexOf(moved.from[0]);
+        const fromR = ranks.indexOf(moved.from[1]);
+        const toC = files.indexOf(moved.to[0]);
+        const toR = ranks.indexOf(moved.to[1]);
+        if ([fromC, fromR, toC, toR].some(v => v === -1)){
+          return fail(`Не удалось преобразовать SAN в ход: ${token}`);
+        }
+        moves.push(
+          buildMoveKey({
+            fromR,
+            fromC,
+            toR,
+            toC,
+            promotionPiece: moved.promotion || null
+          })
+        );
+      }
+      if (!moves.length) return fail('PGN не содержит ходов решения.');
+      return { moves, error: null, finalFen: chess.fen() };
+    } catch (err){
+      console.warn('Fallback to internal SAN parser', err);
+    }
+  }
+
+  let state = stateFromFen(initialFen);
+  const moves = [];
   for (const token of tokens){
     if (/^(1-0|0-1|1\/2-1\/2|\*)$/.test(token)) break;
     const parsed = sanToMoveKey(state, token);
@@ -1823,9 +2010,7 @@ function parseSolutionMovesFromPgn(pgn, startFen = null){
     moves.push(parsed.moveKey);
     applyMoveToState(state, parsed.move);
   }
-
   if (!moves.length) return fail('PGN не содержит ходов решения.');
-
   return { moves, error: null, finalFen: stateToFen(state) };
 }
 
@@ -2047,7 +2232,8 @@ function verifyPuzzleMove(moveKey){
       const stateSnapshot = cloneState({
         board: cloneBoard(boardState),
         active: activeColor,
-        castling: JSON.parse(JSON.stringify(castlingRights))
+        castling: JSON.parse(JSON.stringify(castlingRights)),
+        enPassant: enPassantTarget
       });
       if (parsedMove){
         applyMoveToState(stateSnapshot, parsedMove);
@@ -2123,6 +2309,15 @@ function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null, anima
   const pieceToPlace = promotionPiece || piece;
   const movingPieceSize = animate ? getPieceRenderSize(fromR, fromC) : null;
   updateCastlingRights(fromR, fromC, toR, toC, piece);
+  const isPawn = piece && piece.toLowerCase() === 'p';
+  const isEnPassantCapture =
+    isPawn &&
+    fromC !== toC &&
+    !boardState[toR][toC] &&
+    typeof enPassantTarget === 'string' &&
+    enPassantTarget !== '-' &&
+    files.indexOf(enPassantTarget[0]) === toC &&
+    ranks.indexOf(enPassantTarget[1]) === toR;
 
   if (isCastlingMove(piece, fromR, fromC, toR, toC)){
     const isKingSide = toC > fromC;
@@ -2139,10 +2334,18 @@ function applyMove({ fromR, fromC, toR, toC, piece, promotionPiece = null, anima
     boardState[fromR][rookToC] = isWhite(piece) ? 'R' : 'r';
   } else {
     pendingMoveAnimations = animate ? [{ fromR, fromC, toR, toC, piece: pieceToPlace, size: movingPieceSize }] : [];
+    if (isEnPassantCapture){
+      boardState[fromR][toC] = '';
+    }
     boardState[fromR][fromC] = '';
     boardState[toR][toC] = pieceToPlace;
   }
 
+  enPassantTarget = '-';
+  if (isPawn && Math.abs(toR - fromR) === 2){
+    const epR = (fromR + toR) / 2;
+    enPassantTarget = coordToNotation(epR, fromC);
+  }
   activeColor = activeColor === 'w' ? 'b' : 'w';
   const fenAfter = boardToFen(boardState);
   recordMoveToHistory({ fromR, fromC, toR, toC, promotionPiece, fenBefore, fenAfter });
@@ -2334,6 +2537,7 @@ function ensureRenderableBoardState(){
   boardState = fenToBoard(START_FEN);
   activeColor = 'w';
   castlingRights = { w: { K: false, Q: false }, b: { K: false, Q: false } };
+  enPassantTarget = '-';
 }
 
 function renderFallbackBoard(){
@@ -2842,6 +3046,7 @@ function hydratePuzzleState(options = {}){
     boardState = parsed.board;
     activeColor = parsed.active;
     castlingRights = parsed.castling;
+    enPassantTarget = parsed.enPassant || '-';
     historyStartFen = saved.historyStartFen || saved.boardFen;
     moveHistory = Array.isArray(saved.moveHistory) ? saved.moveHistory : [];
     persistMoveHistory();
@@ -2883,7 +3088,7 @@ if (puzzleBtn){
   });
 }
 
-if (analyzeBtn && !analyzeBtn.disabled){
+if (analyzeBtn){
   analyzeBtn.addEventListener('click', openAnalysisPage);
 }
 
@@ -2961,6 +3166,10 @@ window.addEventListener('message', (event) => {
   if (event.data?.type === 'chess-miniapp-sound-changed'){
     saveSoundPreference(!!event.data.soundEnabled);
   }
+  if (event.data?.type === 'chess-miniapp-access-updated'){
+    adminAccessStateCache = null;
+    updatePuzzleStatus();
+  }
 });
 
 document.addEventListener('keydown', (event) => {
@@ -2977,6 +3186,10 @@ window.addEventListener('storage', (event) => {
   if (event.key === PALETTE_STORAGE_KEY){
     applyBoardPalette(loadPalettePreference());
     render();
+  }
+  if (event.key === getAdminAccessStorageKey()){
+    adminAccessStateCache = null;
+    updatePuzzleStatus();
   }
 });
 
