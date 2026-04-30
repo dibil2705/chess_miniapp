@@ -1,4 +1,4 @@
-import hashlib
+﻿import hashlib
 import hmac
 import json
 import mimetypes
@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
-load_dotenv(dotenv_path=ENV_PATH, override=True)
+load_dotenv(dotenv_path=ENV_PATH, override=False)
 
 TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("\ufeffTELEGRAM_BOT_TOKEN") or "").strip()
 BOT_TOKEN = TOKEN or ""
@@ -33,7 +33,7 @@ MINI_APP_URL = os.environ.get(
 )
 DATABASE_PATH = os.environ.get("ANALYTICS_DB", "analytics.sqlite3")
 HOST = os.environ.get("HOST", "0.0.0.0")
-PORT = int(os.environ.get("TELEGRAM_BACKEND_PORT", "8081"))
+PORT = int(os.environ.get("TELEGRAM_BACKEND_PORT") or os.environ.get("PORT", "12315"))
 STATIC_ROOT = os.path.abspath(os.environ.get("STATIC_ROOT", os.getcwd()))
 INITDATA_MAX_AGE_SECONDS = int(os.environ.get("INITDATA_MAX_AGE_SECONDS", "86400"))
 TELEGRAM_POLL_TIMEOUT = int(os.environ.get("TELEGRAM_POLL_TIMEOUT", "25"))
@@ -627,14 +627,17 @@ def safe_http_write(handler, status, body, content_type="application/octet-strea
         handler.wfile.write(body)
         return True
     except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
-        # Клиент уже закрыл сокет (например, отменил запрос/перезагрузил страницу).
+        # РљР»РёРµРЅС‚ СѓР¶Рµ Р·Р°РєСЂС‹Р» СЃРѕРєРµС‚ (РЅР°РїСЂРёРјРµСЂ, РѕС‚РјРµРЅРёР» Р·Р°РїСЂРѕСЃ/РїРµСЂРµР·Р°РіСЂСѓР·РёР» СЃС‚СЂР°РЅРёС†Сѓ).
         return False
 
 
 def proxy_stockfish_request(handler, method, endpoint_path, payload=None):
     target_url = f"{STOCKFISH_INTERNAL_BASE}{endpoint_path}"
     body = None
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "1",
+    }
     if payload is not None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
@@ -755,7 +758,7 @@ def build_tactical_context(move_details, current_line):
     new_attacked_pieces = move_details.get("new_attacked_pieces") or []
     non_king_targets = [
         item for item in new_attacked_pieces
-        if isinstance(item, dict) and str(item.get("piece") or "").lower() not in ("короля", "king")
+        if isinstance(item, dict) and str(item.get("piece") or "").lower() not in ("РєРѕСЂРѕР»СЏ", "king")
     ]
     return {
         "capture_is_exchange": bool(move_details.get("captured_piece") and is_capture_token(first_reply)),
@@ -809,24 +812,24 @@ def build_safety_policy_context():
 def build_motif_focus_context(tactical_context, move_details, current_mate, eval_change):
     motifs = []
     if current_mate and current_mate.get("mating_side"):
-        motifs.append("матовая угроза")
+        motifs.append("РјР°С‚РѕРІР°СЏ СѓРіСЂРѕР·Р°")
     if tactical_context.get("was_in_check_before") and tactical_context.get("resolved_check"):
-        motifs.append("защита от шаха")
+        motifs.append("Р·Р°С‰РёС‚Р° РѕС‚ С€Р°С…Р°")
     if tactical_context.get("is_fork"):
-        motifs.append("вилка")
+        motifs.append("РІРёР»РєР°")
     discovered = move_details.get("discovered_attack") if isinstance(move_details, dict) else {}
     if isinstance(discovered, dict) and discovered.get("attacker_piece"):
-        motifs.append("скрытая атака")
+        motifs.append("СЃРєСЂС‹С‚Р°СЏ Р°С‚Р°РєР°")
         if discovered.get("defense_state") == "overloaded":
-            motifs.append("перегрузка защитника")
+            motifs.append("РїРµСЂРµРіСЂСѓР·РєР° Р·Р°С‰РёС‚РЅРёРєР°")
         elif discovered.get("defense_state") == "undefended":
-            motifs.append("беззащитная фигура")
+            motifs.append("Р±РµР·Р·Р°С‰РёС‚РЅР°СЏ С„РёРіСѓСЂР°")
     if move_details.get("shared_pressure") if isinstance(move_details, dict) else False:
-        motifs.append("совместное давление")
+        motifs.append("СЃРѕРІРјРµСЃС‚РЅРѕРµ РґР°РІР»РµРЅРёРµ")
     if move_details.get("captured_piece") and eval_change and eval_change.get("kind") == "worsened":
-        motifs.append("ловушка взятия")
+        motifs.append("Р»РѕРІСѓС€РєР° РІР·СЏС‚РёСЏ")
     if tactical_context.get("reply_is_capture") and move_details.get("captured_piece"):
-        motifs.append("форсированный размен")
+        motifs.append("С„РѕСЂСЃРёСЂРѕРІР°РЅРЅС‹Р№ СЂР°Р·РјРµРЅ")
     unique = []
     for motif in motifs:
         if motif not in unique:
@@ -857,8 +860,8 @@ def load_coach_rules():
     except OSError as err:
         print("AI coach rules file error:", err)
     return (
-        "Ты шахматный тренер в экране анализа. Отвечай строго одним предложением на русском языке. "
-        "Пиши, что произошло в позиции или после хода пользователя."
+        "РўС‹ С€Р°С…РјР°С‚РЅС‹Р№ С‚СЂРµРЅРµСЂ РІ СЌРєСЂР°РЅРµ Р°РЅР°Р»РёР·Р°. РћС‚РІРµС‡Р°Р№ СЃС‚СЂРѕРіРѕ РѕРґРЅРёРј РїСЂРµРґР»РѕР¶РµРЅРёРµРј РЅР° СЂСѓСЃСЃРєРѕРј СЏР·С‹РєРµ. "
+        "РџРёС€Рё, С‡С‚Рѕ РїСЂРѕРёР·РѕС€Р»Рѕ РІ РїРѕР·РёС†РёРё РёР»Рё РїРѕСЃР»Рµ С…РѕРґР° РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ."
     )
 
 
@@ -873,7 +876,7 @@ def first_sentence(text):
 def shorten_coach_comment(text, max_words=16):
     text = first_sentence(text).replace("**", "").replace("`", "")
     text = " ".join(text.split()).strip()
-    for separator in (":", ";", " — ", " - "):
+    for separator in (":", ";", " вЂ” ", " - "):
         if separator in text:
             head = text.split(separator, 1)[0].strip()
             if len(head.split()) >= 4:
@@ -908,113 +911,113 @@ def build_forced_mate_context(mate, side):
 
 
 def side_label(side):
-    return "Белые" if side == "white" else "Черные" if side == "black" else "Сторона"
+    return "Р‘РµР»С‹Рµ" if side == "white" else "Р§РµСЂРЅС‹Рµ" if side == "black" else "РЎС‚РѕСЂРѕРЅР°"
 
 
 def side_genitive(side):
-    return "белых" if side == "white" else "черных" if side == "black" else "стороны"
+    return "Р±РµР»С‹С…" if side == "white" else "С‡РµСЂРЅС‹С…" if side == "black" else "СЃС‚РѕСЂРѕРЅС‹"
 
 
 def piece_label(piece):
     piece = str(piece or "").upper()
     return {
-        "P": "пешку",
-        "N": "коня",
-        "B": "слона",
-        "R": "ладью",
-        "Q": "ферзя",
-        "K": "короля",
+        "P": "РїРµС€РєСѓ",
+        "N": "РєРѕРЅСЏ",
+        "B": "СЃР»РѕРЅР°",
+        "R": "Р»Р°РґСЊСЋ",
+        "Q": "С„РµСЂР·СЏ",
+        "K": "РєРѕСЂРѕР»СЏ",
     }.get(piece, "")
 
 
 def piece_nominative(piece):
     piece = str(piece or "").upper()
     return {
-        "P": "пешка",
-        "N": "конь",
-        "B": "слон",
-        "R": "ладья",
-        "Q": "ферзь",
-        "K": "король",
+        "P": "РїРµС€РєР°",
+        "N": "РєРѕРЅСЊ",
+        "B": "СЃР»РѕРЅ",
+        "R": "Р»Р°РґСЊСЏ",
+        "Q": "С„РµСЂР·СЊ",
+        "K": "РєРѕСЂРѕР»СЊ",
     }.get(piece, "")
 
 
 def piece_instrumental(piece_name):
     name = str(piece_name or "").lower()
     return {
-        "пешка": "пешкой",
-        "конь": "конем",
-        "слон": "слоном",
-        "ладья": "ладьей",
-        "ферзь": "ферзем",
-        "король": "королем",
-    }.get(name, "фигурой")
+        "РїРµС€РєР°": "РїРµС€РєРѕР№",
+        "РєРѕРЅСЊ": "РєРѕРЅРµРј",
+        "СЃР»РѕРЅ": "СЃР»РѕРЅРѕРј",
+        "Р»Р°РґСЊСЏ": "Р»Р°РґСЊРµР№",
+        "С„РµСЂР·СЊ": "С„РµСЂР·РµРј",
+        "РєРѕСЂРѕР»СЊ": "РєРѕСЂРѕР»РµРј",
+    }.get(name, "С„РёРіСѓСЂРѕР№")
 
 
 def piece_accusative(piece_name):
     name = str(piece_name or "").lower()
     return {
-        "пешка": "пешку",
-        "конь": "коня",
-        "слон": "слона",
-        "ладья": "ладью",
-        "ферзь": "ферзя",
-        "король": "короля",
-    }.get(name, "фигуру")
+        "РїРµС€РєР°": "РїРµС€РєСѓ",
+        "РєРѕРЅСЊ": "РєРѕРЅСЏ",
+        "СЃР»РѕРЅ": "СЃР»РѕРЅР°",
+        "Р»Р°РґСЊСЏ": "Р»Р°РґСЊСЋ",
+        "С„РµСЂР·СЊ": "С„РµСЂР·СЏ",
+        "РєРѕСЂРѕР»СЊ": "РєРѕСЂРѕР»СЏ",
+    }.get(name, "С„РёРіСѓСЂСѓ")
 
 
 def piece_dative(piece_name):
     name = str(piece_name or "").lower()
     return {
-        "пешка": "пешке",
-        "конь": "коню",
-        "слон": "слону",
-        "ладья": "ладье",
-        "ферзь": "ферзю",
-        "король": "королю",
-    }.get(name, "фигуре")
+        "РїРµС€РєР°": "РїРµС€РєРµ",
+        "РєРѕРЅСЊ": "РєРѕРЅСЋ",
+        "СЃР»РѕРЅ": "СЃР»РѕРЅСѓ",
+        "Р»Р°РґСЊСЏ": "Р»Р°РґСЊРµ",
+        "С„РµСЂР·СЊ": "С„РµСЂР·СЋ",
+        "РєРѕСЂРѕР»СЊ": "РєРѕСЂРѕР»СЋ",
+    }.get(name, "С„РёРіСѓСЂРµ")
 
 
 def normalize_piece_cases(text):
     comment = str(text or "")
-    pieces = ("король", "ферзь", "ладья", "слон", "конь", "пешка")
+    pieces = ("РєРѕСЂРѕР»СЊ", "С„РµСЂР·СЊ", "Р»Р°РґСЊСЏ", "СЃР»РѕРЅ", "РєРѕРЅСЊ", "РїРµС€РєР°")
     for piece in pieces:
         acc = piece_accusative(piece)
         dat = piece_dative(piece)
         ins = piece_instrumental(piece)
-        comment = re.sub(rf"\bна\s+{piece}\b", f"на {acc}", comment, flags=re.IGNORECASE)
-        comment = re.sub(rf"\bход\s+{piece}\b", f"ход {ins}", comment, flags=re.IGNORECASE)
-        comment = re.sub(rf"\bатакуют\s+{piece}\b", f"атакуют {acc}", comment, flags=re.IGNORECASE)
-        comment = re.sub(rf"\bнужна защита\s+{piece}\b", f"нужна защита {dat}", comment, flags=re.IGNORECASE)
+        comment = re.sub(rf"\bРЅР°\s+{piece}\b", f"РЅР° {acc}", comment, flags=re.IGNORECASE)
+        comment = re.sub(rf"\bС…РѕРґ\s+{piece}\b", f"С…РѕРґ {ins}", comment, flags=re.IGNORECASE)
+        comment = re.sub(rf"\bР°С‚Р°РєСѓСЋС‚\s+{piece}\b", f"Р°С‚Р°РєСѓСЋС‚ {acc}", comment, flags=re.IGNORECASE)
+        comment = re.sub(rf"\bРЅСѓР¶РЅР° Р·Р°С‰РёС‚Р°\s+{piece}\b", f"РЅСѓР¶РЅР° Р·Р°С‰РёС‚Р° {dat}", comment, flags=re.IGNORECASE)
     comment = re.sub(r"\s{2,}", " ", comment).strip()
     return comment
 
 
 def piece_gives_check(piece_name):
-    return f"{piece_name} дала шах" if piece_name in ("ладья", "пешка") else f"{piece_name} дал шах"
+    return f"{piece_name} РґР°Р»Р° С€Р°С…" if piece_name in ("Р»Р°РґСЊСЏ", "РїРµС€РєР°") else f"{piece_name} РґР°Р» С€Р°С…"
 
 
 def mate_support_phrase(summary):
     lower = str(summary or "").lower()
-    if lower.startswith("пешка"):
-        return f"{summary.capitalize()} и поддерживает матовую атаку."
-    if lower.startswith("ладья"):
-        return f"{summary.capitalize()} и подключается к матовой атаке."
-    return f"{summary.capitalize()} и поддерживает матовую атаку."
+    if lower.startswith("РїРµС€РєР°"):
+        return f"{summary.capitalize()} Рё РїРѕРґРґРµСЂР¶РёРІР°РµС‚ РјР°С‚РѕРІСѓСЋ Р°С‚Р°РєСѓ."
+    if lower.startswith("Р»Р°РґСЊСЏ"):
+        return f"{summary.capitalize()} Рё РїРѕРґРєР»СЋС‡Р°РµС‚СЃСЏ Рє РјР°С‚РѕРІРѕР№ Р°С‚Р°РєРµ."
+    return f"{summary.capitalize()} Рё РїРѕРґРґРµСЂР¶РёРІР°РµС‚ РјР°С‚РѕРІСѓСЋ Р°С‚Р°РєСѓ."
 
 
 def move_past_verb(piece_name):
     name = str(piece_name or "").lower()
-    if name in ("пешка", "ладья"):
-        return "сделала"
-    return "сделал"
+    if name in ("РїРµС€РєР°", "Р»Р°РґСЊСЏ"):
+        return "СЃРґРµР»Р°Р»Р°"
+    return "СЃРґРµР»Р°Р»"
 
 
 def piece_developed_verb(piece_name):
     name = str(piece_name or "").lower()
-    if name in ("пешка", "ладья"):
-        return "развилась"
-    return "развился"
+    if name in ("РїРµС€РєР°", "Р»Р°РґСЊСЏ"):
+        return "СЂР°Р·РІРёР»Р°СЃСЊ"
+    return "СЂР°Р·РІРёР»СЃСЏ"
 
 
 def square_rank(square):
@@ -1030,22 +1033,22 @@ def is_initial_square_move(move, piece_name):
     if not side or len(from_sq) < 2:
         return False
     initial_map = {
-        ("white", "конь"): {"b1", "g1"},
-        ("black", "конь"): {"b8", "g8"},
-        ("white", "слон"): {"c1", "f1"},
-        ("black", "слон"): {"c8", "f8"},
-        ("white", "ладья"): {"a1", "h1"},
-        ("black", "ладья"): {"a8", "h8"},
-        ("white", "ферзь"): {"d1"},
-        ("black", "ферзь"): {"d8"},
-        ("white", "король"): {"e1"},
-        ("black", "король"): {"e8"},
+        ("white", "РєРѕРЅСЊ"): {"b1", "g1"},
+        ("black", "РєРѕРЅСЊ"): {"b8", "g8"},
+        ("white", "СЃР»РѕРЅ"): {"c1", "f1"},
+        ("black", "СЃР»РѕРЅ"): {"c8", "f8"},
+        ("white", "Р»Р°РґСЊСЏ"): {"a1", "h1"},
+        ("black", "Р»Р°РґСЊСЏ"): {"a8", "h8"},
+        ("white", "С„РµСЂР·СЊ"): {"d1"},
+        ("black", "С„РµСЂР·СЊ"): {"d8"},
+        ("white", "РєРѕСЂРѕР»СЊ"): {"e1"},
+        ("black", "РєРѕСЂРѕР»СЊ"): {"e8"},
     }
     return from_sq in initial_map.get((side, piece_name), set())
 
 
 def rook_on_open_file(move, board_snapshot):
-    if piece_nominative(move.get("movingPiece")) != "ладья":
+    if piece_nominative(move.get("movingPiece")) != "Р»Р°РґСЊСЏ":
         return False
     to_sq = str(move.get("to") or "")
     if len(to_sq) < 2:
@@ -1068,7 +1071,7 @@ def rook_on_open_file(move, board_snapshot):
 
 
 def pawn_ready_to_promote(move, board_snapshot):
-    if piece_nominative(move.get("movingPiece")) != "пешка":
+    if piece_nominative(move.get("movingPiece")) != "РїРµС€РєР°":
         return False
     to_sq = str(move.get("to") or "")
     rank = square_rank(to_sq)
@@ -1087,21 +1090,21 @@ def build_move_summary(move, board_snapshot=None):
         return ""
     piece = piece_nominative(move.get("movingPiece"))
     if not piece:
-        return "сделан ход"
+        return "СЃРґРµР»Р°РЅ С…РѕРґ"
     captured = piece_label(move.get("capturedPiece"))
     label = str(move.get("label") or move.get("san") or "").lower()
     attacks = move.get("newAttackedPieces") if isinstance(move.get("newAttackedPieces"), list) else []
     move_verb = move_past_verb(piece)
     if captured:
         if "x" in label:
-            if piece == "король":
-                return f"{piece} съел {captured} и упростил позицию.".strip()
-            if piece == "ферзь" and captured == "ферзя":
-                return f"{piece} съел {captured} и упростил позицию.".strip()
+            if piece == "РєРѕСЂРѕР»СЊ":
+                return f"{piece} СЃСЉРµР» {captured} Рё СѓРїСЂРѕСЃС‚РёР» РїРѕР·РёС†РёСЋ.".strip()
+            if piece == "С„РµСЂР·СЊ" and captured == "С„РµСЂР·СЏ":
+                return f"{piece} СЃСЉРµР» {captured} Рё СѓРїСЂРѕСЃС‚РёР» РїРѕР·РёС†РёСЋ.".strip()
             if attacks:
-                return f"{piece} съел {captured} и начинается размен.".strip()
-            return f"{piece} съел {captured}".strip()
-        return f"{piece} съел {captured}".strip()
+                return f"{piece} СЃСЉРµР» {captured} Рё РЅР°С‡РёРЅР°РµС‚СЃСЏ СЂР°Р·РјРµРЅ.".strip()
+            return f"{piece} СЃСЉРµР» {captured}".strip()
+        return f"{piece} СЃСЉРµР» {captured}".strip()
     if len(attacks) == 1:
         target = attacks[0] if isinstance(attacks[0], dict) else {}
         target_name = piece_label(target.get("piece")) or target.get("piece_name")
@@ -1109,31 +1112,31 @@ def build_move_summary(move, board_snapshot=None):
         if target_piece == "K":
             return piece_gives_check(piece).strip()
         if target_name:
-            if piece == "пешка":
-                return f"{piece} напала на {target_name}".strip()
-            verb = "напала" if piece in ("пешка", "ладья") else "напал"
-            return f"{piece} {verb} на {target_name}".strip()
+            if piece == "РїРµС€РєР°":
+                return f"{piece} РЅР°РїР°Р»Р° РЅР° {target_name}".strip()
+            verb = "РЅР°РїР°Р»Р°" if piece in ("РїРµС€РєР°", "Р»Р°РґСЊСЏ") else "РЅР°РїР°Р»"
+            return f"{piece} {verb} РЅР° {target_name}".strip()
     non_king_attacks = [item for item in attacks if isinstance(item, dict) and str(item.get("piece") or "").upper() != "K"]
     if len(non_king_attacks) >= 2:
-        return f"{piece} сделал вилку".strip()
+        return f"{piece} СЃРґРµР»Р°Р» РІРёР»РєСѓ".strip()
     if len(attacks) >= 2:
         target = non_king_attacks[0] if non_king_attacks else (attacks[0] if isinstance(attacks[0], dict) else {})
         target_name = piece_label(target.get("piece")) or target.get("piece_name")
         if target_name:
             if any(isinstance(item, dict) and str(item.get("piece") or "").upper() == "K" for item in attacks):
-                check_verb = "дала" if piece in ("пешка", "ладья") else "дал"
-                attack_verb = "напала" if piece in ("пешка", "ладья") else "напал"
-                return f"{piece} {check_verb} шах и {attack_verb} на {target_name}".strip()
-            return f"{piece} создал двойную угрозу".strip()
+                check_verb = "РґР°Р»Р°" if piece in ("РїРµС€РєР°", "Р»Р°РґСЊСЏ") else "РґР°Р»"
+                attack_verb = "РЅР°РїР°Р»Р°" if piece in ("РїРµС€РєР°", "Р»Р°РґСЊСЏ") else "РЅР°РїР°Р»"
+                return f"{piece} {check_verb} С€Р°С… Рё {attack_verb} РЅР° {target_name}".strip()
+            return f"{piece} СЃРѕР·РґР°Р» РґРІРѕР№РЅСѓСЋ СѓРіСЂРѕР·Сѓ".strip()
     if is_initial_square_move(move, piece):
-        if piece == "ладья" and rook_on_open_file(move, board_snapshot):
-            return "ладья развилась и вышла на открытую линию, ей там комфортнее"
+        if piece == "Р»Р°РґСЊСЏ" and rook_on_open_file(move, board_snapshot):
+            return "Р»Р°РґСЊСЏ СЂР°Р·РІРёР»Р°СЃСЊ Рё РІС‹С€Р»Р° РЅР° РѕС‚РєСЂС‹С‚СѓСЋ Р»РёРЅРёСЋ, РµР№ С‚Р°Рј РєРѕРјС„РѕСЂС‚РЅРµРµ"
         return f"{piece} {piece_developed_verb(piece)}".strip()
-    if piece == "ладья" and rook_on_open_file(move, board_snapshot):
-        return "ладья вышла на открытую линию и теперь давит по вертикали"
+    if piece == "Р»Р°РґСЊСЏ" and rook_on_open_file(move, board_snapshot):
+        return "Р»Р°РґСЊСЏ РІС‹С€Р»Р° РЅР° РѕС‚РєСЂС‹С‚СѓСЋ Р»РёРЅРёСЋ Рё С‚РµРїРµСЂСЊ РґР°РІРёС‚ РїРѕ РІРµСЂС‚РёРєР°Р»Рё"
     if pawn_ready_to_promote(move, board_snapshot):
-        return "пешка продвинулась и готовится к превращению в ферзя"
-    return f"{piece} {move_verb} ход".strip()
+        return "РїРµС€РєР° РїСЂРѕРґРІРёРЅСѓР»Р°СЃСЊ Рё РіРѕС‚РѕРІРёС‚СЃСЏ Рє РїСЂРµРІСЂР°С‰РµРЅРёСЋ РІ С„РµСЂР·СЏ"
+    return f"{piece} {move_verb} С…РѕРґ".strip()
 
 
 def compact_move_details(move, board_snapshot=None):
@@ -1265,7 +1268,7 @@ def build_strategy_context(board_profile, current_eval, current_mate, player_to_
     if current_mate and current_mate.get("mating_side"):
         return {
             "kind": "attack_king",
-            "hint": "усиливать атаку на короля",
+            "hint": "СѓСЃРёР»РёРІР°С‚СЊ Р°С‚Р°РєСѓ РЅР° РєРѕСЂРѕР»СЏ",
         }
 
     if not isinstance(board_profile, dict) or not current_eval:
@@ -1282,28 +1285,28 @@ def build_strategy_context(board_profile, current_eval, current_mate, player_to_
         if phase == "endgame" or total_non_king <= 10:
             return {
                 "kind": "convert_endgame",
-                "hint": "вести к выигранному эндшпилю",
+                "hint": "РІРµСЃС‚Рё Рє РІС‹РёРіСЂР°РЅРЅРѕРјСѓ СЌРЅРґС€РїРёР»СЋ",
             }
         if queens_total > 0 or rooks_total > 0:
             return {
                 "kind": "simplify",
-                "hint": "менять тяжелые фигуры и упрощать позицию",
+                "hint": "РјРµРЅСЏС‚СЊ С‚СЏР¶РµР»С‹Рµ С„РёРіСѓСЂС‹ Рё СѓРїСЂРѕС‰Р°С‚СЊ РїРѕР·РёС†РёСЋ",
             }
         return {
             "kind": "improve",
-            "hint": "укреплять перевес и переводить его в выигрыш",
+            "hint": "СѓРєСЂРµРїР»СЏС‚СЊ РїРµСЂРµРІРµСЃ Рё РїРµСЂРµРІРѕРґРёС‚СЊ РµРіРѕ РІ РІС‹РёРіСЂС‹С€",
         }
 
     if advantage_side:
         return {
             "kind": "press",
-            "hint": "усиливать лучшие фигуры и не давать контригру",
+            "hint": "СѓСЃРёР»РёРІР°С‚СЊ Р»СѓС‡С€РёРµ С„РёРіСѓСЂС‹ Рё РЅРµ РґР°РІР°С‚СЊ РєРѕРЅС‚СЂРёРіСЂСѓ",
         }
 
     if player_to_advise in ("white", "black"):
         return {
             "kind": "develop",
-            "hint": "развивать фигуры и улучшать короля",
+            "hint": "СЂР°Р·РІРёРІР°С‚СЊ С„РёРіСѓСЂС‹ Рё СѓР»СѓС‡С€Р°С‚СЊ РєРѕСЂРѕР»СЏ",
         }
 
     return {}
@@ -1312,10 +1315,10 @@ def build_strategy_context(board_profile, current_eval, current_mate, player_to_
 def move_word(count):
     count = abs(int(count or 0))
     if count % 10 == 1 and count % 100 != 11:
-        return "ход"
+        return "С…РѕРґ"
     if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
-        return "хода"
-    return "ходов"
+        return "С…РѕРґР°"
+    return "С…РѕРґРѕРІ"
 
 
 def build_forced_mate_context_from_line(line, fallback_side):
@@ -1383,17 +1386,17 @@ def build_evaluation_context(line, fallback_side):
             "cp": 0,
             "pawns": 0,
             "advantage_side": None,
-            "advantage_label": "равно",
+            "advantage_label": "СЂР°РІРЅРѕ",
         }
     abs_cp = abs(cp)
     if abs_cp >= 700:
-        label = "решающее преимущество"
+        label = "СЂРµС€Р°СЋС‰РµРµ РїСЂРµРёРјСѓС‰РµСЃС‚РІРѕ"
     elif abs_cp >= 350:
-        label = "большое преимущество"
+        label = "Р±РѕР»СЊС€РѕРµ РїСЂРµРёРјСѓС‰РµСЃС‚РІРѕ"
     elif abs_cp >= 150:
-        label = "заметное преимущество"
+        label = "Р·Р°РјРµС‚РЅРѕРµ РїСЂРµРёРјСѓС‰РµСЃС‚РІРѕ"
     else:
-        label = "небольшое преимущество"
+        label = "РЅРµР±РѕР»СЊС€РѕРµ РїСЂРµРёРјСѓС‰РµСЃС‚РІРѕ"
     return {
         "cp": cp,
         "pawns": round(abs_cp / 100, 1),
@@ -1413,11 +1416,11 @@ def build_blunder_context(previous_eval, current_eval, moving_side, previous_bes
     if swing < 1.2:
         return None
     if current_eval.get("advantage_side") == opponent and (current_eval.get("pawns", 0) >= 1.5 or swing >= 2.5):
-        severity = "зевок"
+        severity = "Р·РµРІРѕРє"
     elif swing >= 4.0:
-        severity = "серьезная ошибка"
+        severity = "СЃРµСЂСЊРµР·РЅР°СЏ РѕС€РёР±РєР°"
     else:
-        severity = "неточность"
+        severity = "РЅРµС‚РѕС‡РЅРѕСЃС‚СЊ"
     return {
         "kind": "blunder",
         "side": mover,
@@ -1475,15 +1478,15 @@ def build_check_defense_comment(move_details, eval_change):
         return ""
     if move_details.get("defended_by_king"):
         return ""
-    piece = move_details.get("moving_piece_name") or "фигура"
+    piece = move_details.get("moving_piece_name") or "С„РёРіСѓСЂР°"
     piece_instr = piece_instrumental(piece)
     side = side_label(move_details.get("side"))
-    quality = "хорошее решение"
+    quality = "С…РѕСЂРѕС€РµРµ СЂРµС€РµРЅРёРµ"
     if eval_change and eval_change.get("kind") == "improved":
-        quality = "точное решение"
+        quality = "С‚РѕС‡РЅРѕРµ СЂРµС€РµРЅРёРµ"
     elif eval_change and eval_change.get("kind") == "worsened":
-        return f"{side} защитились от шаха ходом {piece_instr}, но это неточное решение."
-    return f"{side} защитились от шаха ходом {piece_instr}, это {quality}."
+        return f"{side} Р·Р°С‰РёС‚РёР»РёСЃСЊ РѕС‚ С€Р°С…Р° С…РѕРґРѕРј {piece_instr}, РЅРѕ СЌС‚Рѕ РЅРµС‚РѕС‡РЅРѕРµ СЂРµС€РµРЅРёРµ."
+    return f"{side} Р·Р°С‰РёС‚РёР»РёСЃСЊ РѕС‚ С€Р°С…Р° С…РѕРґРѕРј {piece_instr}, СЌС‚Рѕ {quality}."
 
 
 def build_king_escape_from_check_comment(move_details, eval_change):
@@ -1495,10 +1498,10 @@ def build_king_escape_from_check_comment(move_details, eval_change):
         return ""
     side = side_label(move_details.get("side"))
     if eval_change and eval_change.get("kind") == "worsened":
-        return f"{side} король отошел от шаха, но безопасность улучшить не удалось."
+        return f"{side} РєРѕСЂРѕР»СЊ РѕС‚РѕС€РµР» РѕС‚ С€Р°С…Р°, РЅРѕ Р±РµР·РѕРїР°СЃРЅРѕСЃС‚СЊ СѓР»СѓС‡С€РёС‚СЊ РЅРµ СѓРґР°Р»РѕСЃСЊ."
     if eval_change and eval_change.get("kind") == "improved":
-        return f"{side} король отошел от шаха и сделал позицию короля безопаснее."
-    return f"{side} король отошел от шаха и удержал приемлемую безопасность."
+        return f"{side} РєРѕСЂРѕР»СЊ РѕС‚РѕС€РµР» РѕС‚ С€Р°С…Р° Рё СЃРґРµР»Р°Р» РїРѕР·РёС†РёСЋ РєРѕСЂРѕР»СЏ Р±РµР·РѕРїР°СЃРЅРµРµ."
+    return f"{side} РєРѕСЂРѕР»СЊ РѕС‚РѕС€РµР» РѕС‚ С€Р°С…Р° Рё СѓРґРµСЂР¶Р°Р» РїСЂРёРµРјР»РµРјСѓСЋ Р±РµР·РѕРїР°СЃРЅРѕСЃС‚СЊ."
 
 
 def build_mate_defense_comment(coach_event, move_details):
@@ -1516,22 +1519,22 @@ def build_mate_defense_comment(coach_event, move_details):
         return ""
     piece_instr = piece_instrumental((move_details or {}).get("moving_piece_name"))
     side = side_label(moving_side or defending_side)
-    return f"{side} защитились от мата ходом {piece_instr}."
+    return f"{side} Р·Р°С‰РёС‚РёР»РёСЃСЊ РѕС‚ РјР°С‚Р° С…РѕРґРѕРј {piece_instr}."
 
 
 def is_king_move_token(move_token):
     token = str(move_token or "").strip()
     if not token:
         return False
-    token = token.lstrip(".…")
-    return token.startswith("K") or token.startswith("К")
+    token = token.lstrip(".вЂ¦")
+    return token.startswith("K") or token.startswith("Рљ")
 
 
 def build_single_king_escape_comment(move_details, current_line, current_mate):
     if not isinstance(move_details, dict) or not isinstance(current_line, dict) or not isinstance(current_mate, dict):
         return ""
     summary = str(move_details.get("summary") or "").strip()
-    if "шах" not in summary.lower():
+    if "С€Р°С…" not in summary.lower():
         return ""
     pv_moves = current_line.get("pv_first_moves") or []
     if not pv_moves or not is_king_move_token(pv_moves[0]):
@@ -1544,8 +1547,8 @@ def build_single_king_escape_comment(move_details, current_line, current_mate):
         return ""
     defending_side = current_mate.get("defending_side")
     if defending_side in ("white", "black"):
-        return f"{summary.capitalize()}, у короля {side_genitive(defending_side)} осталось единственное поле отхода."
-    return f"{summary.capitalize()}, у короля осталось единственное поле отхода."
+        return f"{summary.capitalize()}, Сѓ РєРѕСЂРѕР»СЏ {side_genitive(defending_side)} РѕСЃС‚Р°Р»РѕСЃСЊ РµРґРёРЅСЃС‚РІРµРЅРЅРѕРµ РїРѕР»Рµ РѕС‚С…РѕРґР°."
+    return f"{summary.capitalize()}, Сѓ РєРѕСЂРѕР»СЏ РѕСЃС‚Р°Р»РѕСЃСЊ РµРґРёРЅСЃС‚РІРµРЅРЅРѕРµ РїРѕР»Рµ РѕС‚С…РѕРґР°."
 
 
 def find_side_king_square(board_snapshot, side):
@@ -1571,19 +1574,19 @@ def describe_checkmate_type(move_details, board_snapshot, defending_side):
     piece_instr = piece_instrumental(piece)
     to_sq = str((move_details or {}).get("to") or "")
     king_sq = find_side_king_square(board_snapshot, defending_side)
-    if piece in ("ладья", "ферзь") and len(king_sq) >= 2 and king_sq[1] in ("1", "8"):
-        return f"мат {piece_instr} по последней горизонтали"
-    if piece in ("ладья", "ферзь") and len(to_sq) >= 2 and len(king_sq) >= 2 and (to_sq[0] == king_sq[0] or to_sq[1] == king_sq[1]):
-        return f"линейный мат {piece_instr}"
-    if piece in ("слон", "ферзь") and same_diagonal(to_sq, king_sq):
-        return f"мат {piece_instr} по диагонали"
-    if piece == "конь":
-        return "мат конем"
-    if piece == "пешка":
-        return "мат пешкой"
+    if piece in ("Р»Р°РґСЊСЏ", "С„РµСЂР·СЊ") and len(king_sq) >= 2 and king_sq[1] in ("1", "8"):
+        return f"РјР°С‚ {piece_instr} РїРѕ РїРѕСЃР»РµРґРЅРµР№ РіРѕСЂРёР·РѕРЅС‚Р°Р»Рё"
+    if piece in ("Р»Р°РґСЊСЏ", "С„РµСЂР·СЊ") and len(to_sq) >= 2 and len(king_sq) >= 2 and (to_sq[0] == king_sq[0] or to_sq[1] == king_sq[1]):
+        return f"Р»РёРЅРµР№РЅС‹Р№ РјР°С‚ {piece_instr}"
+    if piece in ("СЃР»РѕРЅ", "С„РµСЂР·СЊ") and same_diagonal(to_sq, king_sq):
+        return f"РјР°С‚ {piece_instr} РїРѕ РґРёР°РіРѕРЅР°Р»Рё"
+    if piece == "РєРѕРЅСЊ":
+        return "РјР°С‚ РєРѕРЅРµРј"
+    if piece == "РїРµС€РєР°":
+        return "РјР°С‚ РїРµС€РєРѕР№"
     if piece:
-        return f"мат {piece_instr}"
-    return "мат"
+        return f"РјР°С‚ {piece_instr}"
+    return "РјР°С‚"
 
 
 def build_checkmate_comment(coach_event, move_details=None, board_snapshot=None):
@@ -1598,8 +1601,8 @@ def build_checkmate_comment(coach_event, move_details=None, board_snapshot=None)
         or (move_details or {}).get("shared_pressure")
         or (move_details or {}).get("captured_piece")
     )
-    quality = "это блестящий ход" if has_brilliant_idea else "это лучший ход"
-    return f"{side_label(mating_side)} поставили {mate_type}, {quality}."
+    quality = "СЌС‚Рѕ Р±Р»РµСЃС‚СЏС‰РёР№ С…РѕРґ" if has_brilliant_idea else "СЌС‚Рѕ Р»СѓС‡С€РёР№ С…РѕРґ"
+    return f"{side_label(mating_side)} РїРѕСЃС‚Р°РІРёР»Рё {mate_type}, {quality}."
 
 
 def build_deterministic_coach_comment(coach_event, move_details=None, board_snapshot=None):
@@ -1612,11 +1615,11 @@ def build_deterministic_coach_comment(coach_event, move_details=None, board_snap
         return build_checkmate_comment(coach_event, move_details, board_snapshot)
     if kind == "mate_appeared" and current_mate.get("moves"):
         moves = int(current_mate["moves"])
-        return f"{side_label(current_mate.get('mating_side'))} форсируют мат в {moves} {move_word(moves)}."
+        return f"{side_label(current_mate.get('mating_side'))} С„РѕСЂСЃРёСЂСѓСЋС‚ РјР°С‚ РІ {moves} {move_word(moves)}."
     if kind == "mate_in_one" and current_mate.get("mating_side"):
-        return f"У {side_genitive(current_mate.get('mating_side'))} остался последний ход до мата."
+        return f"РЈ {side_genitive(current_mate.get('mating_side'))} РѕСЃС‚Р°Р»СЃСЏ РїРѕСЃР»РµРґРЅРёР№ С…РѕРґ РґРѕ РјР°С‚Р°."
     if kind == "missed_mate" and previous_mate.get("mating_side"):
-        return f"{side_label(previous_mate.get('mating_side'))} упустили матовую возможность."
+        return f"{side_label(previous_mate.get('mating_side'))} СѓРїСѓСЃС‚РёР»Рё РјР°С‚РѕРІСѓСЋ РІРѕР·РјРѕР¶РЅРѕСЃС‚СЊ."
     return ""
 
 
@@ -1624,8 +1627,8 @@ def validate_comment_against_eval(comment, current_eval, current_mate=None, eval
     comment = str(comment or "").strip()
     if current_mate and current_mate.get("mating_side"):
         lower = comment.lower()
-        if "равн" in lower or "0.00" in lower:
-            return f"{side_label(current_mate.get('mating_side'))} сохраняют форсированную матовую угрозу."
+        if "СЂР°РІРЅ" in lower or "0.00" in lower:
+            return f"{side_label(current_mate.get('mating_side'))} СЃРѕС…СЂР°РЅСЏСЋС‚ С„РѕСЂСЃРёСЂРѕРІР°РЅРЅСѓСЋ РјР°С‚РѕРІСѓСЋ СѓРіСЂРѕР·Сѓ."
         return comment
     if not current_eval or not current_eval.get("advantage_side"):
         return comment
@@ -1634,28 +1637,28 @@ def validate_comment_against_eval(comment, current_eval, current_mate=None, eval
     lower = comment.lower()
     same_side_had_advantage = bool(eval_change and eval_change.get("previous_advantage_side") == advantage_side)
     moving_side = normalize_score_side(eval_change.get("side")) if eval_change else None
-    white_positive = "бел" in lower and any(word in lower for word in ("выигр", "атак", "инициатив", "дав", "преимущ"))
-    black_positive = ("черн" in lower or "чёрн" in lower) and any(word in lower for word in ("выигр", "атак", "инициатив", "дав", "преимущ"))
+    white_positive = "Р±РµР»" in lower and any(word in lower for word in ("РІС‹РёРіСЂ", "Р°С‚Р°Рє", "РёРЅРёС†РёР°С‚РёРІ", "РґР°РІ", "РїСЂРµРёРјСѓС‰"))
+    black_positive = ("С‡РµСЂРЅ" in lower or "С‡С‘СЂРЅ" in lower) and any(word in lower for word in ("РІС‹РёРіСЂ", "Р°С‚Р°Рє", "РёРЅРёС†РёР°С‚РёРІ", "РґР°РІ", "РїСЂРµРёРјСѓС‰"))
 
-    if moving_side and moving_side != advantage_side and any(word in lower for word in ("сохранил", "сохранила", "сохранили", "усилил", "усилила", "усилили")):
-        return f"Перевес остался у {side_genitive(advantage_side)}."
+    if moving_side and moving_side != advantage_side and any(word in lower for word in ("СЃРѕС…СЂР°РЅРёР»", "СЃРѕС…СЂР°РЅРёР»Р°", "СЃРѕС…СЂР°РЅРёР»Рё", "СѓСЃРёР»РёР»", "СѓСЃРёР»РёР»Р°", "СѓСЃРёР»РёР»Рё")):
+        return f"РџРµСЂРµРІРµСЃ РѕСЃС‚Р°Р»СЃСЏ Сѓ {side_genitive(advantage_side)}."
 
     if advantage_side == "black" and white_positive:
         if moving_side == "white":
-            return f"Перевес остался у {side_genitive(advantage_side)}."
-        verb = "усилили" if eval_change and eval_change.get("kind") == "improved" else "сохранили"
-        return f"Черные {verb} {current_eval['advantage_label']}."
+            return f"РџРµСЂРµРІРµСЃ РѕСЃС‚Р°Р»СЃСЏ Сѓ {side_genitive(advantage_side)}."
+        verb = "СѓСЃРёР»РёР»Рё" if eval_change and eval_change.get("kind") == "improved" else "СЃРѕС…СЂР°РЅРёР»Рё"
+        return f"Р§РµСЂРЅС‹Рµ {verb} {current_eval['advantage_label']}."
     if advantage_side == "white" and black_positive:
         if moving_side == "black":
-            return f"Перевес остался у {side_genitive(advantage_side)}."
-        verb = "усилили" if eval_change and eval_change.get("kind") == "improved" else "сохранили"
-        return f"Белые {verb} {current_eval['advantage_label']}."
+            return f"РџРµСЂРµРІРµСЃ РѕСЃС‚Р°Р»СЃСЏ Сѓ {side_genitive(advantage_side)}."
+        verb = "СѓСЃРёР»РёР»Рё" if eval_change and eval_change.get("kind") == "improved" else "СЃРѕС…СЂР°РЅРёР»Рё"
+        return f"Р‘РµР»С‹Рµ {verb} {current_eval['advantage_label']}."
 
-    if same_side_had_advantage and any(word in lower for word in ("получ", "забрал", "забрала", "инициатив", "преимущ")):
-        verb = "усилили" if eval_change and eval_change.get("kind") == "improved" else "сохранили"
+    if same_side_had_advantage and any(word in lower for word in ("РїРѕР»СѓС‡", "Р·Р°Р±СЂР°Р»", "Р·Р°Р±СЂР°Р»Р°", "РёРЅРёС†РёР°С‚РёРІ", "РїСЂРµРёРјСѓС‰")):
+        verb = "СѓСЃРёР»РёР»Рё" if eval_change and eval_change.get("kind") == "improved" else "СЃРѕС…СЂР°РЅРёР»Рё"
         return f"{side_label(advantage_side)} {verb} {current_eval['advantage_label']}."
-    if eval_change and eval_change.get("kind") in ("stable", "advantage_preserved") and "получ" in lower and "преимущ" in lower:
-        return f"{side_label(advantage_side)} сохранили {current_eval['advantage_label']}."
+    if eval_change and eval_change.get("kind") in ("stable", "advantage_preserved") and "РїРѕР»СѓС‡" in lower and "РїСЂРµРёРјСѓС‰" in lower:
+        return f"{side_label(advantage_side)} СЃРѕС…СЂР°РЅРёР»Рё {current_eval['advantage_label']}."
     return comment
 
 
@@ -1664,14 +1667,14 @@ def is_generic_position_comment(comment):
     if not lower:
         return False
     has_generic = (
-        ("сохранил" in lower and ("преимущ" in lower or "перевес" in lower))
-        or ("усилил" in lower and ("преимущ" in lower or "перевес" in lower))
-        or ("отбились" in lower and "перевес" in lower)
-        or ("позиция сохранила прежний характер" in lower)
+        ("СЃРѕС…СЂР°РЅРёР»" in lower and ("РїСЂРµРёРјСѓС‰" in lower or "РїРµСЂРµРІРµСЃ" in lower))
+        or ("СѓСЃРёР»РёР»" in lower and ("РїСЂРµРёРјСѓС‰" in lower or "РїРµСЂРµРІРµСЃ" in lower))
+        or ("РѕС‚Р±РёР»РёСЃСЊ" in lower and "РїРµСЂРµРІРµСЃ" in lower)
+        or ("РїРѕР·РёС†РёСЏ СЃРѕС…СЂР°РЅРёР»Р° РїСЂРµР¶РЅРёР№ С…Р°СЂР°РєС‚РµСЂ" in lower)
     )
     has_concrete = any(
         token in lower
-        for token in ("съел", "взял", "дал шах", "вилк", "связк", "защитил", "зев", "напал")
+        for token in ("СЃСЉРµР»", "РІР·СЏР»", "РґР°Р» С€Р°С…", "РІРёР»Рє", "СЃРІСЏР·Рє", "Р·Р°С‰РёС‚РёР»", "Р·РµРІ", "РЅР°РїР°Р»")
     )
     return has_generic and not has_concrete
 
@@ -1687,7 +1690,7 @@ def should_mark_best_move(deviated, eval_change_context, user_move, current_line
     played_move = str(user_move or "").strip()
     if not best_move or not played_move or best_move != played_move:
         return False
-    # Редкий, но стабильный триггер (примерно в 8% случаев).
+    # Р РµРґРєРёР№, РЅРѕ СЃС‚Р°Р±РёР»СЊРЅС‹Р№ С‚СЂРёРіРіРµСЂ (РїСЂРёРјРµСЂРЅРѕ РІ 8% СЃР»СѓС‡Р°РµРІ).
     return (sum(ord(ch) for ch in played_move) % 12) == 0
 
 
@@ -1702,7 +1705,7 @@ def deterministic_pick(options, seed):
 
 
 def normalize_comment_key(text):
-    cleaned = re.sub(r"[^a-zа-яё0-9\s]", " ", str(text or "").lower(), flags=re.IGNORECASE)
+    cleaned = re.sub(r"[^a-zР°-СЏС‘0-9\s]", " ", str(text or "").lower(), flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return " ".join(cleaned.split()[:8])
 
@@ -1710,9 +1713,9 @@ def normalize_comment_key(text):
 def comment_similarity_key_tokens(text):
     normalized = normalize_comment_key(text)
     stopwords = {
-        "и", "но", "а", "это", "после", "ход", "хода", "теперь", "дальше",
-        "позиция", "белые", "черные", "чёрные", "у", "на", "в", "к", "по",
-        "для", "с", "же", "еще", "ещё",
+        "Рё", "РЅРѕ", "Р°", "СЌС‚Рѕ", "РїРѕСЃР»Рµ", "С…РѕРґ", "С…РѕРґР°", "С‚РµРїРµСЂСЊ", "РґР°Р»СЊС€Рµ",
+        "РїРѕР·РёС†РёСЏ", "Р±РµР»С‹Рµ", "С‡РµСЂРЅС‹Рµ", "С‡С‘СЂРЅС‹Рµ", "Сѓ", "РЅР°", "РІ", "Рє", "РїРѕ",
+        "РґР»СЏ", "СЃ", "Р¶Рµ", "РµС‰Рµ", "РµС‰С‘",
     }
     return {
         token
@@ -1740,9 +1743,9 @@ def avoid_recent_comment_repetition(comment, recent_comments):
     if key not in recent_keys and not similar_to_recent:
         return str(comment or "").strip()
     variants = [
-        "Ход сохраняет рабочий план, но важна точность в ближайшем продолжении.",
-        "Идея хода понятна, дальше решает качество конкретного расчета.",
-        "Позиция требует аккуратного продолжения, чтобы не отпустить перевес."
+        "РҐРѕРґ СЃРѕС…СЂР°РЅСЏРµС‚ СЂР°Р±РѕС‡РёР№ РїР»Р°РЅ, РЅРѕ РІР°Р¶РЅР° С‚РѕС‡РЅРѕСЃС‚СЊ РІ Р±Р»РёР¶Р°Р№С€РµРј РїСЂРѕРґРѕР»Р¶РµРЅРёРё.",
+        "РРґРµСЏ С…РѕРґР° РїРѕРЅСЏС‚РЅР°, РґР°Р»СЊС€Рµ СЂРµС€Р°РµС‚ РєР°С‡РµСЃС‚РІРѕ РєРѕРЅРєСЂРµС‚РЅРѕРіРѕ СЂР°СЃС‡РµС‚Р°.",
+        "РџРѕР·РёС†РёСЏ С‚СЂРµР±СѓРµС‚ Р°РєРєСѓСЂР°С‚РЅРѕРіРѕ РїСЂРѕРґРѕР»Р¶РµРЅРёСЏ, С‡С‚РѕР±С‹ РЅРµ РѕС‚РїСѓСЃС‚РёС‚СЊ РїРµСЂРµРІРµСЃ."
     ]
     alt = deterministic_pick(variants, f"{key}|{len(recent_keys)}")
     return alt or str(comment or "").strip()
@@ -1795,120 +1798,120 @@ def build_context_tail(move_details, eval_change, current_eval, tactical_context
         opener = str(discovered.get("opener_piece") or "").strip()
         defense_state = str(discovered.get("defense_state") or "").strip()
         if defense_state == "undefended":
-            defense_tail = "и цель почти без защиты"
+            defense_tail = "Рё С†РµР»СЊ РїРѕС‡С‚Рё Р±РµР· Р·Р°С‰РёС‚С‹"
         elif defense_state == "overloaded":
-            defense_tail = "и цель трудно удержать из-за перегрузки защиты"
+            defense_tail = "Рё С†РµР»СЊ С‚СЂСѓРґРЅРѕ СѓРґРµСЂР¶Р°С‚СЊ РёР·-Р·Р° РїРµСЂРµРіСЂСѓР·РєРё Р·Р°С‰РёС‚С‹"
         else:
-            defense_tail = "и защитникам тяжело успеть"
-        candidates.append(f"и {opener} открыл линию: {attacker} теперь давит на {target}, {defense_tail}")
+            defense_tail = "Рё Р·Р°С‰РёС‚РЅРёРєР°Рј С‚СЏР¶РµР»Рѕ СѓСЃРїРµС‚СЊ"
+        candidates.append(f"Рё {opener} РѕС‚РєСЂС‹Р» Р»РёРЅРёСЋ: {attacker} С‚РµРїРµСЂСЊ РґР°РІРёС‚ РЅР° {target}, {defense_tail}")
     if shared_pressure:
         sample = shared_pressure[0] if isinstance(shared_pressure[0], dict) else {}
         allies = ", ".join([str(item).strip() for item in sample.get("ally_pieces", []) if str(item).strip()])
-        moved_piece = str(sample.get("moved_piece") or "").strip() or "фигура"
+        moved_piece = str(sample.get("moved_piece") or "").strip() or "С„РёРіСѓСЂР°"
         target_piece = str(sample.get("target_piece") or "").strip()
         if allies and target_piece:
-            candidates.append(f"и это совместное давление: {moved_piece} и {allies} атакуют {target_piece}")
+            candidates.append(f"Рё СЌС‚Рѕ СЃРѕРІРјРµСЃС‚РЅРѕРµ РґР°РІР»РµРЅРёРµ: {moved_piece} Рё {allies} Р°С‚Р°РєСѓСЋС‚ {target_piece}")
     if fork_signal:
         if eval_kind == "worsened":
             candidates.extend(
                 [
-                    "и это тактический зевок с потерей материала",
-                    "и тактическая ошибка сразу обострила проблемы",
+                    "Рё СЌС‚Рѕ С‚Р°РєС‚РёС‡РµСЃРєРёР№ Р·РµРІРѕРє СЃ РїРѕС‚РµСЂРµР№ РјР°С‚РµСЂРёР°Р»Р°",
+                    "Рё С‚Р°РєС‚РёС‡РµСЃРєР°СЏ РѕС€РёР±РєР° СЃСЂР°Р·Сѓ РѕР±РѕСЃС‚СЂРёР»Р° РїСЂРѕР±Р»РµРјС‹",
                 ]
             )
         else:
             candidates.extend(
                 [
-                    "и эта тактика стесняет фигуры соперника",
-                    "и теперь тактические угрозы приходится считать очень точно",
+                    "Рё СЌС‚Р° С‚Р°РєС‚РёРєР° СЃС‚РµСЃРЅСЏРµС‚ С„РёРіСѓСЂС‹ СЃРѕРїРµСЂРЅРёРєР°",
+                    "Рё С‚РµРїРµСЂСЊ С‚Р°РєС‚РёС‡РµСЃРєРёРµ СѓРіСЂРѕР·С‹ РїСЂРёС…РѕРґРёС‚СЃСЏ СЃС‡РёС‚Р°С‚СЊ РѕС‡РµРЅСЊ С‚РѕС‡РЅРѕ",
                 ]
             )
     if is_capture and is_exchange:
         candidates.extend(
             [
-                "и дальше позиция уходит в размен",
-                "и после этого начинается форсированный размен",
+                "Рё РґР°Р»СЊС€Рµ РїРѕР·РёС†РёСЏ СѓС…РѕРґРёС‚ РІ СЂР°Р·РјРµРЅ",
+                "Рё РїРѕСЃР»Рµ СЌС‚РѕРіРѕ РЅР°С‡РёРЅР°РµС‚СЃСЏ С„РѕСЂСЃРёСЂРѕРІР°РЅРЅС‹Р№ СЂР°Р·РјРµРЅ",
             ]
         )
     elif is_capture and reply_is_capture:
         candidates.extend(
             [
-                "но дальше нужно точно считать ответные взятия",
-                "и соперник почти наверняка ответит взятием",
+                "РЅРѕ РґР°Р»СЊС€Рµ РЅСѓР¶РЅРѕ С‚РѕС‡РЅРѕ СЃС‡РёС‚Р°С‚СЊ РѕС‚РІРµС‚РЅС‹Рµ РІР·СЏС‚РёСЏ",
+                "Рё СЃРѕРїРµСЂРЅРёРє РїРѕС‡С‚Рё РЅР°РІРµСЂРЅСЏРєР° РѕС‚РІРµС‚РёС‚ РІР·СЏС‚РёРµРј",
             ]
         )
     if eval_kind == "worsened":
         if delta <= -2.5:
             candidates.extend(
                 [
-                    "и после этого позиция резко ухудшилась",
-                    "и ход отдал ключевую инициативу",
+                    "Рё РїРѕСЃР»Рµ СЌС‚РѕРіРѕ РїРѕР·РёС†РёСЏ СЂРµР·РєРѕ СѓС…СѓРґС€РёР»Р°СЃСЊ",
+                    "Рё С…РѕРґ РѕС‚РґР°Р» РєР»СЋС‡РµРІСѓСЋ РёРЅРёС†РёР°С‚РёРІСѓ",
                 ]
             )
         elif delta <= -1.5:
             candidates.extend(
                 [
-                    "и этот ход заметно ослабил позицию",
-                    "но после него стало тяжелее держать оборону",
+                    "Рё СЌС‚РѕС‚ С…РѕРґ Р·Р°РјРµС‚РЅРѕ РѕСЃР»Р°Р±РёР» РїРѕР·РёС†РёСЋ",
+                    "РЅРѕ РїРѕСЃР»Рµ РЅРµРіРѕ СЃС‚Р°Р»Рѕ С‚СЏР¶РµР»РµРµ РґРµСЂР¶Р°С‚СЊ РѕР±РѕСЂРѕРЅСѓ",
                 ]
             )
         else:
-            candidates.append("но ход оказался неточным")
+            candidates.append("РЅРѕ С…РѕРґ РѕРєР°Р·Р°Р»СЃСЏ РЅРµС‚РѕС‡РЅС‹Рј")
     elif eval_kind == "improved":
         if delta >= 2.0:
             candidates.extend(
                 [
-                    "и это резко усилило давление",
-                    "и после него позиция стала намного проще для реализации",
+                    "Рё СЌС‚Рѕ СЂРµР·РєРѕ СѓСЃРёР»РёР»Рѕ РґР°РІР»РµРЅРёРµ",
+                    "Рё РїРѕСЃР»Рµ РЅРµРіРѕ РїРѕР·РёС†РёСЏ СЃС‚Р°Р»Р° РЅР°РјРЅРѕРіРѕ РїСЂРѕС‰Рµ РґР»СЏ СЂРµР°Р»РёР·Р°С†РёРё",
                 ]
             )
         elif delta >= 0.8:
             candidates.extend(
                 [
-                    "и это укрепило позицию",
-                    "и инициатива стала устойчивее",
+                    "Рё СЌС‚Рѕ СѓРєСЂРµРїРёР»Рѕ РїРѕР·РёС†РёСЋ",
+                    "Рё РёРЅРёС†РёР°С‚РёРІР° СЃС‚Р°Р»Р° СѓСЃС‚РѕР№С‡РёРІРµРµ",
                 ]
             )
     elif eval_kind in ("stable", "advantage_preserved"):
         if strategy_kind == "convert_endgame" and mover and mover == advantage_side:
             candidates.extend(
                 [
-                    f"и {side_label(advantage_side).lower()} выгодно переводить в эндшпиль",
-                    f"и у {side_genitive(advantage_side)} план на выигранный эндшпиль",
+                    f"Рё {side_label(advantage_side).lower()} РІС‹РіРѕРґРЅРѕ РїРµСЂРµРІРѕРґРёС‚СЊ РІ СЌРЅРґС€РїРёР»СЊ",
+                    f"Рё Сѓ {side_genitive(advantage_side)} РїР»Р°РЅ РЅР° РІС‹РёРіСЂР°РЅРЅС‹Р№ СЌРЅРґС€РїРёР»СЊ",
                 ]
             )
         elif strategy_kind == "simplify" and mover and mover == advantage_side:
             candidates.extend(
                 [
-                    f"и {side_label(advantage_side).lower()} выгодно менять тяжелые фигуры",
-                    f"и упрощение выгоднее именно для {side_genitive(advantage_side)}",
+                    f"Рё {side_label(advantage_side).lower()} РІС‹РіРѕРґРЅРѕ РјРµРЅСЏС‚СЊ С‚СЏР¶РµР»С‹Рµ С„РёРіСѓСЂС‹",
+                    f"Рё СѓРїСЂРѕС‰РµРЅРёРµ РІС‹РіРѕРґРЅРµРµ РёРјРµРЅРЅРѕ РґР»СЏ {side_genitive(advantage_side)}",
                 ]
             )
         elif strategy_kind == "press" and mover and mover == advantage_side:
             candidates.extend(
                 [
-                    "и теперь важно не отпускать давление",
-                    "и сейчас главное не дать контригры",
+                    "Рё С‚РµРїРµСЂСЊ РІР°Р¶РЅРѕ РЅРµ РѕС‚РїСѓСЃРєР°С‚СЊ РґР°РІР»РµРЅРёРµ",
+                    "Рё СЃРµР№С‡Р°СЃ РіР»Р°РІРЅРѕРµ РЅРµ РґР°С‚СЊ РєРѕРЅС‚СЂРёРіСЂС‹",
                 ]
             )
         elif strategy_kind == "develop":
             candidates.extend(
                 [
-                    "и следующий шаг — спокойно завершить развитие",
-                    "и дальше важно быстрее подключить остальные фигуры",
+                    "Рё СЃР»РµРґСѓСЋС‰РёР№ С€Р°Рі вЂ” СЃРїРѕРєРѕР№РЅРѕ Р·Р°РІРµСЂС€РёС‚СЊ СЂР°Р·РІРёС‚РёРµ",
+                    "Рё РґР°Р»СЊС€Рµ РІР°Р¶РЅРѕ Р±С‹СЃС‚СЂРµРµ РїРѕРґРєР»СЋС‡РёС‚СЊ РѕСЃС‚Р°Р»СЊРЅС‹Рµ С„РёРіСѓСЂС‹",
                 ]
             )
     if advantage_side and not candidates:
         if int(hashlib.sha1(seed.encode("utf-8")).hexdigest()[:2], 16) % 4 == 0:
             if cp_abs >= 600:
-                candidates.append(f"и у {side_genitive(advantage_side)} уже очень комфортная позиция")
+                candidates.append(f"Рё Сѓ {side_genitive(advantage_side)} СѓР¶Рµ РѕС‡РµРЅСЊ РєРѕРјС„РѕСЂС‚РЅР°СЏ РїРѕР·РёС†РёСЏ")
             else:
-                candidates.append(f"и перевес у {side_genitive(advantage_side)} сохраняется")
+                candidates.append(f"Рё РїРµСЂРµРІРµСЃ Сѓ {side_genitive(advantage_side)} СЃРѕС…СЂР°РЅСЏРµС‚СЃСЏ")
     if not candidates:
         candidates.extend(
             [
-                "и теперь важно удержать темп и координацию фигур",
-                "и позиция требует точного продолжения без лишнего риска",
+                "Рё С‚РµРїРµСЂСЊ РІР°Р¶РЅРѕ СѓРґРµСЂР¶Р°С‚СЊ С‚РµРјРї Рё РєРѕРѕСЂРґРёРЅР°С†РёСЋ С„РёРіСѓСЂ",
+                "Рё РїРѕР·РёС†РёСЏ С‚СЂРµР±СѓРµС‚ С‚РѕС‡РЅРѕРіРѕ РїСЂРѕРґРѕР»Р¶РµРЅРёСЏ Р±РµР· Р»РёС€РЅРµРіРѕ СЂРёСЃРєР°",
             ]
         )
     return deterministic_pick(candidates, seed)
@@ -1916,53 +1919,53 @@ def build_context_tail(move_details, eval_change, current_eval, tactical_context
 
 def polish_coach_comment(comment, move_details=None, eval_change=None, current_mate=None):
     comment = str(comment or "").strip()
-    comment = re.sub(r"^(?:ой|похоже|неприятно|хорошо),\s*", "", comment, flags=re.IGNORECASE)
+    comment = re.sub(r"^(?:РѕР№|РїРѕС…РѕР¶Рµ|РЅРµРїСЂРёСЏС‚РЅРѕ|С…РѕСЂРѕС€Рѕ),\s*", "", comment, flags=re.IGNORECASE)
     replacements = {
-        "не светит": "трудно защищаться",
-        "всё плохо": "позиция серьёзно ухудшилась",
-        "приплыл": "попал в тяжёлую позицию",
-        "монгольное качество": "материальный перевес",
-        "монгольное": "материальное",
-        "ничего не изменилось": "позиция сохранила прежний характер",
-        "выпустив": "оставив",
-        "выпустил": "оставил",
-        "выпустила": "оставила",
-        "на пешка": "на пешку",
-        "атаковал пешка": "атаковал пешку",
-        "пешка напал": "пешка напала",
-        "пешкой ход": "пешкой",
-        "по первой линии": "",
-        "упрощать тяжёлые": "упрощать позицию",
-        "упрощать тяжелые": "упрощать позицию",
-        "основной баланс позиции сохранился": "позиция сохранила прежний характер",
-        "черные отвечают": "черные продолжают",
-        "белые отвечают": "белые продолжают",
-        "ответ": "продолжение",
+        "РЅРµ СЃРІРµС‚РёС‚": "С‚СЂСѓРґРЅРѕ Р·Р°С‰РёС‰Р°С‚СЊСЃСЏ",
+        "РІСЃС‘ РїР»РѕС…Рѕ": "РїРѕР·РёС†РёСЏ СЃРµСЂСЊС‘Р·РЅРѕ СѓС…СѓРґС€РёР»Р°СЃСЊ",
+        "РїСЂРёРїР»С‹Р»": "РїРѕРїР°Р» РІ С‚СЏР¶С‘Р»СѓСЋ РїРѕР·РёС†РёСЋ",
+        "РјРѕРЅРіРѕР»СЊРЅРѕРµ РєР°С‡РµСЃС‚РІРѕ": "РјР°С‚РµСЂРёР°Р»СЊРЅС‹Р№ РїРµСЂРµРІРµСЃ",
+        "РјРѕРЅРіРѕР»СЊРЅРѕРµ": "РјР°С‚РµСЂРёР°Р»СЊРЅРѕРµ",
+        "РЅРёС‡РµРіРѕ РЅРµ РёР·РјРµРЅРёР»РѕСЃСЊ": "РїРѕР·РёС†РёСЏ СЃРѕС…СЂР°РЅРёР»Р° РїСЂРµР¶РЅРёР№ С…Р°СЂР°РєС‚РµСЂ",
+        "РІС‹РїСѓСЃС‚РёРІ": "РѕСЃС‚Р°РІРёРІ",
+        "РІС‹РїСѓСЃС‚РёР»": "РѕСЃС‚Р°РІРёР»",
+        "РІС‹РїСѓСЃС‚РёР»Р°": "РѕСЃС‚Р°РІРёР»Р°",
+        "РЅР° РїРµС€РєР°": "РЅР° РїРµС€РєСѓ",
+        "Р°С‚Р°РєРѕРІР°Р» РїРµС€РєР°": "Р°С‚Р°РєРѕРІР°Р» РїРµС€РєСѓ",
+        "РїРµС€РєР° РЅР°РїР°Р»": "РїРµС€РєР° РЅР°РїР°Р»Р°",
+        "РїРµС€РєРѕР№ С…РѕРґ": "РїРµС€РєРѕР№",
+        "РїРѕ РїРµСЂРІРѕР№ Р»РёРЅРёРё": "",
+        "СѓРїСЂРѕС‰Р°С‚СЊ С‚СЏР¶С‘Р»С‹Рµ": "СѓРїСЂРѕС‰Р°С‚СЊ РїРѕР·РёС†РёСЋ",
+        "СѓРїСЂРѕС‰Р°С‚СЊ С‚СЏР¶РµР»С‹Рµ": "СѓРїСЂРѕС‰Р°С‚СЊ РїРѕР·РёС†РёСЋ",
+        "РѕСЃРЅРѕРІРЅРѕР№ Р±Р°Р»Р°РЅСЃ РїРѕР·РёС†РёРё СЃРѕС…СЂР°РЅРёР»СЃСЏ": "РїРѕР·РёС†РёСЏ СЃРѕС…СЂР°РЅРёР»Р° РїСЂРµР¶РЅРёР№ С…Р°СЂР°РєС‚РµСЂ",
+        "С‡РµСЂРЅС‹Рµ РѕС‚РІРµС‡Р°СЋС‚": "С‡РµСЂРЅС‹Рµ РїСЂРѕРґРѕР»Р¶Р°СЋС‚",
+        "Р±РµР»С‹Рµ РѕС‚РІРµС‡Р°СЋС‚": "Р±РµР»С‹Рµ РїСЂРѕРґРѕР»Р¶Р°СЋС‚",
+        "РѕС‚РІРµС‚": "РїСЂРѕРґРѕР»Р¶РµРЅРёРµ",
     }
     lower = comment.lower()
     for bad, good in replacements.items():
         if bad in lower:
             comment = comment.replace(bad, good).replace(bad.capitalize(), good.capitalize())
-    comment = re.sub(r"после хода\s+[a-h][1-8]\s*[–-]\s*[a-h][1-8]", "после хода", comment, flags=re.IGNORECASE)
-    comment = re.sub(r"\b[a-h][1-8]\s*[–-]\s*[a-h][1-8]\b", "ход", comment, flags=re.IGNORECASE)
-    comment = re.sub(r"\b(черные|белые)\s+отвечают\s+[^\s,.;:]+", r"\1 продолжают", comment, flags=re.IGNORECASE)
-    comment = re.sub(r"\s+а\s+вы\s+", " ", comment, flags=re.IGNORECASE)
-    comment = re.sub(r"\bвы\s+", "", comment, flags=re.IGNORECASE)
-    comment = re.sub(r"\b(черные|белые)\s+отвечают\b", r"\1 продолжают", comment, flags=re.IGNORECASE)
+    comment = re.sub(r"РїРѕСЃР»Рµ С…РѕРґР°\s+[a-h][1-8]\s*[вЂ“-]\s*[a-h][1-8]", "РїРѕСЃР»Рµ С…РѕРґР°", comment, flags=re.IGNORECASE)
+    comment = re.sub(r"\b[a-h][1-8]\s*[вЂ“-]\s*[a-h][1-8]\b", "С…РѕРґ", comment, flags=re.IGNORECASE)
+    comment = re.sub(r"\b(С‡РµСЂРЅС‹Рµ|Р±РµР»С‹Рµ)\s+РѕС‚РІРµС‡Р°СЋС‚\s+[^\s,.;:]+", r"\1 РїСЂРѕРґРѕР»Р¶Р°СЋС‚", comment, flags=re.IGNORECASE)
+    comment = re.sub(r"\s+Р°\s+РІС‹\s+", " ", comment, flags=re.IGNORECASE)
+    comment = re.sub(r"\bРІС‹\s+", "", comment, flags=re.IGNORECASE)
+    comment = re.sub(r"\b(С‡РµСЂРЅС‹Рµ|Р±РµР»С‹Рµ)\s+РѕС‚РІРµС‡Р°СЋС‚\b", r"\1 РїСЂРѕРґРѕР»Р¶Р°СЋС‚", comment, flags=re.IGNORECASE)
     move_side = normalize_score_side(move_details.get("side")) if isinstance(move_details, dict) else None
-    if move_side == "white" and "черные потеряли темп" in comment.lower():
-        comment = re.sub(r"черные потеряли темп", "ход черных оказался неточным", comment, flags=re.IGNORECASE)
-    if move_side == "black" and "белые потеряли темп" in comment.lower():
-        comment = re.sub(r"белые потеряли темп", "ход белых оказался неточным", comment, flags=re.IGNORECASE)
-    comment = comment.replace("Ход ход", "Ход").replace("ход ход", "ход")
+    if move_side == "white" and "С‡РµСЂРЅС‹Рµ РїРѕС‚РµСЂСЏР»Рё С‚РµРјРї" in comment.lower():
+        comment = re.sub(r"С‡РµСЂРЅС‹Рµ РїРѕС‚РµСЂСЏР»Рё С‚РµРјРї", "С…РѕРґ С‡РµСЂРЅС‹С… РѕРєР°Р·Р°Р»СЃСЏ РЅРµС‚РѕС‡РЅС‹Рј", comment, flags=re.IGNORECASE)
+    if move_side == "black" and "Р±РµР»С‹Рµ РїРѕС‚РµСЂСЏР»Рё С‚РµРјРї" in comment.lower():
+        comment = re.sub(r"Р±РµР»С‹Рµ РїРѕС‚РµСЂСЏР»Рё С‚РµРјРї", "С…РѕРґ Р±РµР»С‹С… РѕРєР°Р·Р°Р»СЃСЏ РЅРµС‚РѕС‡РЅС‹Рј", comment, flags=re.IGNORECASE)
+    comment = comment.replace("РҐРѕРґ С…РѕРґ", "РҐРѕРґ").replace("С…РѕРґ С…РѕРґ", "С…РѕРґ")
     comment = re.sub(r"\s{2,}", " ", comment).strip(" ,;:-")
     if move_details and move_details.get("summary"):
         summary = move_details["summary"]
-        if current_mate and "сохраня" in comment.lower() and "матов" in comment.lower():
+        if current_mate and "СЃРѕС…СЂР°РЅСЏ" in comment.lower() and "РјР°С‚РѕРІ" in comment.lower():
             comment = mate_support_phrase(summary)
-        if any(phrase in comment.lower() for phrase in ("сохранили решающее преимущество", "сохранили большое преимущество", "сохранили небольшое преимущество", "позиция сохранила прежний характер", "сохранили инициативу")):
+        if any(phrase in comment.lower() for phrase in ("СЃРѕС…СЂР°РЅРёР»Рё СЂРµС€Р°СЋС‰РµРµ РїСЂРµРёРјСѓС‰РµСЃС‚РІРѕ", "СЃРѕС…СЂР°РЅРёР»Рё Р±РѕР»СЊС€РѕРµ РїСЂРµРёРјСѓС‰РµСЃС‚РІРѕ", "СЃРѕС…СЂР°РЅРёР»Рё РЅРµР±РѕР»СЊС€РѕРµ РїСЂРµРёРјСѓС‰РµСЃС‚РІРѕ", "РїРѕР·РёС†РёСЏ СЃРѕС…СЂР°РЅРёР»Р° РїСЂРµР¶РЅРёР№ С…Р°СЂР°РєС‚РµСЂ", "СЃРѕС…СЂР°РЅРёР»Рё РёРЅРёС†РёР°С‚РёРІСѓ")):
             if eval_change and eval_change.get("kind") == "worsened" and eval_change.get("major_worsening"):
-                comment = f"{summary.capitalize()}, но позиция после этого ухудшилась."
+                comment = f"{summary.capitalize()}, РЅРѕ РїРѕР·РёС†РёСЏ РїРѕСЃР»Рµ СЌС‚РѕРіРѕ СѓС…СѓРґС€РёР»Р°СЃСЊ."
             else:
                 comment = f"{summary.capitalize()}."
     if comment:
@@ -1973,13 +1976,13 @@ def polish_coach_comment(comment, move_details=None, eval_change=None, current_m
 def build_coach_comment(comment, move_details=None, eval_change=None, current_mate=None):
     comment = str(comment or "").strip()
     banned_prefixes = (
-        "ой, ",
-        "неприятно: ",
-        "неприятно, ",
-        "похоже, ",
-        "хорошо, ",
-        "вот это удар: ",
-        "вот это удар, ",
+        "РѕР№, ",
+        "РЅРµРїСЂРёСЏС‚РЅРѕ: ",
+        "РЅРµРїСЂРёСЏС‚РЅРѕ, ",
+        "РїРѕС…РѕР¶Рµ, ",
+        "С…РѕСЂРѕС€Рѕ, ",
+        "РІРѕС‚ СЌС‚Рѕ СѓРґР°СЂ: ",
+        "РІРѕС‚ СЌС‚Рѕ СѓРґР°СЂ, ",
     )
     lower = comment.lower()
     for prefix in banned_prefixes:
@@ -1987,42 +1990,42 @@ def build_coach_comment(comment, move_details=None, eval_change=None, current_ma
             comment = comment[len(prefix):].lstrip()
             break
     replacements = {
-        "не светит": "трудно защищаться",
-        "всё плохо": "позиция серьезно ухудшилась",
-        "приплыл": "попал в тяжелую позицию",
-        "монгольное качество": "материальный перевес",
-        "монгольное": "материальное",
-        "существенного изменения оценки не произошло": "преимущество сохранилось",
-        "ничего не изменилось": "позиция сохранила прежний характер",
-        "выпустив": "оставив",
-        "выпустил": "оставил",
-        "выпустила": "оставила",
-        "на пешка": "на пешку",
-        "атаковал пешка": "атаковал пешку",
-        "пешкой ход": "пешкой",
-        "основной баланс позиции сохранился": "позиция сохранила прежний характер",
-        "черные отвечают": "черные продолжают",
-        "белые отвечают": "белые продолжают",
-        "ответ": "продолжение",
+        "РЅРµ СЃРІРµС‚РёС‚": "С‚СЂСѓРґРЅРѕ Р·Р°С‰РёС‰Р°С‚СЊСЃСЏ",
+        "РІСЃС‘ РїР»РѕС…Рѕ": "РїРѕР·РёС†РёСЏ СЃРµСЂСЊРµР·РЅРѕ СѓС…СѓРґС€РёР»Р°СЃСЊ",
+        "РїСЂРёРїР»С‹Р»": "РїРѕРїР°Р» РІ С‚СЏР¶РµР»СѓСЋ РїРѕР·РёС†РёСЋ",
+        "РјРѕРЅРіРѕР»СЊРЅРѕРµ РєР°С‡РµСЃС‚РІРѕ": "РјР°С‚РµСЂРёР°Р»СЊРЅС‹Р№ РїРµСЂРµРІРµСЃ",
+        "РјРѕРЅРіРѕР»СЊРЅРѕРµ": "РјР°С‚РµСЂРёР°Р»СЊРЅРѕРµ",
+        "СЃСѓС‰РµСЃС‚РІРµРЅРЅРѕРіРѕ РёР·РјРµРЅРµРЅРёСЏ РѕС†РµРЅРєРё РЅРµ РїСЂРѕРёР·РѕС€Р»Рѕ": "РїСЂРµРёРјСѓС‰РµСЃС‚РІРѕ СЃРѕС…СЂР°РЅРёР»РѕСЃСЊ",
+        "РЅРёС‡РµРіРѕ РЅРµ РёР·РјРµРЅРёР»РѕСЃСЊ": "РїРѕР·РёС†РёСЏ СЃРѕС…СЂР°РЅРёР»Р° РїСЂРµР¶РЅРёР№ С…Р°СЂР°РєС‚РµСЂ",
+        "РІС‹РїСѓСЃС‚РёРІ": "РѕСЃС‚Р°РІРёРІ",
+        "РІС‹РїСѓСЃС‚РёР»": "РѕСЃС‚Р°РІРёР»",
+        "РІС‹РїСѓСЃС‚РёР»Р°": "РѕСЃС‚Р°РІРёР»Р°",
+        "РЅР° РїРµС€РєР°": "РЅР° РїРµС€РєСѓ",
+        "Р°С‚Р°РєРѕРІР°Р» РїРµС€РєР°": "Р°С‚Р°РєРѕРІР°Р» РїРµС€РєСѓ",
+        "РїРµС€РєРѕР№ С…РѕРґ": "РїРµС€РєРѕР№",
+        "РѕСЃРЅРѕРІРЅРѕР№ Р±Р°Р»Р°РЅСЃ РїРѕР·РёС†РёРё СЃРѕС…СЂР°РЅРёР»СЃСЏ": "РїРѕР·РёС†РёСЏ СЃРѕС…СЂР°РЅРёР»Р° РїСЂРµР¶РЅРёР№ С…Р°СЂР°РєС‚РµСЂ",
+        "С‡РµСЂРЅС‹Рµ РѕС‚РІРµС‡Р°СЋС‚": "С‡РµСЂРЅС‹Рµ РїСЂРѕРґРѕР»Р¶Р°СЋС‚",
+        "Р±РµР»С‹Рµ РѕС‚РІРµС‡Р°СЋС‚": "Р±РµР»С‹Рµ РїСЂРѕРґРѕР»Р¶Р°СЋС‚",
+        "РѕС‚РІРµС‚": "РїСЂРѕРґРѕР»Р¶РµРЅРёРµ",
     }
     lower = comment.lower()
     for bad, good in replacements.items():
         if bad in lower:
             comment = comment.replace(bad, good).replace(bad.capitalize(), good.capitalize())
-    comment = re.sub(r"после хода\s+[a-h][1-8]\s*[–-]\s*[a-h][1-8]", "после хода", comment, flags=re.IGNORECASE)
-    comment = re.sub(r"\b[a-h][1-8]\s*[–-]\s*[a-h][1-8]\b", "ход", comment, flags=re.IGNORECASE)
-    comment = re.sub(r"\s+а\s+вы\s+", " ", comment, flags=re.IGNORECASE)
-    comment = re.sub(r"\bвы\s+", "", comment, flags=re.IGNORECASE)
-    comment = re.sub(r"\b(черные|белые)\s+отвечают\b", r"\1 продолжают", comment, flags=re.IGNORECASE)
-    comment = comment.replace("Ход ход", "Ход").replace("ход ход", "ход")
+    comment = re.sub(r"РїРѕСЃР»Рµ С…РѕРґР°\s+[a-h][1-8]\s*[вЂ“-]\s*[a-h][1-8]", "РїРѕСЃР»Рµ С…РѕРґР°", comment, flags=re.IGNORECASE)
+    comment = re.sub(r"\b[a-h][1-8]\s*[вЂ“-]\s*[a-h][1-8]\b", "С…РѕРґ", comment, flags=re.IGNORECASE)
+    comment = re.sub(r"\s+Р°\s+РІС‹\s+", " ", comment, flags=re.IGNORECASE)
+    comment = re.sub(r"\bРІС‹\s+", "", comment, flags=re.IGNORECASE)
+    comment = re.sub(r"\b(С‡РµСЂРЅС‹Рµ|Р±РµР»С‹Рµ)\s+РѕС‚РІРµС‡Р°СЋС‚\b", r"\1 РїСЂРѕРґРѕР»Р¶Р°СЋС‚", comment, flags=re.IGNORECASE)
+    comment = comment.replace("РҐРѕРґ С…РѕРґ", "РҐРѕРґ").replace("С…РѕРґ С…РѕРґ", "С…РѕРґ")
     if move_details and move_details.get("summary"):
-        if current_mate and "сохраня" in comment.lower() and "матов" in comment.lower():
+        if current_mate and "СЃРѕС…СЂР°РЅСЏ" in comment.lower() and "РјР°С‚РѕРІ" in comment.lower():
             summary = move_details["summary"]
             comment = mate_support_phrase(summary)
-        if any(phrase in comment.lower() for phrase in ("сохранили решающее преимущество", "сохранили большое преимущество", "сохранили небольшое преимущество", "позиция сохранила прежний характер")):
+        if any(phrase in comment.lower() for phrase in ("СЃРѕС…СЂР°РЅРёР»Рё СЂРµС€Р°СЋС‰РµРµ РїСЂРµРёРјСѓС‰РµСЃС‚РІРѕ", "СЃРѕС…СЂР°РЅРёР»Рё Р±РѕР»СЊС€РѕРµ РїСЂРµРёРјСѓС‰РµСЃС‚РІРѕ", "СЃРѕС…СЂР°РЅРёР»Рё РЅРµР±РѕР»СЊС€РѕРµ РїСЂРµРёРјСѓС‰РµСЃС‚РІРѕ", "РїРѕР·РёС†РёСЏ СЃРѕС…СЂР°РЅРёР»Р° РїСЂРµР¶РЅРёР№ С…Р°СЂР°РєС‚РµСЂ")):
             summary = move_details["summary"]
             if eval_change and eval_change.get("kind") == "worsened" and eval_change.get("major_worsening"):
-                comment = f"{summary.capitalize()}, но позиция после этого ухудшилась."
+                comment = f"{summary.capitalize()}, РЅРѕ РїРѕР·РёС†РёСЏ РїРѕСЃР»Рµ СЌС‚РѕРіРѕ СѓС…СѓРґС€РёР»Р°СЃСЊ."
             else:
                 comment = f"{summary.capitalize()}."
     if comment:
@@ -2045,12 +2048,12 @@ def ensure_moved_piece_mentioned(comment, move_details):
         if text:
             return f"{head}, {text[0].lower() + text[1:]}"
         return f"{head}."
-    return f"{piece.capitalize()} сделал ход."
+    return f"{piece.capitalize()} СЃРґРµР»Р°Р» С…РѕРґ."
 
 
 def build_coach_comment(comment_payload):
     if not OPENAI_API_KEY:
-        return "AI-комментарий недоступен: добавь OPENAI_API_KEY в .env."
+        return "AI-РєРѕРјРјРµРЅС‚Р°СЂРёР№ РЅРµРґРѕСЃС‚СѓРїРµРЅ: РґРѕР±Р°РІСЊ OPENAI_API_KEY РІ .env."
 
     current_line = compact_analysis_line(comment_payload.get("current_line"))
     previous_line = compact_analysis_line(comment_payload.get("previous_best_line"))
@@ -2139,7 +2142,7 @@ def build_coach_comment(comment_payload):
     instructions = load_coach_rules()
     request_body = {
         "model": OPENAI_MODEL,
-        "input": f"{instructions}\n\nДанные анализа JSON:\n{json.dumps(prompt, ensure_ascii=False)}",
+        "input": f"{instructions}\n\nР”Р°РЅРЅС‹Рµ Р°РЅР°Р»РёР·Р° JSON:\n{json.dumps(prompt, ensure_ascii=False)}",
         "max_output_tokens": 110,
     }
     request = urllib.request.Request(
@@ -2159,28 +2162,28 @@ def build_coach_comment(comment_payload):
         summary = str(played_move_details.get("summary") or "").strip().rstrip(".!?")
         if summary and is_generic_position_comment(comment):
             if eval_change_context and eval_change_context.get("kind") == "worsened" and eval_change_context.get("major_worsening"):
-                comment = f"{summary.capitalize()}, но ход оказался неточным."
+                comment = f"{summary.capitalize()}, РЅРѕ С…РѕРґ РѕРєР°Р·Р°Р»СЃСЏ РЅРµС‚РѕС‡РЅС‹Рј."
             else:
                 comment = f"{summary.capitalize()}."
-        fork_signal = bool(tactical_context.get("is_fork")) or ("вилк" in summary.lower())
+        fork_signal = bool(tactical_context.get("is_fork")) or ("РІРёР»Рє" in summary.lower())
         if fork_signal and eval_change_context and eval_change_context.get("kind") == "worsened":
-            if "зев" not in comment.lower():
+            if "Р·РµРІ" not in comment.lower():
                 mover = normalize_score_side(moving_side)
-                comment = f"{side_label(mover)} зевнули вилку, и позиция резко ухудшилась."
+                comment = f"{side_label(mover)} Р·РµРІРЅСѓР»Рё РІРёР»РєСѓ, Рё РїРѕР·РёС†РёСЏ СЂРµР·РєРѕ СѓС…СѓРґС€РёР»Р°СЃСЊ."
         comment = validate_comment_against_eval(comment, current_eval, current_mate, eval_change_context)
         if summary:
             comment_lower = comment.lower()
             piece_name = str(played_move_details.get("moving_piece_name") or "").lower()
             if is_generic_position_comment(comment):
                 if eval_change_context and eval_change_context.get("kind") == "worsened" and eval_change_context.get("major_worsening"):
-                    comment = f"{summary.capitalize()}, но ход оказался неточным."
+                    comment = f"{summary.capitalize()}, РЅРѕ С…РѕРґ РѕРєР°Р·Р°Р»СЃСЏ РЅРµС‚РѕС‡РЅС‹Рј."
                 else:
                     comment = f"{summary.capitalize()}."
             elif piece_name and piece_name not in comment_lower:
                 tail = comment[0].lower() + comment[1:] if comment else ""
                 comment = f"{summary.capitalize()}, {tail}".strip(" ,")
-            if should_mark_best_move(deviated, eval_change_context, user_move, current_line) and "лучший ход" not in comment.lower():
-                comment = f"{summary.capitalize()}, это лучший ход в позиции."
+            if should_mark_best_move(deviated, eval_change_context, user_move, current_line) and "Р»СѓС‡С€РёР№ С…РѕРґ" not in comment.lower():
+                comment = f"{summary.capitalize()}, СЌС‚Рѕ Р»СѓС‡С€РёР№ С…РѕРґ РІ РїРѕР·РёС†РёРё."
             single_escape_comment = build_single_king_escape_comment(played_move_details, current_line, current_mate or {})
             if single_escape_comment:
                 comment = single_escape_comment
@@ -2200,10 +2203,10 @@ def build_coach_comment(comment_payload):
         comment = normalize_piece_cases(comment)
         comment = avoid_recent_comment_repetition(comment, recent_comments)
         comment = shorten_coach_comment(comment, max_words=22)
-        return comment or "Позиция требует точной игры."
+        return comment or "РџРѕР·РёС†РёСЏ С‚СЂРµР±СѓРµС‚ С‚РѕС‡РЅРѕР№ РёРіСЂС‹."
     except Exception as err:
         print("OpenAI coach comment error:", err)
-        return "AI-комментарий временно недоступен, но первая линия всё ещё лучший ориентир для плана."
+        return "AI-РєРѕРјРјРµРЅС‚Р°СЂРёР№ РІСЂРµРјРµРЅРЅРѕ РЅРµРґРѕСЃС‚СѓРїРµРЅ, РЅРѕ РїРµСЂРІР°СЏ Р»РёРЅРёСЏ РІСЃС‘ РµС‰С‘ Р»СѓС‡С€РёР№ РѕСЂРёРµРЅС‚РёСЂ РґР»СЏ РїР»Р°РЅР°."
 
 
 class AnalyticsHandler(BaseHTTPRequestHandler):
@@ -2391,7 +2394,7 @@ def send_welcome(chat_id):
         "sendMessage",
         {
             "chat_id": chat_id,
-            "text": "Привет 👋\n\n♟ Задача дня\n1 шахматная задача каждый день — в 1 клик.\n\nСделано специально для шахматного сообщества на Красной Поляне: https://t.me/chesspolyana\n\n⚡ Готов начать?",
+            "text": "♟ Задача дня\nКаждый день — новая шахматная задача в 1 клик.\n\n🔍 Анализ позиции\n🎯 Подсказки на доске\n🧠 AI-комментарий в анализе\n⚙️ Настройки\n\nСделано специально для шахматного сообщества на Красной Поляне:\nhttps://t.me/chesspolyana\n\n⚡️ Готов начать?",
             "reply_markup": {
                 "inline_keyboard": [
                     [
@@ -2462,7 +2465,7 @@ def run_bot_polling():
                 command = get_bot_command(text)
                 if chat.get("id") and command == "/cheat":
                     handle_cheat_command(message)
-                    send_text(chat["id"], "Готово. Дневной счетчик задач сброшен, можно решать еще.")
+                    send_text(chat["id"], "Р“РѕС‚РѕРІРѕ. Р”РЅРµРІРЅРѕР№ СЃС‡РµС‚С‡РёРє Р·Р°РґР°С‡ СЃР±СЂРѕС€РµРЅ, РјРѕР¶РЅРѕ СЂРµС€Р°С‚СЊ РµС‰Рµ.")
                     continue
                 if chat.get("id") and (command == "/start" or text):
                     record_bot_message(message)
@@ -2479,6 +2482,7 @@ def run_bot_polling():
 
 
 def run_http_server():
+    print(f"[backend] pid={os.getpid()} file={__file__} host={HOST} port={PORT}")
     server = ThreadingHTTPServer((HOST, PORT), AnalyticsHandler)
     print(f"Analytics backend listening on http://{HOST}:{PORT}")
     server.serve_forever()

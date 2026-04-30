@@ -1,7 +1,9 @@
 ﻿import json
 import http.client
+import hashlib
 import mimetypes
 import os
+import random
 import re
 import shutil
 import sqlite3
@@ -9,7 +11,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from html import escape
 from threading import RLock
 from uuid import uuid4
@@ -36,12 +38,30 @@ MONITOR_BOT_TOKEN = os.environ.get("TELEGRAM_MONITOR_BOT_TOKEN", "").strip()
 MONITOR_CHAT_ID = int(os.environ.get("TELEGRAM_MONITOR_CHAT_ID", "0") or "0")
 MONITOR_STATE_PATH = os.environ.get("MONITOR_STATE_PATH", "monitor_state.json")
 MONITOR_DB_PATH = os.environ.get("ANALYTICS_DB", "analytics.sqlite3")
-MONITOR_HEALTH_URL = os.environ.get("MONITOR_HEALTH_URL", "http://127.0.0.1:8080/health")
+MONITOR_HEALTH_URL = os.environ.get("MONITOR_HEALTH_URL", "http://127.0.0.1:12315/health")
 MONITOR_INTERVAL_SECONDS = max(10, int(os.environ.get("MONITOR_INTERVAL_SECONDS", "30") or "30"))
 MONITOR_ALERT_COOLDOWN_SECONDS = max(30, int(os.environ.get("MONITOR_ALERT_COOLDOWN_SECONDS", "180") or "180"))
 MONITOR_MIN_FREE_GB = float(os.environ.get("MONITOR_MIN_FREE_GB", "1.0") or "1.0")
 MONITOR_MAX_LOG_SCAN_BYTES = max(32768, int(os.environ.get("MONITOR_MAX_LOG_SCAN_BYTES", "262144") or "262144"))
 MONITOR_LOG_FILES = [x.strip() for x in os.environ.get("MONITOR_LOG_FILES", "backend_8000.err.log,backend_8000.log,backend_direct.err.log,backend_direct.out.log,backend_main_combined.log").split(",") if x.strip()]
+MAIN_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+MAIN_BOT_API_BASE = f"https://api.telegram.org/bot{MAIN_BOT_TOKEN}" if MAIN_BOT_TOKEN else ""
+MAIN_BOT_REQUEST_TIMEOUT = max(8, int(os.environ.get("MAIN_BOT_REQUEST_TIMEOUT", "20") or "20"))
+MINI_APP_URL = os.environ.get(
+    "MINI_APP_URL",
+    "https://t.me/chess_every_day_bot/app?startapp=test&mode=fullscreen",
+).strip()
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.4-nano").strip()
+WEEKLY_BROADCAST_ENABLED = os.environ.get("WEEKLY_BROADCAST_ENABLED", "1").strip() == "1"
+WEEKLY_BROADCAST_DAYS = (2, 3)  # Wednesday or Thursday
+WEEKLY_BROADCAST_START_HOUR = 10
+WEEKLY_BROADCAST_END_HOUR = 12
+WEEKLY_BROADCAST_SET_SIZE = 3
+WEEKLY_BROADCAST_RANDOM_URL = "https://api.chess.com/pub/puzzle/random"
+WEEKLY_FETCH_TIMEOUT_SECONDS = max(8, int(os.environ.get("WEEKLY_FETCH_TIMEOUT_SECONDS", "20") or "20"))
+WEEKLY_FETCH_RETRIES = max(0, int(os.environ.get("WEEKLY_FETCH_RETRIES", "2") or "2"))
+WEEKLY_RESET_UTC_OFFSET_MS = 4 * 60 * 60 * 1000
 STOCKFISH_TEST_FEN = os.environ.get(
     "MONITOR_STOCKFISH_TEST_FEN",
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
@@ -85,6 +105,7 @@ class MonitorBot:
             "ui_message_id_by_chat": {},
             "chat_flow": {},
             "connections": {},
+            "weekly_broadcast": {},
         }
         if not os.path.exists(MONITOR_STATE_PATH):
             return default
@@ -100,6 +121,7 @@ class MonitorBot:
                 "ui_message_id_by_chat": dict(raw.get("ui_message_id_by_chat") or {}),
                 "chat_flow": dict(raw.get("chat_flow") or {}),
                 "connections": dict(raw.get("connections") or {}),
+                "weekly_broadcast": dict(raw.get("weekly_broadcast") or {}),
             })
         except Exception:
             pass
@@ -196,6 +218,7 @@ class MonitorBot:
             "inline_keyboard": [
                 [{"text": "📊 Статус", "callback_data": "screen:status"}, {"text": "⚡ Проверить сейчас", "callback_data": "action:check_now"}],
                 [{"text": "♟ Проверка Stockfish", "callback_data": "action:stockfish_check"}],
+                [{"text": "📣 Создать рассылку", "callback_data": "action:weekly_prepare"}],
                 [{"text": "🧾 Отчеты БД", "callback_data": "screen:reports"}, {"text": "🌐 Вся база (HTML)", "callback_data": "action:db_full"}],
                 [{"text": monitor_label, "callback_data": "action:toggle_monitor"}],
             ]
@@ -489,8 +512,569 @@ class MonitorBot:
         html = self.build_db_full_html_report().encode("utf-8")
         self.send_document_bytes(chat_id, filename, html, caption="🌐 Полная выгрузка базы данных (HTML)")
 
+    def _current_week_key(self):
+        now = datetime.now()
+        iso = now.isocalendar()
+        return f"{iso.year}-W{iso.week:02d}"
+
+    def _default_weekly_state(self):
+        return {
+            "week_key": "",
+            "scheduled_ts": 0,
+            "scheduled_iso": "",
+            "scheduled_day": "",
+            "status": "",
+            "preview": {},
+            "last_sent_week_key": "",
+        }
+
+    def _weekly_state(self):
+        raw = self.state.setdefault("weekly_broadcast", {})
+        if not isinstance(raw, dict):
+            raw = {}
+            self.state["weekly_broadcast"] = raw
+        merged = self._default_weekly_state()
+        merged.update(raw)
+        self.state["weekly_broadcast"] = merged
+        return merged
+
+    def _compute_weekly_schedule_for_key(self, week_key):
+        seed = int(hashlib.sha256(str(week_key).encode("utf-8")).hexdigest()[:12], 16)
+        rnd = random.Random(seed)
+        day = int(rnd.choice(WEEKLY_BROADCAST_DAYS))
+        hour = int(rnd.randint(WEEKLY_BROADCAST_START_HOUR, max(WEEKLY_BROADCAST_START_HOUR, WEEKLY_BROADCAST_END_HOUR - 1)))
+        minute = int(rnd.randint(0, 59))
+        base = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        delta = (day - base.weekday()) % 7
+        scheduled = base + timedelta(days=delta, hours=hour, minutes=minute)
+        return scheduled, day
+
+    def _ensure_weekly_schedule(self):
+        if not WEEKLY_BROADCAST_ENABLED:
+            return
+        weekly = self._weekly_state()
+        week_key = self._current_week_key()
+        if weekly.get("week_key") == week_key and int(weekly.get("scheduled_ts") or 0) > 0:
+            return
+        scheduled_dt, day = self._compute_weekly_schedule_for_key(week_key)
+        weekly.update(
+            {
+                "week_key": week_key,
+                "scheduled_ts": int(scheduled_dt.timestamp()),
+                "scheduled_iso": scheduled_dt.strftime("%Y-%m-%d %H:%M:%S"),
+                "scheduled_day": "wednesday" if day == 2 else "thursday",
+                "status": "scheduled",
+                "preview": {},
+            }
+        )
+        self._save_state()
+        print(
+            f"[weekly] schedule set week={week_key} day={weekly['scheduled_day']} at={weekly['scheduled_iso']}"
+        )
+
+    def _ensure_weekly_tables(self):
+        if not os.path.exists(MONITOR_DB_PATH):
+            return
+        with self._db_conn() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS weekly_broadcast_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    created_at TEXT NOT NULL,
+                    week_key TEXT,
+                    scheduled_day TEXT,
+                    puzzle_id TEXT,
+                    status TEXT NOT NULL,
+                    approved INTEGER NOT NULL DEFAULT 0,
+                    sent_count INTEGER NOT NULL DEFAULT 0,
+                    failed_count INTEGER NOT NULL DEFAULT 0,
+                    details_json TEXT
+                )
+                """
+            )
+            conn.commit()
+
+    def _log_weekly_broadcast(self, week_key, scheduled_day, puzzle_id, status, approved=0, sent_count=0, failed_count=0, details=None):
+        self._ensure_weekly_tables()
+        payload = json.dumps(details or {}, ensure_ascii=False)
+        with self._db_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO weekly_broadcast_log (
+                    created_at, week_key, scheduled_day, puzzle_id, status, approved, sent_count, failed_count, details_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    now_str(),
+                    str(week_key or ""),
+                    str(scheduled_day or ""),
+                    str(puzzle_id or ""),
+                    str(status or ""),
+                    int(1 if approved else 0),
+                    int(sent_count or 0),
+                    int(failed_count or 0),
+                    payload,
+                ),
+            )
+            conn.commit()
+
+    def _fetch_json(self, url, timeout=12, retries=0):
+        last_error = None
+        for attempt in range(max(0, int(retries)) + 1):
+            try:
+                req = urllib.request.Request(
+                    url,
+                    method="GET",
+                    headers={
+                        "User-Agent": "chess-miniapp-monitor/1.0",
+                        "Accept": "application/json",
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    return resp.status, json.loads(resp.read().decode("utf-8") or "{}")
+            except Exception as err:
+                last_error = err
+                if attempt < int(retries):
+                    time.sleep(0.6 * (attempt + 1))
+                    continue
+                break
+        raise RuntimeError(f"request failed for {url}: {last_error}")
+
+    def _fetch_chesscom_random_puzzle(self):
+        status, data = self._fetch_json(
+            WEEKLY_BROADCAST_RANDOM_URL,
+            timeout=WEEKLY_FETCH_TIMEOUT_SECONDS,
+            retries=WEEKLY_FETCH_RETRIES,
+        )
+        if status != 200 or not isinstance(data, dict):
+            raise RuntimeError(f"Chess.com random puzzle failed: HTTP {status}")
+        return data
+
+    def _puzzle_key(self, puzzle):
+        if not isinstance(puzzle, dict):
+            return ""
+        return str(puzzle.get("url") or puzzle.get("id") or puzzle.get("fen") or "").strip()
+
+    def _build_weekly_puzzle_set(self, size=WEEKLY_BROADCAST_SET_SIZE):
+        wanted = max(1, int(size))
+        puzzles = []
+        seen = set()
+        attempts = 0
+        max_attempts = max(10, wanted * 8)
+        while len(puzzles) < wanted and attempts < max_attempts:
+            attempts += 1
+            data = self._fetch_chesscom_random_puzzle()
+            key = self._puzzle_key(data)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            puzzles.append(data)
+        if len(puzzles) < wanted:
+            fallback = self._load_recent_puzzles_from_state(limit=wanted)
+            for item in fallback:
+                key = self._puzzle_key(item)
+                if key and key not in seen:
+                    seen.add(key)
+                    puzzles.append(item)
+                if len(puzzles) >= wanted:
+                    break
+        if len(puzzles) < wanted:
+            raise RuntimeError("Не удалось собрать набор задач для рассылки (проверьте доступ к Chess.com).")
+        return puzzles
+
+    def _load_recent_puzzles_from_state(self, limit=3):
+        if not os.path.exists(MONITOR_DB_PATH):
+            return []
+        found = []
+        seen = set()
+        try:
+            with self._db_conn() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT current_puzzle_json
+                    FROM user_state
+                    WHERE current_puzzle_json IS NOT NULL
+                    ORDER BY updated_at DESC
+                    LIMIT 300
+                    """
+                ).fetchall()
+            for row in rows:
+                raw = row["current_puzzle_json"] if isinstance(row, sqlite3.Row) else row[0]
+                if not raw:
+                    continue
+                try:
+                    state = json.loads(raw)
+                except Exception:
+                    continue
+                if not isinstance(state, dict):
+                    continue
+                puzzle = state.get("puzzleData") if isinstance(state.get("puzzleData"), dict) else None
+                if not puzzle:
+                    continue
+                key = self._puzzle_key(puzzle)
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                found.append(puzzle)
+                if len(found) >= max(1, int(limit)):
+                    break
+        except Exception as err:
+            print(f"[weekly] fallback puzzle load failed: {err}")
+            return []
+        return found
+
+    def _extract_openai_text(self, data):
+        if not isinstance(data, dict):
+            return ""
+        direct = str(data.get("output_text") or "").strip()
+        if direct:
+            return direct
+        out = data.get("output")
+        if isinstance(out, list):
+            chunks = []
+            for item in out:
+                content = item.get("content") if isinstance(item, dict) else None
+                if not isinstance(content, list):
+                    continue
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") in {"output_text", "text"}:
+                        text = str(block.get("text") or "").strip()
+                        if text:
+                            chunks.append(text)
+            return " ".join(chunks).strip()
+        return ""
+
+    def _generate_weekly_short_text(self, previous_text=""):
+        fallback = [
+            "♟ Попробуй найти лучший ход в сегодняшней задаче.",
+            "Разомнись за минуту — новая шахматная задача уже ждёт.",
+            "Сможешь найти точный ход без подсказки?",
+        ]
+        if not OPENAI_API_KEY:
+            return random.choice(fallback)
+        prompt = (
+            "Сгенерируй ОДНО короткое предложение на русском для Telegram-рассылки шахматной задачи. "
+            "Без воскресных встреч, без длинной мотивации, без спама, без эмодзи кроме шахматного по желанию. "
+            "Максимум 90 символов. Только готовый текст, без кавычек."
+        )
+        if previous_text:
+            prompt += f"\nПредыдущий вариант (не повторяй): {previous_text}"
+        body = {
+            "model": OPENAI_MODEL,
+            "input": prompt,
+            "max_output_tokens": 60,
+        }
+        req = urllib.request.Request(
+            "https://api.openai.com/v1/responses",
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                data = json.loads(resp.read().decode("utf-8") or "{}")
+            text = self._extract_openai_text(data).strip()
+            text = re.sub(r"\s+", " ", text).strip().strip("\"'“”")
+            if text:
+                return text[:220]
+        except Exception as err:
+            print(f"[weekly] openai weekly text failed: {err}")
+        return random.choice(fallback)
+
+    def _weekly_preview_keyboard(self):
+        return {
+            "inline_keyboard": [
+                [{"text": "✅ Подтвердить", "callback_data": "action:weekly_confirm"}],
+                [{"text": "🔁 Изменить текст", "callback_data": "action:weekly_regen"}],
+                [{"text": "❌ Отмена", "callback_data": "action:weekly_cancel"}],
+            ]
+        }
+
+    def _format_weekly_preview_text(self, preview):
+        first = (preview.get("puzzles") or [{}])[0]
+        extra = preview.get("puzzles") or []
+        lines = [
+            "📣 <b>Предпросмотр недельной рассылки</b>",
+            f"Неделя: <code>{escape(str(preview.get('week_key') or ''))}</code>",
+            f"Выбран день: <code>{escape(str(preview.get('scheduled_day') or ''))}</code>",
+            "",
+            f"<b>Текст:</b> {escape(str(preview.get('text') or ''))}",
+            "",
+            "<b>Основная задача (для всех):</b>",
+            f"• id/url: <code>{escape(str(first.get('url') or first.get('id') or 'n/a'))}</code>",
+            f"• fen: <code>{escape(str(first.get('fen') or 'n/a'))}</code>",
+            f"• title: {escape(str(first.get('title') or 'n/a'))}",
+        ]
+        if first.get("url"):
+            lines.append(f"• ссылка: {escape(str(first.get('url')))}")
+        if len(extra) > 1:
+            lines.extend(
+                [
+                    "",
+                    "<b>+2 задачи текущего набора:</b>",
+                ]
+            )
+            for idx, item in enumerate(extra[1:3], 1):
+                lines.append(f"{idx}. <code>{escape(str(item.get('url') or item.get('id') or 'n/a'))}</code>")
+        lines.extend(
+            [
+                "",
+                "Нажмите <b>Подтвердить</b>, чтобы отправить всем пользователям.",
+                "Или <b>Изменить текст</b> для перегенерации.",
+                "Можно отправить свой текст обычным сообщением в этот чат.",
+            ]
+        )
+        return "\n".join(lines)
+
+    def _send_weekly_preview(self, preview):
+        self.send_message(
+            MONITOR_CHAT_ID,
+            self._format_weekly_preview_text(preview),
+            reply_markup=self._weekly_preview_keyboard(),
+            parse_mode="HTML",
+        )
+
+    def _prepare_weekly_preview(self, force_regen=False, custom_text=None):
+        weekly = self._weekly_state()
+        week_key = weekly.get("week_key") or self._current_week_key()
+        scheduled_day = weekly.get("scheduled_day") or "wednesday"
+        preview = weekly.get("preview") if isinstance(weekly.get("preview"), dict) else {}
+
+        puzzles = preview.get("puzzles") if isinstance(preview.get("puzzles"), list) else []
+        if not puzzles:
+            puzzles = self._build_weekly_puzzle_set(WEEKLY_BROADCAST_SET_SIZE)
+
+        previous_text = str(preview.get("text") or "")
+        if custom_text:
+            text = str(custom_text).strip()
+        elif force_regen or not previous_text:
+            text = self._generate_weekly_short_text(previous_text=previous_text)
+        else:
+            text = previous_text
+
+        preview = {
+            "week_key": week_key,
+            "scheduled_day": scheduled_day,
+            "text": text,
+            "puzzles": puzzles,
+            "created_at": now_str(),
+            "approved": False,
+        }
+        weekly["preview"] = preview
+        weekly["status"] = "preview_pending"
+        self._save_state()
+        self._log_weekly_broadcast(
+            week_key=week_key,
+            scheduled_day=scheduled_day,
+            puzzle_id=self._puzzle_key(puzzles[0] if puzzles else {}),
+            status="preview_created",
+            approved=0,
+            details={"text": text},
+        )
+        self._send_weekly_preview(preview)
+        return preview
+
+    def _main_bot_api(self, method, payload=None, timeout=MAIN_BOT_REQUEST_TIMEOUT):
+        if not MAIN_BOT_API_BASE:
+            raise RuntimeError("TELEGRAM_BOT_TOKEN is not configured")
+        req = urllib.request.Request(
+            f"{MAIN_BOT_API_BASE}/{method}",
+            data=json.dumps(payload or {}, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8") or "{}")
+
+    def _send_main_bot_message(self, chat_id, text):
+        payload = {
+            "chat_id": int(chat_id),
+            "text": str(text or ""),
+            "disable_web_page_preview": True,
+            "reply_markup": {
+                "inline_keyboard": [
+                    [
+                        {
+                            "text": "Открыть Mini App",
+                            "url": MINI_APP_URL,
+                        }
+                    ]
+                ]
+            },
+        }
+        return self._main_bot_api("sendMessage", payload, timeout=MAIN_BOT_REQUEST_TIMEOUT)
+
+    def _build_puzzle_state_payload(self, puzzle, puzzle_set):
+        now_ms = int(time.time() * 1000)
+        fen = str(puzzle.get("fen") or "")
+        active = "b" if (len(fen.split(" ")) > 1 and fen.split(" ")[1] == "b") else "w"
+        puzzle_state = {
+            "puzzleData": puzzle,
+            "puzzleMode": True,
+            "puzzleSolutionMoves": [],
+            "puzzleMoveIndex": 0,
+            "puzzleSolved": False,
+            "puzzleStartFen": fen,
+            "puzzlePlayerColor": active,
+            "puzzleSolutionTargetFen": None,
+            "puzzleLoadedAt": now_ms,
+            "boardFen": fen,
+            "puzzleLockedAfterError": False,
+            "puzzleErrorCount": 0,
+            "weeklyPuzzleSet": puzzle_set,
+        }
+        now_utc_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        window_start = ((now_utc_ms - WEEKLY_RESET_UTC_OFFSET_MS) // (24 * 60 * 60 * 1000)) * (24 * 60 * 60 * 1000) + WEEKLY_RESET_UTC_OFFSET_MS
+        quota_state = {
+            "windowStart": int(window_start),
+            "started": 0,
+            "solved": 0,
+            "bonusActivated": False,
+            "dayDone": False,
+            "bonusUnlocked": False,
+        }
+        return puzzle_state, quota_state, now_ms
+
+    def _upsert_user_state(self, conn, telegram_id, state_json, current_puzzle_json):
+        conn.execute(
+            """
+            INSERT INTO user_state (
+                telegram_id, state_json, current_puzzle_json, settings_json, quota_json, history_json, updated_at
+            ) VALUES (?, ?, ?, NULL, NULL, NULL, ?)
+            ON CONFLICT(telegram_id) DO UPDATE SET
+                state_json = excluded.state_json,
+                current_puzzle_json = excluded.current_puzzle_json,
+                updated_at = excluded.updated_at
+            """,
+            (
+                int(telegram_id),
+                json.dumps(state_json, ensure_ascii=False),
+                json.dumps(current_puzzle_json, ensure_ascii=False),
+                now_str(),
+            ),
+        )
+
+    def _execute_weekly_broadcast(self):
+        weekly = self._weekly_state()
+        preview = weekly.get("preview") if isinstance(weekly.get("preview"), dict) else {}
+        if not preview:
+            raise RuntimeError("Нет предпросмотра для рассылки.")
+        week_key = str(weekly.get("week_key") or self._current_week_key())
+        if str(weekly.get("last_sent_week_key") or "") == week_key:
+            raise RuntimeError(f"Рассылка за неделю {week_key} уже была отправлена.")
+        if not MAIN_BOT_TOKEN:
+            raise RuntimeError("TELEGRAM_BOT_TOKEN не задан.")
+        puzzles = preview.get("puzzles") or []
+        if not puzzles:
+            raise RuntimeError("Набор задач отсутствует.")
+        message_text = str(preview.get("text") or "").strip()
+        if not message_text:
+            raise RuntimeError("Текст рассылки пустой.")
+
+        primary_puzzle = puzzles[0]
+        puzzle_set = {
+            "weekKey": week_key,
+            "createdAt": int(time.time() * 1000),
+            "puzzles": puzzles[:WEEKLY_BROADCAST_SET_SIZE],
+        }
+        puzzle_state, quota_state, now_ms = self._build_puzzle_state_payload(primary_puzzle, puzzle_set)
+
+        with self._db_conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT telegram_id
+                FROM users
+                WHERE telegram_id IS NOT NULL
+                ORDER BY telegram_id ASC
+                """
+            ).fetchall()
+            sent = 0
+            failed = 0
+            for row in rows:
+                tg_id = int(row["telegram_id"])
+                try:
+                    self._send_main_bot_message(tg_id, message_text)
+                    sent += 1
+                except Exception as err:
+                    failed += 1
+                    print(f"[weekly] send failed telegram_id={tg_id}: {err}")
+                try:
+                    existing = conn.execute(
+                        "SELECT state_json FROM user_state WHERE telegram_id = ?",
+                        (tg_id,),
+                    ).fetchone()
+                    state = {}
+                    if existing and existing["state_json"]:
+                        try:
+                            state = json.loads(existing["state_json"]) or {}
+                        except Exception:
+                            state = {}
+                    if not isinstance(state, dict):
+                        state = {}
+                    state["version"] = 1
+                    state["savedAt"] = now_ms
+                    state["quotaResetAt"] = now_ms
+                    state["quota"] = quota_state
+                    state["puzzle"] = puzzle_state
+                    self._upsert_user_state(conn, tg_id, state, puzzle_state)
+                except Exception as err:
+                    print(f"[weekly] state upsert failed telegram_id={tg_id}: {err}")
+                time.sleep(0.03)
+            conn.commit()
+
+        weekly["status"] = "sent"
+        weekly["last_sent_week_key"] = week_key
+        preview["approved"] = True
+        preview["sent_at"] = now_str()
+        weekly["preview"] = preview
+        self._save_state()
+        self._log_weekly_broadcast(
+            week_key=weekly.get("week_key"),
+            scheduled_day=weekly.get("scheduled_day"),
+            puzzle_id=self._puzzle_key(primary_puzzle),
+            status="sent",
+            approved=1,
+            sent_count=sent,
+            failed_count=failed,
+            details={"text": message_text},
+        )
+        return sent, failed
+
     def _is_owner(self, chat_id):
         return int(chat_id or 0) == int(MONITOR_CHAT_ID or 0)
+
+    def _has_pending_weekly_preview(self):
+        weekly = self._weekly_state()
+        preview = weekly.get("preview") if isinstance(weekly.get("preview"), dict) else {}
+        return bool(weekly.get("status") == "preview_pending" and preview.get("text"))
+
+    def _try_weekly_trigger(self):
+        if not WEEKLY_BROADCAST_ENABLED:
+            return
+        self._ensure_weekly_schedule()
+        weekly = self._weekly_state()
+        if weekly.get("status") != "scheduled":
+            return
+        scheduled_ts = int(weekly.get("scheduled_ts") or 0)
+        if scheduled_ts <= 0:
+            return
+        if int(time.time()) < scheduled_ts:
+            return
+        try:
+            self._prepare_weekly_preview(force_regen=False)
+        except Exception as err:
+            print(f"[weekly] preview preparation failed: {err}")
+            self._log_weekly_broadcast(
+                week_key=weekly.get("week_key"),
+                scheduled_day=weekly.get("scheduled_day"),
+                puzzle_id="",
+                status="preview_failed",
+                approved=0,
+                details={"error": str(err)},
+            )
 
     def _handle_message(self, message):
         chat_id = int((message.get("chat") or {}).get("id") or 0)
@@ -520,8 +1104,27 @@ class MonitorBot:
             except Exception as err:
                 self.send_message(chat_id, f"⚠️ Ошибка JSON: {err}")
             return
+        if self.get_flow(chat_id) == "weekly_custom_text":
+            try:
+                self.clear_flow(chat_id)
+                self._prepare_weekly_preview(custom_text=text)
+            except Exception as err:
+                self.send_message(chat_id, f"⚠️ Не удалось применить текст: {err}")
+            return
+        if self._has_pending_weekly_preview() and not text.startswith("/"):
+            try:
+                self._prepare_weekly_preview(custom_text=text)
+            except Exception as err:
+                self.send_message(chat_id, f"⚠️ Не удалось обновить предпросмотр: {err}")
+            return
         if text.startswith("/status"):
             self.render_screen(chat_id, "status", edit_message_id=self.get_ui_message_id(chat_id))
+        elif text.startswith("/weekly"):
+            try:
+                self._ensure_weekly_schedule()
+                self._prepare_weekly_preview(force_regen=False)
+            except Exception as err:
+                self.send_message(chat_id, f"⚠️ Ошибка подготовки рассылки: {err}")
         elif text.startswith("/dbquick"):
             self.send_message(chat_id, self.build_db_usage_summary_report())
         elif text.startswith("/dbfull"):
@@ -533,7 +1136,7 @@ class MonitorBot:
         elif text.startswith("/stockfish"):
             self.send_message(chat_id, self.build_stockfish_check_report(), parse_mode="HTML")
         else:
-            self.send_message(chat_id, "Команды: /status, /dbquick, /db, /dbfull, /check, /stockfish")
+            self.send_message(chat_id, "Команды: /status, /weekly, /dbquick, /db, /dbfull, /check, /stockfish")
 
     def _handle_callback(self, callback):
         callback_id = callback.get("id")
@@ -555,6 +1158,44 @@ class MonitorBot:
         elif data == "action:stockfish_check":
             self.answer_callback(callback_id, "Проверяю Stockfish")
             self.send_message(chat_id, self.build_stockfish_check_report(), parse_mode="HTML")
+        elif data == "action:weekly_prepare":
+            self.answer_callback(callback_id, "Готовлю рассылку")
+            try:
+                self._ensure_weekly_schedule()
+                self._prepare_weekly_preview(force_regen=False)
+            except Exception as err:
+                self.send_message(chat_id, f"⚠️ Ошибка подготовки рассылки: {err}")
+        elif data == "action:weekly_regen":
+            self.answer_callback(callback_id, "Генерирую новый текст")
+            try:
+                self._prepare_weekly_preview(force_regen=True)
+            except Exception as err:
+                self.send_message(chat_id, f"⚠️ Ошибка генерации текста: {err}")
+        elif data == "action:weekly_cancel":
+            self.answer_callback(callback_id, "Рассылка отменена")
+            weekly = self._weekly_state()
+            preview = weekly.get("preview") if isinstance(weekly.get("preview"), dict) else {}
+            weekly["status"] = "cancelled"
+            self._save_state()
+            self._log_weekly_broadcast(
+                week_key=weekly.get("week_key"),
+                scheduled_day=weekly.get("scheduled_day"),
+                puzzle_id=self._puzzle_key((preview.get("puzzles") or [{}])[0]),
+                status="cancelled",
+                approved=0,
+                details={"text": str(preview.get("text") or "")},
+            )
+            self.send_message(chat_id, "❌ Недельная рассылка отменена. Автоотправка не выполнялась.")
+        elif data == "action:weekly_confirm":
+            self.answer_callback(callback_id, "Запускаю рассылку")
+            try:
+                sent, failed = self._execute_weekly_broadcast()
+                self.send_message(
+                    chat_id,
+                    f"✅ Недельная рассылка отправлена.\nУспешно: {sent}\nОшибки: {failed}",
+                )
+            except Exception as err:
+                self.send_message(chat_id, f"⚠️ Ошибка отправки рассылки: {err}")
         elif data == "action:db_short":
             self.answer_callback(callback_id, "Готовлю")
             self.send_message(chat_id, self.build_db_report())
@@ -877,10 +1518,13 @@ class MonitorBot:
             raise RuntimeError("Не задан TELEGRAM_MONITOR_BOT_TOKEN в .env")
         if not MONITOR_CHAT_ID:
             raise RuntimeError("Не задан TELEGRAM_MONITOR_CHAT_ID в .env")
+        self._ensure_weekly_tables()
+        self._ensure_weekly_schedule()
         self._send_alert("monitor_started", f"🟢 Мониторинг запущен ({now_str()}).", force=True)
         next_check_at = 0.0
         while True:
             try:
+                self._try_weekly_trigger()
                 now_ts = time.time()
                 if self.state.get("monitoring_enabled", True) and now_ts >= next_check_at:
                     self.run_checks_and_alerts(force=False)

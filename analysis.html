@@ -2014,12 +2014,13 @@
       const configuredBase = String(ANALYTICS_API_BASE || '').replace(/\/+$/, '');
       const configuredUrl = configuredBase ? `${configuredBase}/api/events` : '/api/events';
       const hasHttpOrigin = location.protocol === 'http:' || location.protocol === 'https:';
-      const sameOriginUrl = hasHttpOrigin ? '/api/events' : 'http://127.0.0.1:8081/api/events';
+      const sameOriginUrl = hasHttpOrigin ? '/api/events' : 'http://127.0.0.1:12315/api/events';
+      const host12315Url = hasHttpOrigin ? `${location.protocol}//${location.hostname}:12315/api/events` : '';
       const urls = [];
       if (getTelegramInitData() && configuredBase) urls.push(configuredUrl);
       urls.push(sameOriginUrl);
-      if (host8080Url) urls.push(host8080Url);
-      if (!getTelegramInitData()) urls.push('http://127.0.0.1:8081/api/events');
+      if (host12315Url) urls.push(host12315Url);
+      if (!getTelegramInitData()) urls.push('http://127.0.0.1:12315/api/events');
       if (!getTelegramInitData() && configuredBase) urls.push(configuredUrl);
       return [...new Set(urls)];
     }
@@ -2055,12 +2056,16 @@
       const configuredBase = String(ANALYTICS_API_BASE || '').replace(/\/+$/, '');
       const configuredUrl = configuredBase ? `${configuredBase}/analyze` : '/analyze';
       const hasHttpOrigin = location.protocol === 'http:' || location.protocol === 'https:';
-      const sameOriginUrl = hasHttpOrigin ? '/analyze' : 'http://127.0.0.1:8000/analyze';
+      const sameOriginUrl = hasHttpOrigin ? '/analyze' : 'http://127.0.0.1:12315/analyze';
+      const host12315Url = hasHttpOrigin ? `${location.protocol}//${location.hostname}:12315/analyze` : '';
       const host8080Url = hasHttpOrigin ? `${location.protocol}//${location.hostname}:8080/analyze` : '';
       const urls = [];
       if (getTelegramInitData() && configuredBase) urls.push(configuredUrl);
       urls.push(sameOriginUrl);
-      if (!getTelegramInitData()) urls.push('http://127.0.0.1:8000/analyze');
+      if (host12315Url) urls.push(host12315Url);
+      if (host8080Url) urls.push(host8080Url);
+      if (!getTelegramInitData()) urls.push('http://127.0.0.1:12315/analyze');
+      if (!getTelegramInitData()) urls.push('http://127.0.0.1:8080/analyze');
       if (!getTelegramInitData() && configuredBase) urls.push(configuredUrl);
       return [...new Set(urls)];
     }
@@ -2200,11 +2205,13 @@
       const configuredBase = String(ANALYTICS_API_BASE || '').replace(/\/+$/, '');
       const configuredUrl = configuredBase ? `${configuredBase}/api/coach/comment` : '/api/coach/comment';
       const hasHttpOrigin = location.protocol === 'http:' || location.protocol === 'https:';
-      const sameOriginUrl = hasHttpOrigin ? '/api/coach/comment' : 'http://127.0.0.1:8080/api/coach/comment';
+      const sameOriginUrl = hasHttpOrigin ? '/api/coach/comment' : 'http://127.0.0.1:12315/api/coach/comment';
+      const host12315Url = hasHttpOrigin ? `${location.protocol}//${location.hostname}:12315/api/coach/comment` : '';
       const urls = [];
       if (getTelegramInitData() && configuredBase) urls.push(configuredUrl);
       urls.push(sameOriginUrl);
-      if (!getTelegramInitData()) urls.push('http://127.0.0.1:8080/api/coach/comment');
+      if (host12315Url) urls.push(host12315Url);
+      if (!getTelegramInitData()) urls.push('http://127.0.0.1:12315/api/coach/comment');
       if (!getTelegramInitData() && configuredBase) urls.push(configuredUrl);
       return [...new Set(urls)];
     }
