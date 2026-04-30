@@ -16,7 +16,7 @@
   <!-- /Yandex.Metrika counter -->
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Stockfish Р В Р’В°Р В Р вЂ¦Р В Р’В°Р В Р’В»Р В РЎвЂР В Р’В·</title>
+  <title>Stockfish анализ</title>
   <script>
     window.CHESS_ANALYTICS_API_BASE = window.CHESS_ANALYTICS_API_BASE || '';
   </script>
@@ -929,9 +929,9 @@
     <div class="top-bar">
       <a class="back-btn liquid-glass-pill" href="index.html">
         <span class="iconify" data-icon="mdi:chevron-left" aria-hidden="true"></span>
-        Р В РЎСљР В Р’В°Р В Р’В·Р В Р’В°Р В РўвЂ
+        Назад
       </a>
-      <h2>Stockfish Р В Р’В°Р В Р вЂ¦Р В Р’В°Р В Р’В»Р В РЎвЂР В Р’В· Р В РЎвЂ”Р В РЎвЂўР В Р’В·Р В РЎвЂР РЋРІР‚В Р В РЎвЂР В РЎвЂ</h2>
+      <h2>Stockfish анализ позиции</h2>
     </div>
 
     <div class="layout">
@@ -942,7 +942,7 @@
             <div class="eval-label" id="evalLabel">0.0</div>
           </div>
           <div id="ranksLeft" class="coord-ranks"></div>
-          <div id="board" class="board" aria-label="Р В РІР‚СњР В РЎвЂўР РЋР С“Р В РЎвЂќР В Р’В° Р В РўвЂР В Р’В»Р РЋР РЏ Р В Р вЂ Р В РЎвЂР В Р’В·Р РЋРЎвЂњР В Р’В°Р В Р’В»Р В РЎвЂР В Р’В·Р В Р’В°Р РЋРІР‚В Р В РЎвЂР В РЎвЂ Р В РЎвЂ”Р В РЎвЂўР В Р’В·Р В РЎвЂР РЋРІР‚В Р В РЎвЂР В РЎвЂ">
+          <div id="board" class="board" aria-label="Доска для визуализации позиции">
             <svg id="boardArrows" class="board-arrows" viewBox="0 0 800 800"></svg>
           <div id="boardSquares" class="board-squares"></div>
           </div>
@@ -951,70 +951,70 @@
         <div class="board-meta">
           <div class="coach-card liquid-glass-subtle">
             <div id="moveQuality" class="move-quality" aria-live="polite"></div>
-            <div id="coachComment" class="coach-comment">AI-Р В РЎвЂќР В РЎвЂўР В РЎВР В РЎВР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°Р РЋР вЂљР В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂ”Р В РЎвЂўР РЋР РЏР В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР С“Р РЋР РЏ Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р В Р’В»Р В Р’Вµ Р В Р’В°Р В Р вЂ¦Р В Р’В°Р В Р’В»Р В РЎвЂР В Р’В·Р В Р’В° Р В РЎвЂ”Р В РЎвЂўР В Р’В·Р В РЎвЂР РЋРІР‚В Р В РЎвЂР В РЎвЂ.</div>
+            <div id="coachComment" class="coach-comment">AI-комментарий появится после анализа позиции.</div>
           </div>
           <div class="coach-hints-control">
             <label class="coach-hints-label" for="coachHintsToggle">
-              <span>Р В Р Р‹Р РЋРІР‚С™Р РЋР вЂљР В Р’ВµР В Р’В»Р В РЎвЂќР В Р’В° Р В РЎвЂ AI</span>
+              <span>Стрелка и AI</span>
               <input id="coachHintsToggle" class="coach-hints-input" type="checkbox" checked />
               <span class="coach-hints-track liquid-glass-toggle" aria-hidden="true"><span class="coach-hints-thumb"></span></span>
             </label>
           </div>
           <div class="priority-wrap" id="boardPriorityWrap">
-            <div class="priority-title">Р В РЎСџР РЋР вЂљР В РЎвЂР В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋРІР‚С™Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР РЋРІР‚в„–</div>
+            <div class="priority-title">Приоритетные ходы</div>
             <div id="boardPriorityMoves" class="priority-moves"></div>
           </div>
-          <div class="analysis-status" id="analysisStatus">Р В РІР‚СљР В РЎвЂўР РЋРІР‚С™Р В РЎвЂўР В Р вЂ Р В РЎвЂР В РЎВР РЋР С“Р РЋР РЏ Р В РЎвЂќ Р В Р’В°Р В Р вЂ¦Р В Р’В°Р В Р’В»Р В РЎвЂР В Р’В·Р РЋРЎвЂњ...</div>
+          <div class="analysis-status" id="analysisStatus">Готовимся к анализу...</div>
         </div>
-        <div class="status" id="boardStatus">Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р В Р’ВµР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р РЋРІР‚С›Р В РЎвЂР В РЎвЂ“Р РЋРЎвЂњР РЋР вЂљР РЋРЎвЂњ Р РЋРІР‚С™Р В Р’ВµР В РЎвЂќР РЋРЎвЂњР РЋРІР‚В°Р В Р’ВµР В РЎвЂ“Р В РЎвЂў Р РЋРІР‚В Р В Р вЂ Р В Р’ВµР РЋРІР‚С™Р В Р’В°, Р РЋРІР‚РЋР РЋРІР‚С™Р В РЎвЂўР В Р’В±Р РЋРІР‚в„– Р РЋР С“Р В РўвЂР В Р’ВµР В Р’В»Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ.</div>
+        <div class="status" id="boardStatus">Выберите фигуру текущего цвета, чтобы сделать ход.</div>
         <div class="history-bar">
           <div class="history-head">
             <div>
-              <strong>Р В РІР‚СњР В Р’ВµР РЋР вЂљР В Р’ВµР В Р вЂ Р В РЎвЂў Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В РЎвЂўР В Р вЂ </strong>
+              <strong>Дерево ходов</strong>
             </div>
-            <div class="history-controls" aria-label="Р В Р в‚¬Р В РЎвЂ”Р РЋР вЂљР В Р’В°Р В Р вЂ Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР В РЎвЂР В Р’ВµР В РІвЂћвЂ“">
-              <button class="history-btn" id="historyFirstBtn" title="Р В РЎв„ў Р В Р вЂ¦Р В Р’В°Р РЋРІР‚РЋР В Р’В°Р В Р’В»Р РЋРЎвЂњ" aria-label="Р В РЎв„ў Р В Р вЂ¦Р В Р’В°Р РЋРІР‚РЋР В Р’В°Р В Р’В»Р РЋРЎвЂњ">
+            <div class="history-controls" aria-label="Управление историей">
+              <button class="history-btn" id="historyFirstBtn" title="К началу" aria-label="К началу">
                 <span class="iconify" data-icon="mdi:page-first" aria-hidden="true"></span>
               </button>
-              <button class="history-btn" id="historyUpBtn" title="Р В РЎСљР В Р’В°Р В Р’В·Р В Р’В°Р В РўвЂ" aria-label="Р В Р РѓР В Р’В°Р В РЎвЂ“ Р В Р вЂ¦Р В Р’В°Р В Р’В·Р В Р’В°Р В РўвЂ">
+              <button class="history-btn" id="historyUpBtn" title="Назад" aria-label="Шаг назад">
                 <span class="iconify" data-icon="mdi:chevron-left" aria-hidden="true"></span>
               </button>
-              <button class="history-btn" id="historyDownBtn" title="Р В РІР‚в„ўР В РЎвЂ”Р В Р’ВµР РЋР вЂљР РЋРІР‚ВР В РўвЂ" aria-label="Р В Р РѓР В Р’В°Р В РЎвЂ“ Р В Р вЂ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР РЋРІР‚ВР В РўвЂ">
+              <button class="history-btn" id="historyDownBtn" title="Вперёд" aria-label="Шаг вперёд">
                 <span class="iconify" data-icon="mdi:chevron-right" aria-hidden="true"></span>
               </button>
-              <button class="history-btn" id="historyLastBtn" title="Р В РІР‚в„ў Р В РЎвЂќР В РЎвЂўР В Р вЂ¦Р В Р’ВµР РЋРІР‚В " aria-label="Р В РІР‚в„ў Р В РЎвЂќР В РЎвЂўР В Р вЂ¦Р В Р’ВµР РЋРІР‚В ">
+              <button class="history-btn" id="historyLastBtn" title="В конец" aria-label="В конец">
                 <span class="iconify" data-icon="mdi:page-last" aria-hidden="true"></span>
               </button>
             </div>
           </div>
           <div class="history-body">
             <div id="analysisHistory" class="analysis-history" aria-live="polite" aria-atomic="true"></div>
-            <div id="historyEmpty" class="history-empty">Р В РЎСљР В Р’В°Р РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р В РўвЂР В Р’ВµР В Р’В»Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР РЋРІР‚в„–, Р В РЎвЂ Р В РЎвЂўР В Р вЂ¦Р В РЎвЂ Р В РЎвЂ”Р В РЎвЂўР РЋР РЏР В Р вЂ Р РЋР РЏР РЋРІР‚С™Р РЋР С“Р РЋР РЏ Р В Р’В·Р В РўвЂР В Р’ВµР РЋР С“Р РЋР Р‰.</div>
+            <div id="historyEmpty" class="history-empty">Начните делать ходы, и они появятся здесь.</div>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="promotionOverlay" class="promotion-overlay" role="dialog" aria-modal="true" aria-label="Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р В РЎвЂўР РЋР вЂљ Р РЋРІР‚С›Р В РЎвЂР В РЎвЂ“Р РЋРЎвЂњР РЋР вЂљР РЋРІР‚в„– Р В РўвЂР В Р’В»Р РЋР РЏ Р В РЎвЂ”Р РЋР вЂљР В Р’ВµР В Р вЂ Р РЋР вЂљР В Р’В°Р РЋРІР‚В°Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ">
+  <div id="promotionOverlay" class="promotion-overlay" role="dialog" aria-modal="true" aria-label="Выбор фигуры для превращения">
     <div class="promotion-dialog liquid-glass-panel">
-      <div class="promotion-title">Р В РЎСџР РЋР вЂљР В Р’ВµР В Р вЂ Р РЋР вЂљР В Р’В°Р РЋРІР‚С™Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р В Р’ВµР РЋРІвЂљВ¬Р В РЎвЂќР РЋРЎвЂњ Р В Р вЂ :</div>
+      <div class="promotion-title">Превратить пешку в:</div>
       <div class="promotion-grid">
         <button class="promotion-btn" data-piece="q">
           <img class="promotion-icon" alt="" src="icone/white/Chess_qlt45.svg" />
-          <span>Р В Р’В¤Р В Р’ВµР РЋР вЂљР В Р’В·Р РЋР Р‰</span>
+          <span>Ферзь</span>
         </button>
         <button class="promotion-btn" data-piece="r">
           <img class="promotion-icon" alt="" src="icone/white/Chess_rlt45.svg" />
-          <span>Р В РІР‚С”Р В Р’В°Р В РўвЂР РЋР Р‰Р РЋР РЏ</span>
+          <span>Ладья</span>
         </button>
         <button class="promotion-btn" data-piece="b">
           <img class="promotion-icon" alt="" src="icone/white/Chess_blt45.svg" />
-          <span>Р В Р Р‹Р В Р’В»Р В РЎвЂўР В Р вЂ¦</span>
+          <span>Слон</span>
         </button>
         <button class="promotion-btn" data-piece="n">
           <img class="promotion-icon" alt="" src="icone/white/Chess_nlt45.svg" />
-          <span>Р В РЎв„ўР В РЎвЂўР В Р вЂ¦Р РЋР Р‰</span>
+          <span>Конь</span>
         </button>
       </div>
     </div>
@@ -1068,7 +1068,7 @@
         updateArrow(null);
         if (coachCommentEl){
           coachCommentEl.classList.remove('loading');
-          coachCommentEl.textContent = 'AI-Р В РЎвЂќР В РЎвЂўР В РЎВР В РЎВР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°Р РЋР вЂљР В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂ Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В Р’ВµР В Р’В»Р В РЎвЂќР В Р’В° Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–.';
+          coachCommentEl.textContent = 'AI-комментарий и стрелка отключены.';
         }
         return;
       }
@@ -1191,8 +1191,8 @@
       move: 'audio/chess-move.ogg',
       check: 'audio/chess-check.ogg'
     };
-    // Р В РІР‚в„ўР РЋР С“Р В Р’ВµР В РЎвЂ“Р В РўвЂР В Р’В° Р В РЎвЂ”Р В РЎвЂўР В РЎвЂќР В Р’В°Р В Р’В·Р РЋРІР‚в„–Р В Р вЂ Р В Р’В°Р В Р’ВµР В РЎВ Р В РЎвЂўР РЋРІР‚В Р В Р’ВµР В Р вЂ¦Р В РЎвЂќР РЋРЎвЂњ Р В Р вЂ  Р вЂ™Р’В«Р В Р’В°Р В Р’В±Р РЋР С“Р В РЎвЂўР В Р’В»Р РЋР вЂ№Р РЋРІР‚С™Р В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦Р вЂ™Р’В» Р В Р’В±Р В Р’ВµР В Р’В»Р РЋРІР‚в„–Р РЋРІР‚В¦ Р В Р’ВµР В РўвЂР В РЎвЂР В Р вЂ¦Р В РЎвЂР РЋРІР‚В Р В Р’В°Р РЋРІР‚В¦,
-    // Р РЋРІР‚РЋР РЋРІР‚С™Р В РЎвЂўР В Р’В±Р РЋРІР‚в„– Р В Р’В·Р В Р вЂ¦Р В Р’В°Р В РЎвЂќ Р В Р вЂ¦Р В Р’Вµ Р В РЎВР В Р’ВµР В Р вЂ¦Р РЋР РЏР В Р’В»Р РЋР С“Р РЋР РЏ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂ Р РЋР С“Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’Вµ Р В РЎвЂўР РЋРІР‚РЋР В Р’ВµР РЋР вЂљР В Р’ВµР В РўвЂР В РЎвЂ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В Р’В°.
+    // Всегда показываем оценку в «абсолютных» белых единицах,
+    // чтобы знак не менялся при смене очереди хода.
     const evaluationPerspective = 'w';
     let historyCursor = -1;
     let currentHistoryNodeId = null;
@@ -1237,7 +1237,7 @@
           return buffer;
         })
       ).catch((err) => {
-        console.warn('Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂ”Р В РЎвЂўР В РўвЂР В РЎвЂ“Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂўР В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В°Р РЋРЎвЂњР В РўвЂР В РЎвЂР В РЎвЂў', err);
+        console.warn('Не удалось подготовить аудио', err);
         return null;
       });
       return audioPreloadPromise;
@@ -1252,7 +1252,7 @@
           try{
             await ctx.resume();
           } catch (err) {
-            console.warn('Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В Р’В°Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР В Р вЂ Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р’В°Р РЋРЎвЂњР В РўвЂР В РЎвЂР В РЎвЂўР В РЎвЂќР В РЎвЂўР В Р вЂ¦Р РЋРІР‚С™Р В Р’ВµР В РЎвЂќР РЋР С“Р РЋРІР‚С™', err);
+            console.warn('Не удалось активировать аудиоконтекст', err);
           }
         }
         await preloadAudioBuffers();
@@ -1378,9 +1378,9 @@
       for (const candidate of candidates){
         const num = coerceNumber(candidate);
         if (num === null) continue;
-        // Р В РІР‚вЂќР В Р вЂ¦Р В Р’В°Р РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р вЂ™Р’В«0Р вЂ™Р’В» Р В РЎвЂ”Р В РЎвЂў mate Р В РЎвЂР В Р вЂ¦Р В РЎвЂўР В РЎвЂ“Р В РўвЂР В Р’В° Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В РЎвЂР РЋРІР‚С™ Р В РЎвЂќР В Р’В°Р В РЎвЂќ Р В Р’В·Р В Р’В°Р В РЎвЂ“Р В Р’В»Р РЋРЎвЂњР РЋРІвЂљВ¬Р В РЎвЂќР В Р’В° Р В РЎвЂўР РЋРІР‚С™ Р В РўвЂР В Р вЂ Р В РЎвЂР В Р’В¶Р В РЎвЂќР В Р’В°, Р РЋРІР‚РЋР РЋРІР‚С™Р В РЎвЂў Р В РЎвЂўР В Р’В·Р В Р вЂ¦Р В Р’В°Р РЋРІР‚РЋР В Р’В°Р В Р’ВµР РЋРІР‚С™
-        // Р В РЎвЂўР РЋРІР‚С™Р РЋР С“Р РЋРЎвЂњР РЋРІР‚С™Р РЋР С“Р РЋРІР‚С™Р В Р вЂ Р В РЎвЂР В Р’Вµ Р В РЎВР В Р’В°Р РЋРІР‚С™Р В Р’В°. Р В Р’В§Р РЋРІР‚С™Р В РЎвЂўР В Р’В±Р РЋРІР‚в„– Р В Р вЂ¦Р В Р’Вµ Р В РЎвЂ”Р В РЎвЂўР В РЎвЂќР В Р’В°Р В Р’В·Р РЋРІР‚в„–Р В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р вЂ™Р’В«Р В РЎС™Р В Р’В°Р РЋРІР‚С™ Р В Р’В·Р В Р’В° 0Р вЂ™Р’В» Р В РЎвЂ”Р РЋР вЂљР В РЎвЂ Р В РЎвЂўР В Р’В±Р РЋРІР‚в„–Р РЋРІР‚РЋР В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ Р В РЎвЂ”Р В РЎвЂўР В Р’В·Р В РЎвЂР РЋРІР‚В Р В РЎвЂР РЋР РЏР РЋРІР‚В¦,
-        // Р В РЎвЂР В РЎвЂ“Р В Р вЂ¦Р В РЎвЂўР РЋР вЂљР В РЎвЂР РЋР вЂљР РЋРЎвЂњР В Р’ВµР В РЎВ Р РЋРІР‚С™Р В Р’В°Р В РЎвЂќР В РЎвЂР В Р’Вµ Р В Р’В·Р В Р вЂ¦Р В Р’В°Р РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В РЎвЂ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В РўвЂР В РЎвЂўР В Р’В»Р В Р’В¶Р В Р’В°Р В Р’ВµР В РЎВ Р В РЎвЂ”Р В РЎвЂўР В РЎвЂР РЋР С“Р В РЎвЂќ Р РЋР вЂљР В Р’ВµР В Р’В°Р В Р’В»Р РЋР Р‰Р В Р вЂ¦Р В РЎвЂўР В РЎвЂ“Р В РЎвЂў mate.
+        // Значение «0» по mate иногда приходит как заглушка от движка, что означает
+        // отсутствие мата. Чтобы не показывать «Мат за 0» при обычных позициях,
+        // игнорируем такие значения и продолжаем поиск реального mate.
         if (num === 0) continue;
         return num;
       }
@@ -1447,26 +1447,26 @@
       const previousMatedMover = previousMate?.mating_side && previousMate.mating_side !== mover;
       const previousMoverHadMate = previousMate?.mating_side && previousMate.mating_side === mover;
       if (currentMatesAgainstMover){
-        return { label: 'Р В РІР‚вЂќР В Р’ВµР В Р вЂ Р В РЎвЂўР В РЎвЂќ', className: 'blunder' };
+        return { label: 'Зевок', className: 'blunder' };
       }
       if (previousMatedMover && !currentMatesAgainstMover){
-        return { label: 'Р В РІР‚С”Р РЋРЎвЂњР РЋРІР‚РЋР РЋРІвЂљВ¬Р В РЎвЂР В РІвЂћвЂ“ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ', className: 'best' };
+        return { label: 'Лучший ход', className: 'best' };
       }
       if (previousMoverHadMate && !currentMatesForMover){
         const previousMateMoves = Number(previousMate.moves) || 99;
         return previousMateMoves <= 2
-          ? { label: 'Р В РІР‚вЂќР В Р’ВµР В Р вЂ Р В РЎвЂўР В РЎвЂќ', className: 'blunder' }
-          : { label: 'Р В РЎвЂєР РЋРІвЂљВ¬Р В РЎвЂР В Р’В±Р В РЎвЂќР В Р’В°', className: 'mistake' };
+          ? { label: 'Зевок', className: 'blunder' }
+          : { label: 'Ошибка', className: 'mistake' };
       }
       if (lossCp <= 30 && hasBrilliantMoveIdea(move, currentMate, previousMate)){
-        return { label: 'Р В РІР‚ВР В Р’В»Р В Р’ВµР РЋР С“Р РЋРІР‚С™Р РЋР РЏР РЋРІР‚В°Р В РЎвЂР В РІвЂћвЂ“ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ', className: 'brilliant' };
+        return { label: 'Блестящий ход', className: 'brilliant' };
       }
-      if (lossCp <= 15) return { label: 'Р В РІР‚С”Р РЋРЎвЂњР РЋРІР‚РЋР РЋРІвЂљВ¬Р В РЎвЂР В РІвЂћвЂ“ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ', className: 'best' };
-      if (lossCp <= 40) return { label: 'Р В РЎвЂєР РЋРІР‚С™Р В Р’В»Р В РЎвЂР РЋРІР‚РЋР В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ', className: 'excellent' };
-      if (lossCp <= 80) return { label: 'Р В РўС’Р В РЎвЂўР РЋР вЂљР В РЎвЂўР РЋРІвЂљВ¬Р В РЎвЂР В РІвЂћвЂ“ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ', className: 'good' };
-      if (lossCp <= 150) return { label: 'Р В РЎСљР В Р’ВµР РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋР Р‰', className: 'inaccuracy' };
-      if (lossCp <= 300) return { label: 'Р В РЎвЂєР РЋРІвЂљВ¬Р В РЎвЂР В Р’В±Р В РЎвЂќР В Р’В°', className: 'mistake' };
-      return { label: 'Р В РІР‚вЂќР В Р’ВµР В Р вЂ Р В РЎвЂўР В РЎвЂќ', className: 'blunder' };
+      if (lossCp <= 15) return { label: 'Лучший ход', className: 'best' };
+      if (lossCp <= 40) return { label: 'Отличный ход', className: 'excellent' };
+      if (lossCp <= 80) return { label: 'Хороший ход', className: 'good' };
+      if (lossCp <= 150) return { label: 'Неточность', className: 'inaccuracy' };
+      if (lossCp <= 300) return { label: 'Ошибка', className: 'mistake' };
+      return { label: 'Зевок', className: 'blunder' };
     }
 
     function updateMoveQuality(lines = []){
@@ -1506,8 +1506,8 @@
         if (analysisListEl){
           const empty = document.createElement('li');
           empty.textContent = gameEnd?.kind === 'checkmate'
-            ? `${gameEnd.winner_label} Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р В Р’В°Р В Р вЂ Р В РЎвЂР В Р’В»Р В РЎвЂ Р В РЎВР В Р’В°Р РЋРІР‚С™.`
-            : 'Р В РЎСџР В Р’В°Р РЋРІР‚С™. Р В РІР‚С”Р В Р’ВµР В РЎвЂ“Р В Р’В°Р В Р’В»Р РЋР Р‰Р В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В РЎвЂўР В Р вЂ  Р В Р вЂ¦Р В Р’ВµР РЋРІР‚С™.';
+            ? `${gameEnd.winner_label} поставили мат.`
+            : 'Пат. Легальных ходов нет.';
           analysisListEl.appendChild(empty);
         }
         updateArrow(null);
@@ -1522,7 +1522,7 @@
       if (!lines.length){
         if (analysisListEl){
           const empty = document.createElement('li');
-          empty.textContent = 'Р В РЎСљР В Р’ВµР РЋРІР‚С™ Р В РўвЂР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ Р В Р’В°Р В Р вЂ¦Р В Р’В°Р В Р’В»Р В РЎвЂР В Р’В·Р В Р’В°';
+          empty.textContent = 'Нет данных анализа';
           analysisListEl.appendChild(empty);
         }
         updateArrow(null);
@@ -1534,15 +1534,15 @@
         lines.slice(0, 3).forEach((line, idx) => {
           const li = document.createElement('li');
           const title = document.createElement('div');
-          title.innerHTML = `<strong>#${idx + 1}</strong> ${line.best_move_uci || 'Р Р†Р вЂљРІР‚Сњ'}`;
+          title.innerHTML = `<strong>#${idx + 1}</strong> ${line.best_move_uci || '—'}`;
           const { label, mate } = normalizeScore(line, viewColor);
           const scoreText = mate !== null
-            ? `Р В РЎС™Р В Р’В°Р РЋРІР‚С™ Р В Р’В·Р В Р’В° ${Math.abs(mate)} (${mate > 0 ? 'Р В Р’В±Р В Р’ВµР В Р’В»Р РЋРІР‚в„–Р В Р’Вµ' : 'Р РЋРІР‚РЋР РЋРІР‚ВР РЋР вЂљР В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ'})`
+            ? `Мат за ${Math.abs(mate)} (${mate > 0 ? 'белые' : 'чёрные'})`
             : `${label} cp`;
           const score = document.createElement('div');
           score.innerHTML = `<span class="mono">${scoreText}</span>`;
           const pv = document.createElement('div');
-          pv.textContent = line.pv_san || 'Р Р†Р вЂљРІР‚Сњ';
+          pv.textContent = line.pv_san || '—';
           pv.classList.add('mono');
           li.appendChild(title);
           li.appendChild(score);
@@ -1550,7 +1550,7 @@
           analysisListEl.appendChild(li);
         });
       }
-      setAnalysisStatus(fromCache ? 'Р В РЎСџР В РЎвЂўР В РЎвЂќР В Р’В°Р В Р’В·Р В Р’В°Р В Р вЂ¦ Р В РЎвЂќР В Р’ВµР РЋРІвЂљВ¬Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В Р’В°Р В Р вЂ¦Р В Р’В°Р В Р’В»Р В РЎвЂР В Р’В· (Р В РўвЂР В РЎвЂў 10 Р РЋР С“Р В Р’ВµР В РЎвЂќР РЋРЎвЂњР В Р вЂ¦Р В РўвЂ).' : 'Р В РЎвЂ™Р В Р вЂ¦Р В Р’В°Р В Р’В»Р В РЎвЂР В Р’В· Р В РЎвЂўР В Р’В±Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В Р’В»Р РЋРІР‚ВР В Р вЂ¦.');
+      setAnalysisStatus(fromCache ? 'Показан кешированный анализ (до 10 секунд).' : 'Анализ обновлён.');
       updatePriorityMoves(lines, viewColor);
       updateArrow(lines?.[0]);
       updateEvalBar(lines?.[0], viewColor);
@@ -1599,8 +1599,8 @@
     function formatPriorityScore(line, perspective){
       const { label, mate } = normalizeScore(line, perspective);
       if (mate !== null){
-        const side = mate > 0 ? 'Р В Р’В±Р В Р’ВµР В Р’В»Р РЋРІР‚в„–Р РЋРІР‚В¦' : 'Р РЋРІР‚РЋР РЋРІР‚ВР РЋР вЂљР В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦';
-        return `Р В РЎС™Р В Р’В°Р РЋРІР‚С™ Р В Р’В·Р В Р’В° ${Math.abs(mate)} (${side})`;
+        const side = mate > 0 ? 'белых' : 'чёрных';
+        return `Мат за ${Math.abs(mate)} (${side})`;
       }
       return `${label} cp`;
     }
@@ -1612,37 +1612,37 @@
 
     function applyPriorityMove(line){
       if (!line || !line.best_move_uci){
-        setBoardStatus('Р В РЎСљР В Р’ВµР РЋРІР‚С™ Р В РўвЂР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ Р В РўвЂР В Р’В»Р РЋР РЏ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋРІР‚С™Р В Р вЂ¦Р В РЎвЂўР В РЎвЂ“Р В РЎвЂў Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В Р’В°.');
+        setBoardStatus('Нет данных для приоритетного хода.');
         return;
       }
       const coords = uciToCoords(line.best_move_uci);
       if (!coords){
-        setBoardStatus('Р В РЎСљР В Р’ВµР В РЎвЂќР В РЎвЂўР РЋР вЂљР РЋР вЂљР В Р’ВµР В РЎвЂќР РЋРІР‚С™Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋРІР‚С›Р В РЎвЂўР РЋР вЂљР В РЎВР В Р’В°Р РЋРІР‚С™ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋРІР‚С™Р В Р вЂ¦Р В РЎвЂўР В РЎвЂ“Р В РЎвЂў Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В Р’В°.');
+        setBoardStatus('Некорректный формат приоритетного хода.');
         return;
       }
       const { from, to } = coords;
       const movingPiece = getPieceAt(from);
       if (!movingPiece){
-        setBoardStatus('Р В РЎСљР В Р’В° Р В РЎвЂР РЋР С“Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В Р вЂ¦Р В РЎвЂўР В РІвЂћвЂ“ Р В РЎвЂќР В Р’В»Р В Р’ВµР РЋРІР‚С™Р В РЎвЂќР В Р’Вµ Р В Р вЂ¦Р В Р’ВµР РЋРІР‚С™ Р РЋРІР‚С›Р В РЎвЂР В РЎвЂ“Р РЋРЎвЂњР РЋР вЂљР РЋРІР‚в„– Р В РўвЂР В Р’В»Р РЋР РЏ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋРІР‚С™Р В Р вЂ¦Р В РЎвЂўР В РЎвЂ“Р В РЎвЂў Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В Р’В°.');
+        setBoardStatus('На исходной клетке нет фигуры для приоритетного хода.');
         return;
       }
       if (getPieceColor(movingPiece) !== activeColor){
-        setBoardStatus('Р В Р Р‹Р В Р’ВµР В РІвЂћвЂ“Р РЋРІР‚РЋР В Р’В°Р РЋР С“ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ Р В РўвЂР РЋР вЂљР РЋРЎвЂњР В РЎвЂ“Р В РЎвЂўР В РЎвЂ“Р В РЎвЂў Р РЋРІР‚В Р В Р вЂ Р В Р’ВµР РЋРІР‚С™Р В Р’В°.');
+        setBoardStatus('Сейчас ход другого цвета.');
         return;
       }
       if (!isLegalPieceMove(movingPiece, from, to, boardState)){
-        setBoardStatus('Р В РЎСџР РЋР вЂљР В РЎвЂР В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋРІР‚С™Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ Р В Р вЂ¦Р В Р’ВµР РЋР вЂљР В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р РЋРІР‚ВР В Р вЂ¦ Р В РЎвЂ”Р РЋР вЂљР В Р’В°Р В Р вЂ Р В РЎвЂР В Р’В»Р В Р’В°Р В РЎВР В РЎвЂ.');
+        setBoardStatus('Приоритетный ход неразрешён правилами.');
         return;
       }
       if (wouldLeaveKingInCheck(from, to, movingPiece)){
-        setBoardStatus('Р В РЎСџР РЋР вЂљР В РЎвЂР В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋРІР‚С™Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р В Р’В°Р В Р вЂ Р В Р’В»Р РЋР РЏР В Р’ВµР РЋРІР‚С™ Р В РЎвЂќР В РЎвЂўР РЋР вЂљР В РЎвЂўР В Р’В»Р РЋР РЏ Р В РЎвЂ”Р В РЎвЂўР В РўвЂ Р В Р’В±Р В РЎвЂўР В Р’ВµР В РЎВ.');
+        setBoardStatus('Приоритетный ход оставляет короля под боем.');
         return;
       }
       const capturedPiece = getPieceAt(to);
       const promotionPiece = parsePromotionFromUci(line.best_move_uci);
       const scoreLabel = formatPriorityScore(line, evaluationPerspective || activeColor);
       finalizeMove({ fromSquare: from, toSquare: to, movingPiece, capturedPiece, promotionPiece });
-      setBoardStatus(`Р В РІР‚в„ўР РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋРІР‚С™Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ (${scoreLabel}).`);
+      setBoardStatus(`Выполнен приоритетный ход (${scoreLabel}).`);
     }
 
     function updatePriorityMoves(lines = [], perspective = null){
@@ -1657,10 +1657,10 @@
           const empty = document.createElement('div');
           empty.className = 'priority-item mono is-empty';
           empty.textContent = gameEnd?.kind === 'checkmate'
-            ? `${gameEnd.winner_label} Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р В Р’В°Р В Р вЂ Р В РЎвЂР В Р’В»Р В РЎвЂ Р В РЎВР В Р’В°Р РЋРІР‚С™`
+            ? `${gameEnd.winner_label} поставили мат`
             : gameEnd?.kind === 'stalemate'
-              ? 'Р В РЎСџР В Р’В°Р РЋРІР‚С™'
-              : 'Р В РЎСљР В Р’ВµР РЋРІР‚С™ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋРІР‚С™Р В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В РЎвЂўР В Р вЂ ';
+              ? 'Пат'
+              : 'Нет приоритетных ходов';
           list.appendChild(empty);
         });
         return;
@@ -1677,7 +1677,7 @@
           title.className = 'priority-move';
           const moveText = document.createElement('span');
           moveText.className = 'priority-move-text mono';
-          moveText.textContent = line.best_move_uci || 'Р Р†Р вЂљРІР‚Сњ';
+          moveText.textContent = line.best_move_uci || '—';
           title.appendChild(moveText);
           head.appendChild(icon);
           head.appendChild(title);
@@ -1689,12 +1689,12 @@
 
           const pv = document.createElement('div');
           pv.className = 'priority-pv mono';
-          pv.textContent = line.pv_san || 'Р Р†Р вЂљРІР‚Сњ';
+          pv.textContent = line.pv_san || '—';
 
           item.appendChild(head);
           item.appendChild(pv);
           item.setAttribute('role', 'button');
-          item.setAttribute('aria-label', `Р В Р Р‹Р В РўвЂР В Р’ВµР В Р’В»Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ ${line.best_move_uci || ''}`);
+          item.setAttribute('aria-label', `Сделать ход ${line.best_move_uci || ''}`);
           item.tabIndex = 0;
           item.addEventListener('click', () => applyPriorityMove(line));
           item.addEventListener('keydown', (event) => {
@@ -1968,7 +1968,7 @@
         const isWinningForView = winnerColor === viewColor;
         evalFillEl.style.height = isWinningForView ? '100%' : '0%';
         evalLabelEl.style.top = isWinningForView ? '94%' : '8%';
-        evalLabelEl.textContent = 'Р В РЎС™Р В Р’В°Р РЋРІР‚С™';
+        evalLabelEl.textContent = 'Мат';
         return;
       }
       const { cp, label, mate } = normalizeScore(line, viewColor);
@@ -1985,7 +1985,23 @@
         if (typeof errObj.detail === 'string') return errObj.detail;
         try { return JSON.stringify(errObj.detail); } catch (_) {}
       }
-      return fallback || 'Р В РЎСљР В Р’ВµР В РЎвЂР В Р’В·Р В Р вЂ Р В Р’ВµР РЋР С“Р РЋРІР‚С™Р В Р вЂ¦Р В Р’В°Р РЋР РЏ Р В РЎвЂўР РЋРІвЂљВ¬Р В РЎвЂР В Р’В±Р В РЎвЂќР В Р’В°';
+      return fallback || 'Неизвестная ошибка';
+    }
+
+    async function fetchJson(url, payload){
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const text = await response.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
+      if (!response.ok){
+        const detail = extractErrorDetail(data, text || `${response.status} ${response.statusText}`);
+        throw new Error(detail);
+      }
+      return data;
     }
 
     function looksLikeHtmlError(text){
@@ -2002,6 +2018,7 @@
       const urls = [];
       if (getTelegramInitData() && configuredBase) urls.push(configuredUrl);
       urls.push(sameOriginUrl);
+      if (host8080Url) urls.push(host8080Url);
       if (!getTelegramInitData()) urls.push('http://127.0.0.1:8081/api/events');
       if (!getTelegramInitData() && configuredBase) urls.push(configuredUrl);
       return [...new Set(urls)];
@@ -2034,27 +2051,12 @@
       }
     }
 
-    async function fetchJson(url, payload){
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const text = await response.text();
-      let data = null;
-      try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
-      if (!response.ok){
-        const detail = extractErrorDetail(data, text || `${response.status} ${response.statusText}`);
-        throw new Error(detail);
-      }
-      return data;
-    }
-
     function getAnalyzeUrls(){
       const configuredBase = String(ANALYTICS_API_BASE || '').replace(/\/+$/, '');
       const configuredUrl = configuredBase ? `${configuredBase}/analyze` : '/analyze';
       const hasHttpOrigin = location.protocol === 'http:' || location.protocol === 'https:';
       const sameOriginUrl = hasHttpOrigin ? '/analyze' : 'http://127.0.0.1:8000/analyze';
+      const host8080Url = hasHttpOrigin ? `${location.protocol}//${location.hostname}:8080/analyze` : '';
       const urls = [];
       if (getTelegramInitData() && configuredBase) urls.push(configuredUrl);
       urls.push(sameOriginUrl);
@@ -2076,9 +2078,9 @@
     }
 
     function coachSideLabel(side){
-      if (side === 'white') return 'Р В РІР‚ВР В Р’ВµР В Р’В»Р РЋРІР‚в„–Р В Р’Вµ';
-      if (side === 'black') return 'Р В Р’В§Р В Р’ВµР РЋР вЂљР В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ';
-      return 'Р В Р Р‹Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР В РЎвЂўР В Р вЂ¦Р В Р’В°';
+      if (side === 'white') return 'Белые';
+      if (side === 'black') return 'Черные';
+      return 'Сторона';
     }
 
     function oppositeCoachSide(side){
@@ -2255,12 +2257,12 @@
       if (!coachCommentEl) return;
       if (!coachHintsEnabled){
         coachCommentEl.classList.remove('loading');
-        coachCommentEl.textContent = 'AI-Р В РЎвЂќР В РЎвЂўР В РЎВР В РЎВР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°Р РЋР вЂљР В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂ Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В Р’ВµР В Р’В»Р В РЎвЂќР В Р’В° Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–.';
+        coachCommentEl.textContent = 'AI-комментарий и стрелка отключены.';
         return;
       }
       const gameEnd = getGameEndState();
       if (!lines?.length && gameEnd?.kind !== 'checkmate'){
-        coachCommentEl.textContent = 'AI-Р В РЎвЂќР В РЎвЂўР В РЎВР В РЎВР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°Р РЋР вЂљР В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂ”Р В РЎвЂўР РЋР РЏР В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР С“Р РЋР РЏ Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р В Р’В»Р В Р’Вµ Р В Р’В°Р В Р вЂ¦Р В Р’В°Р В Р’В»Р В РЎвЂР В Р’В·Р В Р’В° Р В РЎвЂ”Р В РЎвЂўР В Р’В·Р В РЎвЂР РЋРІР‚В Р В РЎвЂР В РЎвЂ.';
+        coachCommentEl.textContent = 'AI-комментарий появится после анализа позиции.';
         return;
       }
       const initData = getTelegramInitData();
@@ -2283,7 +2285,7 @@
         rememberCoachEvent(commentPayload.coach_event);
         return;
       }
-      coachCommentEl.textContent = 'AI Р В РЎвЂўР РЋРІР‚В Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р вЂ Р В Р’В°Р В Р’ВµР РЋРІР‚С™ Р В РЎвЂ”Р В РЎвЂўР В Р’В·Р В РЎвЂР РЋРІР‚В Р В РЎвЂР РЋР вЂ№...';
+      coachCommentEl.textContent = 'AI оценивает позицию...';
       coachCommentEl.classList.add('loading');
       try {
         let data = null;
@@ -2311,7 +2313,7 @@
           }
         }
         if (!data) throw lastError || new Error('Coach comment request failed');
-        const comment = data?.comment || 'Р В РІР‚СњР В Р’ВµР РЋР вЂљР В Р’В¶Р В РЎвЂР РЋР С“Р РЋР Р‰ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р вЂ Р В РЎвЂўР В РІвЂћвЂ“ Р В Р’В»Р В РЎвЂР В Р вЂ¦Р В РЎвЂР В РЎвЂ: Р В РЎвЂўР В Р вЂ¦Р В Р’В° Р В Р’В»Р РЋРЎвЂњР РЋРІР‚РЋР РЋРІвЂљВ¬Р В Р’Вµ Р В Р вЂ Р РЋР С“Р В Р’ВµР В РЎвЂ“Р В РЎвЂў Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р РЋР РЏР В Р’ВµР РЋРІР‚С™ Р В РЎвЂ”Р В Р’В»Р В Р’В°Р В Р вЂ¦ Р В РЎвЂ”Р В РЎвЂўР В Р’В·Р В РЎвЂР РЋРІР‚В Р В РЎвЂР В РЎвЂ.';
+        const comment = data?.comment || 'Держись первой линии: она лучше всего сохраняет план позиции.';
         coachCommentCache.set(cacheKey, comment);
         coachCommentEl.textContent = comment;
         if (currentHistoryNodeId && historyNodes.has(currentHistoryNodeId)){
@@ -2320,7 +2322,7 @@
         rememberCoachEvent(commentPayload.coach_event);
       } catch (err){
         console.warn('AI coach comment failed', err);
-        coachCommentEl.textContent = 'AI-Р В РЎвЂќР В РЎвЂўР В РЎВР В РЎВР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°Р РЋР вЂљР В РЎвЂР В РІвЂћвЂ“ Р В Р вЂ Р РЋР вЂљР В Р’ВµР В РЎВР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р В РЎвЂў Р В Р вЂ¦Р В Р’ВµР В РўвЂР В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋРЎвЂњР В РЎвЂ”Р В Р’ВµР В Р вЂ¦, Р В РЎвЂўР РЋР вЂљР В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В РЎвЂР РЋР вЂљР РЋРЎвЂњР В РІвЂћвЂ“Р РЋР С“Р РЋР РЏ Р В Р вЂ¦Р В Р’В° Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р вЂ Р РЋРЎвЂњР РЋР вЂ№ Р В Р’В»Р В РЎвЂР В Р вЂ¦Р В РЎвЂР РЋР вЂ№ Р В Р’В°Р В Р вЂ¦Р В Р’В°Р В Р’В»Р В РЎвЂР В Р’В·Р В Р’В°.';
+        coachCommentEl.textContent = 'AI-комментарий временно недоступен, ориентируйся на первую линию анализа.';
       } finally {
         coachCommentEl.classList.remove('loading');
       }
@@ -2332,7 +2334,7 @@
         targetNodeId = currentHistoryNodeId
       } = typeof options === 'object' && options !== null ? options : {};
       if (!currentFen){
-        setAnalysisStatus('FEN Р В Р вЂ¦Р В Р’Вµ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р’ВµР В РўвЂР В Р’В°Р В Р вЂ¦. Р В РІР‚в„ўР В Р’ВµР РЋР вЂљР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋР С“Р РЋР Р‰ Р В Р вЂ¦Р В Р’В° Р В РЎвЂ“Р В Р’В»Р В Р’В°Р В Р вЂ Р В Р вЂ¦Р РЋРЎвЂњР РЋР вЂ№ Р В РЎвЂ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР В РЎвЂўР В РІвЂћвЂ“Р РЋРІР‚С™Р В Р’Вµ Р В Р’В°Р В Р вЂ¦Р В Р’В°Р В Р’В»Р В РЎвЂР В Р’В· Р В Р’В·Р В Р’В°Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В РЎвЂў.');
+        setAnalysisStatus('FEN не передан. Вернитесь на главную и откройте анализ заново.');
         return;
       }
 
@@ -2364,7 +2366,7 @@
         return;
       }
 
-      setAnalysisStatus('Р В РІР‚вЂќР В Р’В°Р В РЎвЂ”Р РЋР вЂљР В Р’В°Р РЋРІвЂљВ¬Р В РЎвЂР В Р вЂ Р В Р’В°Р В Р’ВµР В РЎВ Р В Р’В°Р В Р вЂ¦Р В Р’В°Р В Р’В»Р В РЎвЂР В Р’В· Р РЋРЎвЂњ Р РЋР С“Р В Р’ВµР РЋР вЂљР В Р вЂ Р В Р’ВµР РЋР вЂљР В Р’В°...');
+      setAnalysisStatus('Запрашиваем анализ у сервера...');
       if (refreshBtn) refreshBtn.disabled = true;
       let lastAnalyzeUrl = '';
       try {
@@ -2389,7 +2391,7 @@
             }
           }
           if (!data){
-            throw lastError || new Error('Р В Р Р‹Р В Р’ВµР РЋР вЂљР В Р вЂ Р В Р’ВµР РЋР вЂљ Р В Р’В°Р В Р вЂ¦Р В Р’В°Р В Р’В»Р В РЎвЂР В Р’В·Р В Р’В° Р В Р вЂ¦Р В Р’ВµР В РўвЂР В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋРЎвЂњР В РЎвЂ”Р В Р’ВµР В Р вЂ¦');
+            throw lastError || new Error('Сервер анализа недоступен');
           }
           return data;
         };
@@ -2403,8 +2405,8 @@
           return cp !== null || mate !== null;
         });
 
-        // Р В Р’ВР В Р вЂ¦Р В РЎвЂўР В РЎвЂ“Р В РўвЂР В Р’В° Р В РўвЂР В Р вЂ Р В РЎвЂР В Р’В¶Р В РЎвЂўР В РЎвЂќ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂ Р В РЎвЂќР В РЎвЂўР РЋР вЂљР В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР В РЎвЂўР В РЎВ Р В Р’В»Р В РЎвЂР В РЎВР В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р В Р вЂ Р РЋР вЂљР В Р’ВµР В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂ Р В РЎвЂўР РЋРІР‚С™Р В РўвЂР В Р’В°Р РЋРІР‚ВР РЋРІР‚С™ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ Р В Р’В±Р В Р’ВµР В Р’В· Р В РЎвЂўР РЋРІР‚В Р В Р’ВµР В Р вЂ¦Р В РЎвЂќР В РЎвЂ.
-        // Р В РЎС›Р В РЎвЂўР В РЎвЂ“Р В РўвЂР В Р’В° Р В РўвЂР В Р’ВµР В Р’В»Р В Р’В°Р В Р’ВµР В РЎВ Р В РЎвЂўР В РўвЂР В РЎвЂР В Р вЂ¦ Р В РЎвЂ”Р В РЎвЂўР В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљ Р РЋР С“ Р В Р’В±Р В РЎвЂўР В Р’В»Р В Р’ВµР В Р’Вµ Р РЋРІР‚В°Р В Р’ВµР В РўвЂР РЋР вЂљР РЋРІР‚в„–Р В РЎВ Р В Р’В»Р В РЎвЂР В РЎВР В РЎвЂР РЋРІР‚С™Р В РЎвЂўР В РЎВ, Р РЋРІР‚РЋР РЋРІР‚С™Р В РЎвЂўР В Р’В±Р РЋРІР‚в„– Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р РЋРЎвЂњР РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р РЋР Р‰ cp/mate.
+        // Иногда движок при коротком лимите времени отдаёт ход без оценки.
+        // Тогда делаем один повтор с более щедрым лимитом, чтобы получить cp/mate.
         if (!hasEval(normalizedLines)){
           const retryPayload = {
             ...payload,
@@ -2426,7 +2428,7 @@
       } catch (err){
         console.warn('Analyze failed', err);
         reportAnalysisError(err, { url: lastAnalyzeUrl, page: 'analysis.html' });
-        setAnalysisStatus('РЎРµСЂРІРёСЃ Р°РЅР°Р»РёР·Р° РІСЂРµРјРµРЅРЅРѕ РЅРµРґРѕСЃС‚СѓРїРµРЅ. РџРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР° С‡РµСЂРµР· РЅРµСЃРєРѕР»СЊРєРѕ СЃРµРєСѓРЅРґ.');
+        setAnalysisStatus('Analysis service is temporarily unavailable. Please try again in a few seconds.');
         if (analysisListEl) analysisListEl.innerHTML = '';
       } finally {
         if (refreshBtn) refreshBtn.disabled = false;
@@ -2511,7 +2513,7 @@
     function formatTreeMoveLabel(node){
       const raw = node?.move?.label || node?.move?.uci || '';
       const uci = node?.move?.uci || raw;
-      if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(uci)) return raw || 'Р Р†Р вЂљРІР‚Сњ';
+      if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(uci)) return raw || '—';
       const from = uci.slice(0, 2);
       const to = uci.slice(2, 4);
       const parentFen = node?.parentId ? historyNodes.get(node.parentId)?.fen : null;
@@ -2520,7 +2522,7 @@
       if (upper === 'K' && from[0] === 'e' && (to[0] === 'g' || to[0] === 'c')){
         return to[0] === 'g' ? 'O-O' : 'O-O-O';
       }
-      const glyphs = { K: 'Р Р†РІвЂћСћРІР‚Сњ', Q: 'Р Р†РІвЂћСћРІР‚Сћ', R: 'Р Р†РІвЂћСћРІР‚вЂњ', B: 'Р Р†РІвЂћСћРІР‚вЂќ', N: 'Р Р†РІвЂћСћР’В' };
+      const glyphs = { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘' };
       const promotion = uci.length > 4 ? `=${uci[4].toUpperCase()}` : '';
       return `${glyphs[upper] || ''}${to}${promotion}`;
     }
@@ -2631,7 +2633,7 @@
       stored.moves.forEach((move) => {
         const parentFen = lastFen;
         const parsedParent = parseFenState(parentFen);
-        const label = move?.san || move?.uci || 'Р Р†Р вЂљРІР‚Сњ';
+        const label = move?.san || move?.uci || '—';
         const node = createHistoryNode({
           parentId,
           fen: move?.fen || parentFen,
@@ -2657,7 +2659,7 @@
       fullmove = parsed.fullmove;
       castlingRights = parsed.rights || '-';
       enPassantTarget = parsed.ep || '-';
-      if (fenTextEl) fenTextEl.textContent = currentFen || 'Р Р†Р вЂљРІР‚Сњ';
+      if (fenTextEl) fenTextEl.textContent = currentFen || '—';
       renderBoardFromFen(currentFen);
       renderHistory({ scrollToCursor: true });
       loadHistoryPosition(historyCursor);
@@ -2716,7 +2718,7 @@
         evalBadge.className = 'move-tree-eval mono';
         evalBadge.textContent = formatTreeEval(node);
         if (item.isRoot){
-          whiteMove.textContent = 'Р В Р Р‹Р РЋРІР‚С™Р В Р’В°Р РЋР вЂљР РЋРІР‚С™Р В РЎвЂўР В Р вЂ Р В Р’В°Р РЋР РЏ Р В РЎвЂ”Р В РЎвЂўР В Р’В·Р В РЎвЂР РЋРІР‚В Р В РЎвЂР РЋР РЏ';
+          whiteMove.textContent = 'Стартовая позиция';
           blackMove.remove();
         } else {
           whiteMove.textContent = whiteNode ? formatTreeMoveLabel(whiteNode) : '';
@@ -2812,7 +2814,7 @@
       enPassantTarget = parsed.ep || '-';
       renderBoardFromFen(currentFen);
       if (fenTextEl) fenTextEl.textContent = currentFen;
-      setBoardStatus(`Р В РўС’Р В РЎвЂўР В РўвЂ ${activeColor === 'w' ? 'Р В Р’В±Р В Р’ВµР В Р’В»Р РЋРІР‚в„–Р РЋРІР‚В¦' : 'Р РЋРІР‚РЋР РЋРІР‚ВР РЋР вЂљР В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦'}.`);
+      setBoardStatus(`Ход ${activeColor === 'w' ? 'белых' : 'чёрных'}.`);
       const viewColor = evaluationPerspective || getFenActiveColor(currentFen);
       const normalizedLines = normalizeAnalysisLines(node?.lines || [], currentFen, activeColor);
       if (node) node.lines = normalizedLines;
@@ -2838,11 +2840,11 @@
         parentId: parent.id,
         fen,
         lines,
-        move: { uci, label: label || uci || 'Р Р†Р вЂљРІР‚Сњ', side, moveNumber, from, to, movingPiece, capturedPiece, promotionPiece, attackedPieces, newAttackedPieces, wasInCheckBefore, resolvedCheck, defendedByKing, sharedPressure, discoveredAttack }
+        move: { uci, label: label || uci || '—', side, moveNumber, from, to, movingPiece, capturedPiece, promotionPiece, attackedPieces, newAttackedPieces, wasInCheckBefore, resolvedCheck, defendedByKing, sharedPressure, discoveredAttack }
       });
       if (existingChild){
         node.fen = fen;
-        node.move = { ...node.move, uci, label: label || uci || node.move?.label || 'Р Р†Р вЂљРІР‚Сњ', side, moveNumber, from, to, movingPiece, capturedPiece, promotionPiece, attackedPieces, newAttackedPieces, wasInCheckBefore, resolvedCheck, defendedByKing, sharedPressure, discoveredAttack };
+        node.move = { ...node.move, uci, label: label || uci || node.move?.label || '—', side, moveNumber, from, to, movingPiece, capturedPiece, promotionPiece, attackedPieces, newAttackedPieces, wasInCheckBefore, resolvedCheck, defendedByKing, sharedPressure, discoveredAttack };
       }
       currentHistoryNodeId = node.id;
       rebuildHistoryPlies({ preserveCursor: true });
@@ -3122,12 +3124,12 @@
 
     function pieceCoachName(piece){
       switch ((piece || '').toUpperCase()){
-        case 'P': return 'Р В РЎвЂ”Р В Р’ВµР РЋРІвЂљВ¬Р В РЎвЂќР В Р’В°';
-        case 'N': return 'Р В РЎвЂќР В РЎвЂўР В Р вЂ¦Р РЋР Р‰';
-        case 'B': return 'Р РЋР С“Р В Р’В»Р В РЎвЂўР В Р вЂ¦';
-        case 'R': return 'Р В Р’В»Р В Р’В°Р В РўвЂР РЋР Р‰Р РЋР РЏ';
-        case 'Q': return 'Р РЋРІР‚С›Р В Р’ВµР РЋР вЂљР В Р’В·Р РЋР Р‰';
-        case 'K': return 'Р В РЎвЂќР В РЎвЂўР РЋР вЂљР В РЎвЂўР В Р’В»Р РЋР Р‰';
+        case 'P': return 'пешка';
+        case 'N': return 'конь';
+        case 'B': return 'слон';
+        case 'R': return 'ладья';
+        case 'Q': return 'ферзь';
+        case 'K': return 'король';
         default: return '';
       }
     }
@@ -3315,7 +3317,7 @@
         if (selectedSq === square){
           selectedSq = null;
           possibleMoves = [];
-          setBoardStatus('Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р В РЎвЂўР РЋР вЂљ Р РЋРІР‚С›Р В РЎвЂР В РЎвЂ“Р РЋРЎвЂњР РЋР вЂљР РЋРІР‚в„– Р В РЎвЂўР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р РЋРІР‚ВР В Р вЂ¦.');
+          setBoardStatus('Выбор фигуры отменён.');
           renderBoardFromFen(currentFen);
           return;
         }
@@ -3327,7 +3329,7 @@
           return;
         }
         if (getPieceColor(movingPiece) !== activeColor){
-          setBoardStatus('Р В Р Р‹Р В Р’ВµР В РІвЂћвЂ“Р РЋРІР‚РЋР В Р’В°Р РЋР С“ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ Р В РўвЂР РЋР вЂљР РЋРЎвЂњР В РЎвЂ“Р В РЎвЂўР В РЎвЂ“Р В РЎвЂў Р РЋРІР‚В Р В Р вЂ Р В Р’ВµР РЋРІР‚С™Р В Р’В°.');
+          setBoardStatus('Сейчас ход другого цвета.');
           selectedSq = null;
           possibleMoves = [];
           renderBoardFromFen(currentFen);
@@ -3337,9 +3339,9 @@
           if (piece && getPieceColor(piece) === activeColor){
             selectedSq = square;
             possibleMoves = calculateLegalMoves(square);
-            setBoardStatus('Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’В° Р В РўвЂР РЋР вЂљР РЋРЎвЂњР В РЎвЂ“Р В Р’В°Р РЋР РЏ Р РЋРІР‚С›Р В РЎвЂР В РЎвЂ“Р РЋРЎвЂњР РЋР вЂљР В Р’В° Р РЋРІР‚С™Р В РЎвЂўР В РЎвЂ“Р В РЎвЂў Р В Р’В¶Р В Р’Вµ Р РЋРІР‚В Р В Р вЂ Р В Р’ВµР РЋРІР‚С™Р В Р’В°.');
+            setBoardStatus('Выбрана другая фигура того же цвета.');
           } else {
-            setBoardStatus('Р В РЎС›Р В Р’В°Р В РЎвЂќР В РЎвЂўР В РІвЂћвЂ“ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ Р В Р вЂ¦Р В Р’Вµ Р РЋР вЂљР В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р РЋРІР‚ВР В Р вЂ¦ Р В РЎвЂ”Р РЋР вЂљР В Р’В°Р В Р вЂ Р В РЎвЂР В Р’В»Р В Р’В°Р В РЎВР В РЎвЂ.');
+            setBoardStatus('Такой ход не разрешён правилами.');
             possibleMoves = [];
           }
           renderBoardFromFen(currentFen);
@@ -3347,7 +3349,7 @@
         }
         const capturedPiece = getPieceAt(square);
         if (wouldLeaveKingInCheck(selectedSq, square, movingPiece)){
-          setBoardStatus('Р В РўС’Р В РЎвЂўР В РўвЂ Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р В Р’В°Р В Р вЂ Р В Р’В»Р РЋР РЏР В Р’ВµР РЋРІР‚С™ Р В РЎвЂќР В РЎвЂўР РЋР вЂљР В РЎвЂўР В Р’В»Р РЋР РЏ Р В РЎвЂ”Р В РЎвЂўР В РўвЂ Р В Р’В±Р В РЎвЂўР В Р’ВµР В РЎВ.');
+          setBoardStatus('Ход оставляет короля под боем.');
           possibleMoves = [];
           renderBoardFromFen(currentFen);
           return;
@@ -3360,7 +3362,7 @@
           possibleMoves = [];
           renderBoardFromFen(currentFen);
           openPromotionDialog(getPieceColor(movingPiece));
-          setBoardStatus('Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р В Р’ВµР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р РЋРІР‚С›Р В РЎвЂР В РЎвЂ“Р РЋРЎвЂњР РЋР вЂљР РЋРЎвЂњ Р В РўвЂР В Р’В»Р РЋР РЏ Р В РЎвЂ”Р РЋР вЂљР В Р’ВµР В Р вЂ Р РЋР вЂљР В Р’В°Р РЋРІР‚В°Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ.');
+          setBoardStatus('Выберите фигуру для превращения.');
           return;
         }
         finalizeMove({ fromSquare: selectedSq, toSquare: square, movingPiece, capturedPiece });
@@ -3369,13 +3371,13 @@
       if (piece && getPieceColor(piece) === activeColor){
         selectedSq = square;
         possibleMoves = calculateLegalMoves(square);
-        setBoardStatus('Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’В° Р РЋРІР‚С›Р В РЎвЂР В РЎвЂ“Р РЋРЎвЂњР РЋР вЂљР В Р’В° Р В РўвЂР В Р’В»Р РЋР РЏ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В Р’В°.');
+        setBoardStatus('Выбрана фигура для хода.');
       } else if (piece){
-        setBoardStatus('Р В Р Р‹Р В Р’ВµР В РІвЂћвЂ“Р РЋРІР‚РЋР В Р’В°Р РЋР С“ Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂ Р В РўвЂР РЋР вЂљР РЋРЎвЂњР В РЎвЂ“Р В РЎвЂўР В РЎвЂ“Р В РЎвЂў Р РЋРІР‚В Р В Р вЂ Р В Р’ВµР РЋРІР‚С™Р В Р’В°.');
+        setBoardStatus('Сейчас ход другого цвета.');
         selectedSq = null;
         possibleMoves = [];
       } else {
-        setBoardStatus('Р В РЎСџР РЋРЎвЂњР РЋР С“Р РЋРІР‚С™Р В Р’В°Р РЋР РЏ Р В РЎвЂќР В Р’В»Р В Р’ВµР РЋРІР‚С™Р В РЎвЂќР В Р’В°. Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р В Р’ВµР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р РЋРІР‚С›Р В РЎвЂР В РЎвЂ“Р РЋРЎвЂњР РЋР вЂљР РЋРЎвЂњ.');
+        setBoardStatus('Пустая клетка. Выберите фигуру.');
         selectedSq = null;
         possibleMoves = [];
       }
@@ -3478,7 +3480,7 @@
       renderBoardFromFen(currentFen);
       playMoveAudio();
       analyzePosition({ force: true, targetNodeId: currentHistoryNodeId });
-      setBoardStatus('Р В РўС’Р В РЎвЂўР В РўвЂ Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦.');
+      setBoardStatus('Ход выполнен.');
     }
 
     function handlePromotionChoice(pieceCode){
@@ -3499,13 +3501,13 @@
       castlingRights = parsed.rights || '-';
       enPassantTarget = parsed.ep || '-';
       setupAudioUnlock();
-      setBoardStatus(`Р В РўС’Р В РЎвЂўР В РўвЂ ${activeColor === 'w' ? 'Р В Р’В±Р В Р’ВµР В Р’В»Р РЋРІР‚в„–Р РЋРІР‚В¦' : 'Р РЋРІР‚РЋР РЋРІР‚ВР РЋР вЂљР В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦'}. Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р В Р’ВµР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р РЋРІР‚С›Р В РЎвЂР В РЎвЂ“Р РЋРЎвЂњР РЋР вЂљР РЋРЎвЂњ.`);
+      setBoardStatus(`Ход ${activeColor === 'w' ? 'белых' : 'чёрных'}. Выберите фигуру.`);
       updateHistoryControlsEnabled();
-      if (fenTextEl) fenTextEl.textContent = currentFen || 'Р Р†Р вЂљРІР‚Сњ';
+      if (fenTextEl) fenTextEl.textContent = currentFen || '—';
       renderBoardCoords();
       renderBoardFromFen(currentFen);
       hydrateHistoryFromStorage();
-      setAnalysisStatus(statusEl?.textContent || 'Р В РІР‚СљР В РЎвЂўР РЋРІР‚С™Р В РЎвЂўР В Р вЂ Р В РЎвЂР В РЎВР РЋР С“Р РЋР РЏ Р В РЎвЂќ Р В Р’В°Р В Р вЂ¦Р В Р’В°Р В Р’В»Р В РЎвЂР В Р’В·Р РЋРЎвЂњ...');
+      setAnalysisStatus(statusEl?.textContent || 'Готовимся к анализу...');
       setCoachHintsEnabled(readCoachHintsEnabled());
       if (coachHintsToggleEl){
         coachHintsToggleEl.addEventListener('change', () => {
