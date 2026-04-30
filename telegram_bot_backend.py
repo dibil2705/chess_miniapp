@@ -25,6 +25,8 @@ BOT_TOKEN = TOKEN or ""
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.4-nano")
 COACH_RULES_PATH = os.environ.get("COACH_RULES_PATH", "ai_coach_rules.txt")
+STOCKFISH_INTERNAL_BASE = os.environ.get("STOCKFISH_INTERNAL_BASE", "http://127.0.0.1:8080").rstrip("/")
+STOCKFISH_PROXY_TIMEOUT_SECONDS = int(os.environ.get("STOCKFISH_PROXY_TIMEOUT_SECONDS", "20"))
 MINI_APP_URL = os.environ.get(
     "MINI_APP_URL",
     "https://t.me/chess_every_day_bot/app?startapp=test&mode=fullscreen",
@@ -627,6 +629,67 @@ def safe_http_write(handler, status, body, content_type="application/octet-strea
     except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
         # Клиент уже закрыл сокет (например, отменил запрос/перезагрузил страницу).
         return False
+
+
+def proxy_stockfish_request(handler, method, endpoint_path, payload=None):
+    target_url = f"{STOCKFISH_INTERNAL_BASE}{endpoint_path}"
+    body = None
+    headers = {"Content-Type": "application/json"}
+    if payload is not None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+    request = urllib.request.Request(target_url, data=body, headers=headers, method=method)
+    cors_headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type, ngrok-skip-browser-warning",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    }
+
+    try:
+        with urllib.request.urlopen(request, timeout=STOCKFISH_PROXY_TIMEOUT_SECONDS) as response:
+            response_body = response.read()
+            content_type = response.headers.get("Content-Type") or "application/json; charset=utf-8"
+            safe_http_write(
+                handler,
+                response.getcode(),
+                response_body,
+                content_type=content_type,
+                extra_headers=cors_headers,
+            )
+            return
+    except urllib.error.HTTPError as err:
+        error_body = err.read() or b""
+        content_type = err.headers.get("Content-Type") if err.headers else None
+        if not error_body:
+            error_body = json.dumps(
+                {
+                    "ok": False,
+                    "error": f"Stockfish upstream HTTP {err.code}",
+                    "upstream": target_url,
+                },
+                ensure_ascii=False,
+            ).encode("utf-8")
+            content_type = "application/json; charset=utf-8"
+        safe_http_write(
+            handler,
+            err.code,
+            error_body,
+            content_type=content_type or "application/json; charset=utf-8",
+            extra_headers=cors_headers,
+        )
+        return
+    except Exception as err:
+        print(f"Stockfish proxy error ({method} {endpoint_path}): {err}")
+        json_response(
+            handler,
+            502,
+            {
+                "ok": False,
+                "error": "Stockfish upstream unavailable",
+                "detail": str(err),
+                "upstream": target_url,
+            },
+        )
 
 
 def resolve_static_path(request_path):
@@ -2153,6 +2216,9 @@ class AnalyticsHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/api/stockfish/health":
+            proxy_stockfish_request(self, "GET", "/health")
+            return
         if parsed.path == "/health":
             json_response(self, 200, {"ok": True})
             return
@@ -2164,6 +2230,15 @@ class AnalyticsHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
+            if self.path == "/analyze":
+                payload = self.read_json()
+                proxy_stockfish_request(self, "POST", "/analyze", payload)
+                return
+            if self.path == "/evaluate_move":
+                payload = self.read_json()
+                proxy_stockfish_request(self, "POST", "/evaluate_move", payload)
+                return
+
             payload = self.read_json()
             if self.path == "/api/coach/comment":
                 self.handle_coach_comment(payload)
