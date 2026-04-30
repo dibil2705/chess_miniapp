@@ -7,6 +7,7 @@ import shutil
 import sqlite3
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime
 from html import escape
@@ -41,6 +42,10 @@ MONITOR_ALERT_COOLDOWN_SECONDS = max(30, int(os.environ.get("MONITOR_ALERT_COOLD
 MONITOR_MIN_FREE_GB = float(os.environ.get("MONITOR_MIN_FREE_GB", "1.0") or "1.0")
 MONITOR_MAX_LOG_SCAN_BYTES = max(32768, int(os.environ.get("MONITOR_MAX_LOG_SCAN_BYTES", "262144") or "262144"))
 MONITOR_LOG_FILES = [x.strip() for x in os.environ.get("MONITOR_LOG_FILES", "backend_8000.err.log,backend_8000.log,backend_direct.err.log,backend_direct.out.log,backend_main_combined.log").split(",") if x.strip()]
+STOCKFISH_TEST_FEN = os.environ.get(
+    "MONITOR_STOCKFISH_TEST_FEN",
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+).strip()
 
 ERROR_PATTERNS = [
     re.compile(r"\btraceback\b", re.IGNORECASE),
@@ -188,6 +193,7 @@ class MonitorBot:
         return {
             "inline_keyboard": [
                 [{"text": "📊 Статус", "callback_data": "screen:status"}, {"text": "⚡ Проверить сейчас", "callback_data": "action:check_now"}],
+                [{"text": "♟ Проверка Stockfish", "callback_data": "action:stockfish_check"}],
                 [{"text": "🧾 Отчеты БД", "callback_data": "screen:reports"}, {"text": "🌐 Вся база (HTML)", "callback_data": "action:db_full"}],
                 [{"text": monitor_label, "callback_data": "action:toggle_monitor"}],
             ]
@@ -522,8 +528,10 @@ class MonitorBot:
             self.send_message(chat_id, self.build_db_report())
         elif text.startswith("/check"):
             self.run_checks_and_alerts(force=True, chat_id=chat_id)
+        elif text.startswith("/stockfish"):
+            self.send_message(chat_id, self.build_stockfish_check_report(), parse_mode="HTML")
         else:
-            self.send_message(chat_id, "Команды: /status, /dbquick, /db, /dbfull, /check")
+            self.send_message(chat_id, "Команды: /status, /dbquick, /db, /dbfull, /check, /stockfish")
 
     def _handle_callback(self, callback):
         callback_id = callback.get("id")
@@ -542,6 +550,9 @@ class MonitorBot:
         if data == "action:check_now":
             self.answer_callback(callback_id, "Проверяю")
             self.run_checks_and_alerts(force=True, chat_id=chat_id)
+        elif data == "action:stockfish_check":
+            self.answer_callback(callback_id, "Проверяю Stockfish")
+            self.send_message(chat_id, self.build_stockfish_check_report(), parse_mode="HTML")
         elif data == "action:db_short":
             self.answer_callback(callback_id, "Готовлю")
             self.send_message(chat_id, self.build_db_report())
@@ -618,6 +629,131 @@ class MonitorBot:
                 return [("health_slow", f"Медленный health-check: {elapsed} мс", "warning")] if elapsed > 2000 else []
         except Exception as err:
             return [("health_unreachable", f"Сервис недоступен: {err}", "critical")]
+
+    def _guess_api_base(self):
+        parsed = urllib.parse.urlparse(MONITOR_HEALTH_URL)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}"
+        return "http://127.0.0.1:8080"
+
+    def _post_json(self, url, payload, timeout=8):
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8")
+            return resp.status, json.loads(raw or "{}")
+
+    def build_stockfish_check_report(self):
+        started = time.time()
+        lines = ["♟ <b>Проверка Stockfish</b>", f"Время: {now_str()}"]
+
+        api_base = self._guess_api_base()
+        health_url = f"{api_base}/health"
+        analyze_url = f"{api_base}/analyze"
+        evaluate_url = f"{api_base}/evaluate_move"
+        lines.append(f"API: <code>{escape(api_base)}</code>")
+
+        health_ok = False
+        try:
+            req = urllib.request.Request(health_url, method="GET")
+            with urllib.request.urlopen(req, timeout=6) as resp:
+                body = resp.read().decode("utf-8")
+                data = json.loads(body or "{}")
+                health_ok = bool(resp.status == 200 and data.get("ok"))
+                status_icon = "✅" if health_ok else "⚠️"
+                lines.append(f"{status_icon} /health: HTTP {resp.status}, ok={data.get('ok')}")
+                lines.append(f"Engine: <code>{escape(str(data.get('engine', 'n/a')))}</code>")
+                lines.append(
+                    "Pool: size={0}, available={1}".format(
+                        data.get("pool_size", "n/a"),
+                        data.get("available", "n/a"),
+                    )
+                )
+        except Exception as err:
+            lines.append(f"❌ /health ошибка: <code>{escape(str(err))}</code>")
+
+        analyze_ok = False
+        best_move = ""
+        best_cp = None
+        best_mate = None
+        try:
+            analyze_payload = {
+                "fen": STOCKFISH_TEST_FEN,
+                "movetime_ms": 400,
+                "multipv": 1,
+                "side": "turn",
+            }
+            t0 = time.time()
+            status, data = self._post_json(analyze_url, analyze_payload, timeout=10)
+            elapsed_ms = int((time.time() - t0) * 1000)
+            lines_data = data.get("lines") or []
+            if status == 200 and isinstance(lines_data, list) and lines_data:
+                best_line = lines_data[0] if isinstance(lines_data[0], dict) else {}
+                best_move = str(best_line.get("best_move_uci") or "")
+                best_cp = best_line.get("score_cp")
+                best_mate = best_line.get("mate")
+                has_eval = best_cp is not None or best_mate is not None
+                analyze_ok = bool(best_move and has_eval)
+                lines.append(
+                    f"{'✅' if analyze_ok else '⚠️'} /analyze: HTTP {status}, {elapsed_ms} мс, "
+                    f"best={best_move or 'n/a'}, cp={best_cp if best_cp is not None else 'null'}, "
+                    f"mate={best_mate if best_mate is not None else 'null'}"
+                )
+            else:
+                lines.append(f"❌ /analyze: HTTP {status}, пустой ответ")
+        except Exception as err:
+            lines.append(f"❌ /analyze ошибка: <code>{escape(str(err))}</code>")
+
+        evaluate_ok = False
+        try:
+            move_for_check = best_move or "e2e4"
+            evaluate_payload = {
+                "fen": STOCKFISH_TEST_FEN,
+                "move_uci": move_for_check,
+                "movetime_ms": 400,
+                "side": "turn",
+            }
+            t0 = time.time()
+            status, data = self._post_json(evaluate_url, evaluate_payload, timeout=10)
+            elapsed_ms = int((time.time() - t0) * 1000)
+            legal = bool(data.get("legal"))
+            label = str(data.get("label") or "n/a")
+            best_score = data.get("best_score") if isinstance(data.get("best_score"), dict) else {}
+            after_score = data.get("after_score") if isinstance(data.get("after_score"), dict) else {}
+            best_score_cp = best_score.get("score_cp")
+            best_score_mate = best_score.get("mate")
+            after_score_cp = after_score.get("score_cp")
+            after_score_mate = after_score.get("mate")
+            has_eval = (
+                best_score_cp is not None
+                or best_score_mate is not None
+                or after_score_cp is not None
+                or after_score_mate is not None
+            )
+            evaluate_ok = bool(status == 200 and legal and has_eval)
+            lines.append(
+                f"{'✅' if evaluate_ok else '⚠️'} /evaluate_move: HTTP {status}, {elapsed_ms} мс, legal={legal}, "
+                f"label={escape(label)}, best_cp={best_score_cp if best_score_cp is not None else 'null'}, "
+                f"after_cp={after_score_cp if after_score_cp is not None else 'null'}, "
+                f"best_mate={best_score_mate if best_score_mate is not None else 'null'}, "
+                f"after_mate={after_score_mate if after_score_mate is not None else 'null'}"
+            )
+        except Exception as err:
+            lines.append(f"❌ /evaluate_move ошибка: <code>{escape(str(err))}</code>")
+
+        total_ms = int((time.time() - started) * 1000)
+        overall_ok = health_ok and analyze_ok and evaluate_ok
+        lines.append("")
+        if overall_ok:
+            lines.append("✅ <b>Итог: Stockfish работает корректно</b>")
+        else:
+            lines.append("⚠️ <b>Итог: есть проблемы, см. детали выше</b>")
+        lines.append(f"Общее время проверки: {total_ms} мс")
+        return "\n".join(lines)
 
     def check_database(self):
         if not os.path.exists(MONITOR_DB_PATH):

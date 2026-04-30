@@ -2328,22 +2328,46 @@
           multipv: analyzeProfile.multipv,
           side: 'turn'
         };
-        const analyzeUrls = getAnalyzeUrls();
-        let data = null;
-        let lastError = null;
-        for (const url of analyzeUrls){
-          try {
-            data = await fetchJson(url, payload);
-            if (data) break;
-          } catch (err){
-            lastError = err;
+        const fetchAnalyzeData = async (reqPayload) => {
+          const analyzeUrls = getAnalyzeUrls();
+          let data = null;
+          let lastError = null;
+          for (const url of analyzeUrls){
+            try {
+              data = await fetchJson(url, reqPayload);
+              if (data) break;
+            } catch (err){
+              lastError = err;
+            }
           }
+          if (!data){
+            throw lastError || new Error('Сервер анализа недоступен');
+          }
+          return data;
+        };
+
+        let data = await fetchAnalyzeData(payload);
+        let lines = data?.lines || data?.analysis || [];
+        let normalizedLines = normalizeForCurrent(lines);
+        const hasEval = (arr) => arr.some((line) => {
+          const cp = extractCp(line);
+          const mate = extractMate(line);
+          return cp !== null || mate !== null;
+        });
+
+        // Иногда движок при коротком лимите времени отдаёт ход без оценки.
+        // Тогда делаем один повтор с более щедрым лимитом, чтобы получить cp/mate.
+        if (!hasEval(normalizedLines)){
+          const retryPayload = {
+            ...payload,
+            movetime_ms: Math.min(1200, Math.max(900, Number(payload.movetime_ms || 0) * 2 || 900)),
+            multipv: Math.max(1, Number(payload.multipv || 1))
+          };
+          data = await fetchAnalyzeData(retryPayload);
+          lines = data?.lines || data?.analysis || [];
+          normalizedLines = normalizeForCurrent(lines);
         }
-        if (!data){
-          throw lastError || new Error('Сервер анализа недоступен');
-        }
-        const lines = data?.lines || data?.analysis || [];
-        const normalizedLines = normalizeForCurrent(lines);
+
         const cachePayload = { ...data, lines: normalizedLines };
         analyzeCache.set(currentFen, { timestamp: now, data: cachePayload });
         if (targetNode){
