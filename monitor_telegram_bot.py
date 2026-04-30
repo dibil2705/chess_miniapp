@@ -81,6 +81,7 @@ class MonitorBot:
             "monitoring_enabled": True,
             "log_offsets": {},
             "last_alert_at": {},
+            "last_analysis_error_event_id": 0,
             "ui_message_id_by_chat": {},
             "chat_flow": {},
             "connections": {},
@@ -95,6 +96,7 @@ class MonitorBot:
                 "monitoring_enabled": bool(raw.get("monitoring_enabled", True)),
                 "log_offsets": dict(raw.get("log_offsets") or {}),
                 "last_alert_at": dict(raw.get("last_alert_at") or {}),
+                "last_analysis_error_event_id": int(raw.get("last_analysis_error_event_id", 0) or 0),
                 "ui_message_id_by_chat": dict(raw.get("ui_message_id_by_chat") or {}),
                 "chat_flow": dict(raw.get("chat_flow") or {}),
                 "connections": dict(raw.get("connections") or {}),
@@ -808,11 +810,61 @@ class MonitorBot:
                 alerts.append((f"log_read_{path}", f"Ошибка чтения лога {path}: {err}", "warning"))
         return alerts
 
+    def check_analysis_error_events(self):
+        if not os.path.exists(MONITOR_DB_PATH):
+            return []
+        alerts = []
+        last_seen_id = int(self.state.get("last_analysis_error_event_id", 0) or 0)
+        max_seen_id = last_seen_id
+        try:
+            with sqlite3.connect(MONITOR_DB_PATH) as conn:
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute(
+                    """
+                    SELECT id, event_data, created_at
+                    FROM events
+                    WHERE event_name = 'analysis_error' AND id > ?
+                    ORDER BY id ASC
+                    LIMIT 20
+                    """,
+                    (last_seen_id,),
+                ).fetchall()
+            if not rows:
+                return []
+
+            details = []
+            for row in rows[:3]:
+                max_seen_id = max(max_seen_id, int(row["id"] or 0))
+                payload = {}
+                try:
+                    payload = json.loads(row["event_data"] or "{}")
+                except Exception:
+                    payload = {}
+                msg = str(payload.get("message") or "unknown error")
+                fen = str(payload.get("fen") or "")
+                details.append(f"#{row['id']} {row['created_at']}: {msg[:140]} | fen={fen[:40]}")
+
+            max_seen_id = max(max_seen_id, max(int(r["id"] or 0) for r in rows))
+            self.state["last_analysis_error_event_id"] = max_seen_id
+            self._save_state()
+
+            alerts.append(
+                (
+                    f"analysis_error_event_{max_seen_id}",
+                    "Новые ошибки анализа от клиентов:\n" + "\n".join(f"- {x}" for x in details),
+                    "warning",
+                )
+            )
+        except Exception as err:
+            alerts.append(("analysis_error_event_check", f"Ошибка чтения analysis_error событий: {err}", "warning"))
+        return alerts
+
     def run_checks_and_alerts(self, force=False, chat_id=None):
         alerts = []
         alerts.extend(self.check_backend_health())
         alerts.extend(self.check_database())
         alerts.extend(self.check_disk())
+        alerts.extend(self.check_analysis_error_events())
         alerts.extend(self.check_logs())
         if force and chat_id:
             self.send_message(chat_id, "✅ Проблем не обнаружено." if not alerts else "⚠️ Обнаружены проблемы, отправляю детали.")
