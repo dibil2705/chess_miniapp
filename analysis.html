@@ -18,7 +18,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Stockfish анализ</title>
   <script>
-    window.CHESS_ANALYTICS_API_BASE = 'https://elza-hillier-jayde.ngrok-free.dev';
+    window.CHESS_ANALYTICS_API_BASE = window.CHESS_ANALYTICS_API_BASE || '';
   </script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
@@ -1169,7 +1169,6 @@
     ].filter((item) => item.wrap && item.list);
 
     const ANALYTICS_API_BASE = window.CHESS_ANALYTICS_API_BASE || '';
-    const ANALYZE_URL = 'http://127.0.0.1:8000/analyze';
     const CACHE_TTL_MS = 10_000;
     const ANALYZE_MOVETIME_BASE_MS = 280;
     const ANALYZE_MOVETIME_TACTICAL_MS = 520;
@@ -2005,6 +2004,19 @@
       return data;
     }
 
+    function getAnalyzeUrls(){
+      const configuredBase = String(ANALYTICS_API_BASE || '').replace(/\/+$/, '');
+      const configuredUrl = configuredBase ? `${configuredBase}/analyze` : '/analyze';
+      const hasHttpOrigin = location.protocol === 'http:' || location.protocol === 'https:';
+      const sameOriginUrl = hasHttpOrigin ? '/analyze' : 'http://127.0.0.1:8000/analyze';
+      const urls = [];
+      if (getTelegramInitData() && configuredBase) urls.push(configuredUrl);
+      urls.push(sameOriginUrl);
+      if (!getTelegramInitData()) urls.push('http://127.0.0.1:8000/analyze');
+      if (!getTelegramInitData() && configuredBase) urls.push(configuredUrl);
+      return [...new Set(urls)];
+    }
+
     function getTelegramInitData(){
       return tg?.initData || '';
     }
@@ -2316,7 +2328,20 @@
           multipv: analyzeProfile.multipv,
           side: 'turn'
         };
-        const data = await fetchJson(ANALYZE_URL, payload);
+        const analyzeUrls = getAnalyzeUrls();
+        let data = null;
+        let lastError = null;
+        for (const url of analyzeUrls){
+          try {
+            data = await fetchJson(url, payload);
+            if (data) break;
+          } catch (err){
+            lastError = err;
+          }
+        }
+        if (!data){
+          throw lastError || new Error('Сервер анализа недоступен');
+        }
         const lines = data?.lines || data?.analysis || [];
         const normalizedLines = normalizeForCurrent(lines);
         const cachePayload = { ...data, lines: normalizedLines };

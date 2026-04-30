@@ -13,26 +13,15 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from dotenv import load_dotenv
 
 
-def load_env_file(path=".env"):
-    if not os.path.exists(path):
-        return
-    with open(path, "r", encoding="utf-8") as env_file:
-        for raw_line in env_file:
-            line = raw_line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            if key and key not in os.environ:
-                os.environ[key] = value
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ENV_PATH = os.path.join(BASE_DIR, ".env")
+load_dotenv(dotenv_path=ENV_PATH, override=True)
 
-
-load_env_file()
-
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("\ufeffTELEGRAM_BOT_TOKEN") or "").strip()
+BOT_TOKEN = TOKEN or ""
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.4-nano")
 COACH_RULES_PATH = os.environ.get("COACH_RULES_PATH", "ai_coach_rules.txt")
@@ -42,7 +31,7 @@ MINI_APP_URL = os.environ.get(
 )
 DATABASE_PATH = os.environ.get("ANALYTICS_DB", "analytics.sqlite3")
 HOST = os.environ.get("HOST", "0.0.0.0")
-PORT = int(os.environ.get("PORT", "8080"))
+PORT = int(os.environ.get("TELEGRAM_BACKEND_PORT", "8081"))
 STATIC_ROOT = os.path.abspath(os.environ.get("STATIC_ROOT", os.getcwd()))
 INITDATA_MAX_AGE_SECONDS = int(os.environ.get("INITDATA_MAX_AGE_SECONDS", "86400"))
 TELEGRAM_POLL_TIMEOUT = int(os.environ.get("TELEGRAM_POLL_TIMEOUT", "25"))
