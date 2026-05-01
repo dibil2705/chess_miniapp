@@ -2011,6 +2011,14 @@ def cleanup_mojibake_comment(comment):
     text = str(comment or "").strip()
     if not text:
         return text
+    # Recover classic "РЈ Р±Рµ..." mojibake produced by cp1251/utf8 mismatch.
+    if looks_like_mojibake_fragment(text):
+        try:
+            repaired = text.encode("cp1251", errors="strict").decode("utf-8", errors="strict").strip()
+            if repaired:
+                text = repaired
+        except Exception:
+            pass
     parts = [p.strip() for p in text.split(",") if p.strip()]
     if len(parts) > 1 and looks_like_mojibake_fragment(parts[0]) and not looks_like_mojibake_fragment(parts[1]):
         text = ", ".join(parts[1:])
