@@ -20,7 +20,21 @@
   <meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp" />
   <title>Chess Board</title>
   <script>
-    window.CHESS_ANALYTICS_API_BASE = window.CHESS_ANALYTICS_API_BASE || '';
+    (function () {
+      var qs = new URLSearchParams(window.location.search || '');
+      var fromQuery = (qs.get('api_base') || '').trim();
+      var clearFlag = (qs.get('clear_api_base') || '').trim();
+      if (clearFlag === '1') {
+        try { localStorage.removeItem('CHESS_ANALYTICS_API_BASE'); } catch (_) {}
+      }
+      if (fromQuery) {
+        fromQuery = fromQuery.replace(/\/+$/, '');
+        try { localStorage.setItem('CHESS_ANALYTICS_API_BASE', fromQuery); } catch (_) {}
+      }
+      var stored = '';
+      try { stored = (localStorage.getItem('CHESS_ANALYTICS_API_BASE') || '').trim(); } catch (_) {}
+      window.CHESS_ANALYTICS_API_BASE = (fromQuery || stored || window.CHESS_ANALYTICS_API_BASE || '').replace(/\/+$/, '');
+    })();
   </script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0/chess.min.js"></script>
