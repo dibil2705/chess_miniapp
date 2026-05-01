@@ -612,6 +612,22 @@ function getPuzzleKey(data){
   return `${data?.fen || ''}|${data?.pgn || ''}|${data?.title || ''}`.trim();
 }
 
+async function fetchChessComRandomPuzzleAvoidingDuplicate(excludeKey = '', maxAttempts = 5){
+  let lastData = null;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1){
+    const bust = `${Date.now()}_${attempt}`;
+    const res = await fetch(`https://api.chess.com/pub/puzzle/random?cb=${encodeURIComponent(bust)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    lastData = data;
+    const key = getPuzzleKey(data);
+    if (!excludeKey || !key || key !== excludeKey){
+      return data;
+    }
+  }
+  return lastData;
+}
+
 function normalizeWeeklyPuzzleSet(raw){
   if (!raw || typeof raw !== 'object') return null;
   const puzzles = Array.isArray(raw.puzzles)
@@ -2953,7 +2969,6 @@ async function fetchRandomPuzzle(options = {}){
 
     const previousPuzzleData = puzzleData;
     const previousPuzzleSolved = puzzleSolved;
-    const previousPuzzleLoadedAt = puzzleLoadedAt;
     const assignedPuzzle = getAssignedPuzzleForCurrentQuota();
 
     closePuzzleOverlay();
@@ -2976,26 +2991,17 @@ async function fetchRandomPuzzle(options = {}){
       render();
     }
     let data = null;
+    const previousKey = previousPuzzleSolved ? getPuzzleKey(previousPuzzleData) : '';
     if (assignedPuzzle){
       data = assignedPuzzle;
     } else {
-      const res = await fetch('https://api.chess.com/pub/puzzle/random');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      data = await res.json();
+      data = await fetchChessComRandomPuzzleAvoidingDuplicate(previousKey, 5);
     }
     puzzleLoading = false;
-    const previousKey = previousPuzzleSolved ? getPuzzleKey(previousPuzzleData) : '';
     const nextKey = getPuzzleKey(data);
     if (previousKey && nextKey && previousKey === nextKey){
-      hydratePuzzleState();
-      const remainingMs = Math.max(0, CHESS_COM_RANDOM_COOLDOWN_MS - (Date.now() - previousPuzzleLoadedAt));
-      if (remainingMs > 0){
-        showRandomPuzzleCooldown();
-      } else {
-        updatePuzzleFeedback('info', 'Chess.com вернул ту же задачу. Повтор не списан, попробуйте новую задачу через несколько секунд.');
-        updatePuzzleStatus();
-      }
-      return;
+      // Fallback: even if Chess.com repeats after retries, don't block +2 flow.
+      updatePuzzleFeedback('info', 'Chess.com снова вернул ту же задачу. Открываем повтор, чтобы не блокировать лимит +2.');
     }
     updatePuzzleInfoDisplay(data);
     if (data?.fen) {
