@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ru">
 <head>
   <!-- Yandex.Metrika counter -->
@@ -18,21 +18,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Stockfish анализ</title>
   <script>
-    (function () {
-      var qs = new URLSearchParams(window.location.search || '');
-      var fromQuery = (qs.get('api_base') || '').trim();
-      var clearFlag = (qs.get('clear_api_base') || '').trim();
-      if (clearFlag === '1') {
-        try { localStorage.removeItem('CHESS_ANALYTICS_API_BASE'); } catch (_) {}
-      }
-      if (fromQuery) {
-        fromQuery = fromQuery.replace(/\/+$/, '');
-        try { localStorage.setItem('CHESS_ANALYTICS_API_BASE', fromQuery); } catch (_) {}
-      }
-      var stored = '';
-      try { stored = (localStorage.getItem('CHESS_ANALYTICS_API_BASE') || '').trim(); } catch (_) {}
-      window.CHESS_ANALYTICS_API_BASE = (fromQuery || stored || window.CHESS_ANALYTICS_API_BASE || '').replace(/\/+$/, '');
-    })();
+    window.CHESS_ANALYTICS_API_BASE = window.CHESS_ANALYTICS_API_BASE || '';
   </script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
@@ -943,9 +929,9 @@
     <div class="top-bar">
       <a class="back-btn liquid-glass-pill" href="index.html">
         <span class="iconify" data-icon="mdi:chevron-left" aria-hidden="true"></span>
-        РќР°Р·Р°Рґ
+        Назад
       </a>
-      <h2>Stockfish Р°РЅР°Р»РёР· РїРѕР·РёС†РёРё</h2>
+      <h2>Stockfish анализ позиции</h2>
     </div>
 
     <div class="layout">
@@ -956,7 +942,7 @@
             <div class="eval-label" id="evalLabel">0.0</div>
           </div>
           <div id="ranksLeft" class="coord-ranks"></div>
-          <div id="board" class="board" aria-label="Р”РѕСЃРєР° РґР»СЏ РІРёР·СѓР°Р»РёР·Р°С†РёРё РїРѕР·РёС†РёРё">
+          <div id="board" class="board" aria-label="Доска для визуализации позиции">
             <svg id="boardArrows" class="board-arrows" viewBox="0 0 800 800"></svg>
           <div id="boardSquares" class="board-squares"></div>
           </div>
@@ -965,70 +951,70 @@
         <div class="board-meta">
           <div class="coach-card liquid-glass-subtle">
             <div id="moveQuality" class="move-quality" aria-live="polite"></div>
-            <div id="coachComment" class="coach-comment">AI-РєРѕРјРјРµРЅС‚Р°СЂРёР№ РїРѕСЏРІРёС‚СЃСЏ РїРѕСЃР»Рµ Р°РЅР°Р»РёР·Р° РїРѕР·РёС†РёРё.</div>
+            <div id="coachComment" class="coach-comment">AI-комментарий появится после анализа позиции.</div>
           </div>
           <div class="coach-hints-control">
             <label class="coach-hints-label" for="coachHintsToggle">
-              <span>РЎС‚СЂРµР»РєР° Рё AI</span>
+              <span>Стрелка и AI</span>
               <input id="coachHintsToggle" class="coach-hints-input" type="checkbox" checked />
               <span class="coach-hints-track liquid-glass-toggle" aria-hidden="true"><span class="coach-hints-thumb"></span></span>
             </label>
           </div>
           <div class="priority-wrap" id="boardPriorityWrap">
-            <div class="priority-title">РџСЂРёРѕСЂРёС‚РµС‚РЅС‹Рµ С…РѕРґС‹</div>
+            <div class="priority-title">Приоритетные ходы</div>
             <div id="boardPriorityMoves" class="priority-moves"></div>
           </div>
-          <div class="analysis-status" id="analysisStatus">Р“РѕС‚РѕРІРёРјСЃСЏ Рє Р°РЅР°Р»РёР·Сѓ...</div>
+          <div class="analysis-status" id="analysisStatus">Готовимся к анализу...</div>
         </div>
-        <div class="status" id="boardStatus">Р’С‹Р±РµСЂРёС‚Рµ С„РёРіСѓСЂСѓ С‚РµРєСѓС‰РµРіРѕ С†РІРµС‚Р°, С‡С‚РѕР±С‹ СЃРґРµР»Р°С‚СЊ С…РѕРґ.</div>
+        <div class="status" id="boardStatus">Выберите фигуру текущего цвета, чтобы сделать ход.</div>
         <div class="history-bar">
           <div class="history-head">
             <div>
-              <strong>Р”РµСЂРµРІРѕ С…РѕРґРѕРІ</strong>
+              <strong>Дерево ходов</strong>
             </div>
-            <div class="history-controls" aria-label="РЈРїСЂР°РІР»РµРЅРёРµ РёСЃС‚РѕСЂРёРµР№">
-              <button class="history-btn" id="historyFirstBtn" title="Рљ РЅР°С‡Р°Р»Сѓ" aria-label="Рљ РЅР°С‡Р°Р»Сѓ">
+            <div class="history-controls" aria-label="Управление историей">
+              <button class="history-btn" id="historyFirstBtn" title="К началу" aria-label="К началу">
                 <span class="iconify" data-icon="mdi:page-first" aria-hidden="true"></span>
               </button>
-              <button class="history-btn" id="historyUpBtn" title="РќР°Р·Р°Рґ" aria-label="РЁР°Рі РЅР°Р·Р°Рґ">
+              <button class="history-btn" id="historyUpBtn" title="Назад" aria-label="Шаг назад">
                 <span class="iconify" data-icon="mdi:chevron-left" aria-hidden="true"></span>
               </button>
-              <button class="history-btn" id="historyDownBtn" title="Р’РїРµСЂС‘Рґ" aria-label="РЁР°Рі РІРїРµСЂС‘Рґ">
+              <button class="history-btn" id="historyDownBtn" title="Вперёд" aria-label="Шаг вперёд">
                 <span class="iconify" data-icon="mdi:chevron-right" aria-hidden="true"></span>
               </button>
-              <button class="history-btn" id="historyLastBtn" title="Р’ РєРѕРЅРµС†" aria-label="Р’ РєРѕРЅРµС†">
+              <button class="history-btn" id="historyLastBtn" title="В конец" aria-label="В конец">
                 <span class="iconify" data-icon="mdi:page-last" aria-hidden="true"></span>
               </button>
             </div>
           </div>
           <div class="history-body">
             <div id="analysisHistory" class="analysis-history" aria-live="polite" aria-atomic="true"></div>
-            <div id="historyEmpty" class="history-empty">РќР°С‡РЅРёС‚Рµ РґРµР»Р°С‚СЊ С…РѕРґС‹, Рё РѕРЅРё РїРѕСЏРІСЏС‚СЃСЏ Р·РґРµСЃСЊ.</div>
+            <div id="historyEmpty" class="history-empty">Начните делать ходы, и они появятся здесь.</div>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="promotionOverlay" class="promotion-overlay" role="dialog" aria-modal="true" aria-label="Р’С‹Р±РѕСЂ С„РёРіСѓСЂС‹ РґР»СЏ РїСЂРµРІСЂР°С‰РµРЅРёСЏ">
+  <div id="promotionOverlay" class="promotion-overlay" role="dialog" aria-modal="true" aria-label="Выбор фигуры для превращения">
     <div class="promotion-dialog liquid-glass-panel">
-      <div class="promotion-title">РџСЂРµРІСЂР°С‚РёС‚СЊ РїРµС€РєСѓ РІ:</div>
+      <div class="promotion-title">Превратить пешку в:</div>
       <div class="promotion-grid">
         <button class="promotion-btn" data-piece="q">
           <img class="promotion-icon" alt="" src="icone/white/Chess_qlt45.svg" />
-          <span>Р¤РµСЂР·СЊ</span>
+          <span>Ферзь</span>
         </button>
         <button class="promotion-btn" data-piece="r">
           <img class="promotion-icon" alt="" src="icone/white/Chess_rlt45.svg" />
-          <span>Р›Р°РґСЊСЏ</span>
+          <span>Ладья</span>
         </button>
         <button class="promotion-btn" data-piece="b">
           <img class="promotion-icon" alt="" src="icone/white/Chess_blt45.svg" />
-          <span>РЎР»РѕРЅ</span>
+          <span>Слон</span>
         </button>
         <button class="promotion-btn" data-piece="n">
           <img class="promotion-icon" alt="" src="icone/white/Chess_nlt45.svg" />
-          <span>РљРѕРЅСЊ</span>
+          <span>Конь</span>
         </button>
       </div>
     </div>
@@ -1082,7 +1068,7 @@
         updateArrow(null);
         if (coachCommentEl){
           coachCommentEl.classList.remove('loading');
-          coachCommentEl.textContent = 'AI-РєРѕРјРјРµРЅС‚Р°СЂРёР№ Рё СЃС‚СЂРµР»РєР° РѕС‚РєР»СЋС‡РµРЅС‹.';
+          coachCommentEl.textContent = 'AI-комментарий и стрелка отключены.';
         }
         return;
       }
@@ -1205,8 +1191,8 @@
       move: 'audio/chess-move.ogg',
       check: 'audio/chess-check.ogg'
     };
-    // Р’СЃРµРіРґР° РїРѕРєР°Р·С‹РІР°РµРј РѕС†РµРЅРєСѓ РІ В«Р°Р±СЃРѕР»СЋС‚РЅС‹С…В» Р±РµР»С‹С… РµРґРёРЅРёС†Р°С…,
-    // С‡С‚РѕР±С‹ Р·РЅР°Рє РЅРµ РјРµРЅСЏР»СЃСЏ РїСЂРё СЃРјРµРЅРµ РѕС‡РµСЂРµРґРё С…РѕРґР°.
+    // Всегда показываем оценку в «абсолютных» белых единицах,
+    // чтобы знак не менялся при смене очереди хода.
     const evaluationPerspective = 'w';
     let historyCursor = -1;
     let currentHistoryNodeId = null;
@@ -1251,7 +1237,7 @@
           return buffer;
         })
       ).catch((err) => {
-        console.warn('РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕРґРіРѕС‚РѕРІРёС‚СЊ Р°СѓРґРёРѕ', err);
+        console.warn('Не удалось подготовить аудио', err);
         return null;
       });
       return audioPreloadPromise;
@@ -1266,7 +1252,7 @@
           try{
             await ctx.resume();
           } catch (err) {
-            console.warn('РќРµ СѓРґР°Р»РѕСЃСЊ Р°РєС‚РёРІРёСЂРѕРІР°С‚СЊ Р°СѓРґРёРѕРєРѕРЅС‚РµРєСЃС‚', err);
+            console.warn('Не удалось активировать аудиоконтекст', err);
           }
         }
         await preloadAudioBuffers();
@@ -1392,9 +1378,9 @@
       for (const candidate of candidates){
         const num = coerceNumber(candidate);
         if (num === null) continue;
-        // Р—РЅР°С‡РµРЅРёРµ В«0В» РїРѕ mate РёРЅРѕРіРґР° РїСЂРёС…РѕРґРёС‚ РєР°Рє Р·Р°РіР»СѓС€РєР° РѕС‚ РґРІРёР¶РєР°, С‡С‚Рѕ РѕР·РЅР°С‡Р°РµС‚
-        // РѕС‚СЃСѓС‚СЃС‚РІРёРµ РјР°С‚Р°. Р§С‚РѕР±С‹ РЅРµ РїРѕРєР°Р·С‹РІР°С‚СЊ В«РњР°С‚ Р·Р° 0В» РїСЂРё РѕР±С‹С‡РЅС‹С… РїРѕР·РёС†РёСЏС…,
-        // РёРіРЅРѕСЂРёСЂСѓРµРј С‚Р°РєРёРµ Р·РЅР°С‡РµРЅРёСЏ Рё РїСЂРѕРґРѕР»Р¶Р°РµРј РїРѕРёСЃРє СЂРµР°Р»СЊРЅРѕРіРѕ mate.
+        // Значение «0» по mate иногда приходит как заглушка от движка, что означает
+        // отсутствие мата. Чтобы не показывать «Мат за 0» при обычных позициях,
+        // игнорируем такие значения и продолжаем поиск реального mate.
         if (num === 0) continue;
         return num;
       }
@@ -1461,26 +1447,26 @@
       const previousMatedMover = previousMate?.mating_side && previousMate.mating_side !== mover;
       const previousMoverHadMate = previousMate?.mating_side && previousMate.mating_side === mover;
       if (currentMatesAgainstMover){
-        return { label: 'Р—РµРІРѕРє', className: 'blunder' };
+        return { label: 'Зевок', className: 'blunder' };
       }
       if (previousMatedMover && !currentMatesAgainstMover){
-        return { label: 'Р›СѓС‡С€РёР№ С…РѕРґ', className: 'best' };
+        return { label: 'Лучший ход', className: 'best' };
       }
       if (previousMoverHadMate && !currentMatesForMover){
         const previousMateMoves = Number(previousMate.moves) || 99;
         return previousMateMoves <= 2
-          ? { label: 'Р—РµРІРѕРє', className: 'blunder' }
-          : { label: 'РћС€РёР±РєР°', className: 'mistake' };
+          ? { label: 'Зевок', className: 'blunder' }
+          : { label: 'Ошибка', className: 'mistake' };
       }
       if (lossCp <= 30 && hasBrilliantMoveIdea(move, currentMate, previousMate)){
-        return { label: 'Р‘Р»РµСЃС‚СЏС‰РёР№ С…РѕРґ', className: 'brilliant' };
+        return { label: 'Блестящий ход', className: 'brilliant' };
       }
-      if (lossCp <= 15) return { label: 'Р›СѓС‡С€РёР№ С…РѕРґ', className: 'best' };
-      if (lossCp <= 40) return { label: 'РћС‚Р»РёС‡РЅС‹Р№ С…РѕРґ', className: 'excellent' };
-      if (lossCp <= 80) return { label: 'РҐРѕСЂРѕС€РёР№ С…РѕРґ', className: 'good' };
-      if (lossCp <= 150) return { label: 'РќРµС‚РѕС‡РЅРѕСЃС‚СЊ', className: 'inaccuracy' };
-      if (lossCp <= 300) return { label: 'РћС€РёР±РєР°', className: 'mistake' };
-      return { label: 'Р—РµРІРѕРє', className: 'blunder' };
+      if (lossCp <= 15) return { label: 'Лучший ход', className: 'best' };
+      if (lossCp <= 40) return { label: 'Отличный ход', className: 'excellent' };
+      if (lossCp <= 80) return { label: 'Хороший ход', className: 'good' };
+      if (lossCp <= 150) return { label: 'Неточность', className: 'inaccuracy' };
+      if (lossCp <= 300) return { label: 'Ошибка', className: 'mistake' };
+      return { label: 'Зевок', className: 'blunder' };
     }
 
     function updateMoveQuality(lines = []){
@@ -1520,8 +1506,8 @@
         if (analysisListEl){
           const empty = document.createElement('li');
           empty.textContent = gameEnd?.kind === 'checkmate'
-            ? `${gameEnd.winner_label} РїРѕСЃС‚Р°РІРёР»Рё РјР°С‚.`
-            : 'РџР°С‚. Р›РµРіР°Р»СЊРЅС‹С… С…РѕРґРѕРІ РЅРµС‚.';
+            ? `${gameEnd.winner_label} поставили мат.`
+            : 'Пат. Легальных ходов нет.';
           analysisListEl.appendChild(empty);
         }
         updateArrow(null);
@@ -1536,7 +1522,7 @@
       if (!lines.length){
         if (analysisListEl){
           const empty = document.createElement('li');
-          empty.textContent = 'РќРµС‚ РґР°РЅРЅС‹С… Р°РЅР°Р»РёР·Р°';
+          empty.textContent = 'Нет данных анализа';
           analysisListEl.appendChild(empty);
         }
         updateArrow(null);
@@ -1548,15 +1534,15 @@
         lines.slice(0, 3).forEach((line, idx) => {
           const li = document.createElement('li');
           const title = document.createElement('div');
-          title.innerHTML = `<strong>#${idx + 1}</strong> ${line.best_move_uci || 'вЂ”'}`;
+          title.innerHTML = `<strong>#${idx + 1}</strong> ${line.best_move_uci || '—'}`;
           const { label, mate } = normalizeScore(line, viewColor);
           const scoreText = mate !== null
-            ? `РњР°С‚ Р·Р° ${Math.abs(mate)} (${mate > 0 ? 'Р±РµР»С‹Рµ' : 'С‡С‘СЂРЅС‹Рµ'})`
+            ? `Мат за ${Math.abs(mate)} (${mate > 0 ? 'белые' : 'чёрные'})`
             : `${label} cp`;
           const score = document.createElement('div');
           score.innerHTML = `<span class="mono">${scoreText}</span>`;
           const pv = document.createElement('div');
-          pv.textContent = line.pv_san || 'вЂ”';
+          pv.textContent = line.pv_san || '—';
           pv.classList.add('mono');
           li.appendChild(title);
           li.appendChild(score);
@@ -1564,7 +1550,7 @@
           analysisListEl.appendChild(li);
         });
       }
-      setAnalysisStatus(fromCache ? 'РџРѕРєР°Р·Р°РЅ РєРµС€РёСЂРѕРІР°РЅРЅС‹Р№ Р°РЅР°Р»РёР· (РґРѕ 10 СЃРµРєСѓРЅРґ).' : 'РђРЅР°Р»РёР· РѕР±РЅРѕРІР»С‘РЅ.');
+      setAnalysisStatus(fromCache ? 'Показан кешированный анализ (до 10 секунд).' : 'Анализ обновлён.');
       updatePriorityMoves(lines, viewColor);
       updateArrow(lines?.[0]);
       updateEvalBar(lines?.[0], viewColor);
@@ -1613,8 +1599,8 @@
     function formatPriorityScore(line, perspective){
       const { label, mate } = normalizeScore(line, perspective);
       if (mate !== null){
-        const side = mate > 0 ? 'Р±РµР»С‹С…' : 'С‡С‘СЂРЅС‹С…';
-        return `РњР°С‚ Р·Р° ${Math.abs(mate)} (${side})`;
+        const side = mate > 0 ? 'белых' : 'чёрных';
+        return `Мат за ${Math.abs(mate)} (${side})`;
       }
       return `${label} cp`;
     }
@@ -1626,37 +1612,37 @@
 
     function applyPriorityMove(line){
       if (!line || !line.best_move_uci){
-        setBoardStatus('РќРµС‚ РґР°РЅРЅС‹С… РґР»СЏ РїСЂРёРѕСЂРёС‚РµС‚РЅРѕРіРѕ С…РѕРґР°.');
+        setBoardStatus('Нет данных для приоритетного хода.');
         return;
       }
       const coords = uciToCoords(line.best_move_uci);
       if (!coords){
-        setBoardStatus('РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ С„РѕСЂРјР°С‚ РїСЂРёРѕСЂРёС‚РµС‚РЅРѕРіРѕ С…РѕРґР°.');
+        setBoardStatus('Некорректный формат приоритетного хода.');
         return;
       }
       const { from, to } = coords;
       const movingPiece = getPieceAt(from);
       if (!movingPiece){
-        setBoardStatus('РќР° РёСЃС…РѕРґРЅРѕР№ РєР»РµС‚РєРµ РЅРµС‚ С„РёРіСѓСЂС‹ РґР»СЏ РїСЂРёРѕСЂРёС‚РµС‚РЅРѕРіРѕ С…РѕРґР°.');
+        setBoardStatus('На исходной клетке нет фигуры для приоритетного хода.');
         return;
       }
       if (getPieceColor(movingPiece) !== activeColor){
-        setBoardStatus('РЎРµР№С‡Р°СЃ С…РѕРґ РґСЂСѓРіРѕРіРѕ С†РІРµС‚Р°.');
+        setBoardStatus('Сейчас ход другого цвета.');
         return;
       }
       if (!isLegalPieceMove(movingPiece, from, to, boardState)){
-        setBoardStatus('РџСЂРёРѕСЂРёС‚РµС‚РЅС‹Р№ С…РѕРґ РЅРµСЂР°Р·СЂРµС€С‘РЅ РїСЂР°РІРёР»Р°РјРё.');
+        setBoardStatus('Приоритетный ход неразрешён правилами.');
         return;
       }
       if (wouldLeaveKingInCheck(from, to, movingPiece)){
-        setBoardStatus('РџСЂРёРѕСЂРёС‚РµС‚РЅС‹Р№ С…РѕРґ РѕСЃС‚Р°РІР»СЏРµС‚ РєРѕСЂРѕР»СЏ РїРѕРґ Р±РѕРµРј.');
+        setBoardStatus('Приоритетный ход оставляет короля под боем.');
         return;
       }
       const capturedPiece = getPieceAt(to);
       const promotionPiece = parsePromotionFromUci(line.best_move_uci);
       const scoreLabel = formatPriorityScore(line, evaluationPerspective || activeColor);
       finalizeMove({ fromSquare: from, toSquare: to, movingPiece, capturedPiece, promotionPiece });
-      setBoardStatus(`Р’С‹РїРѕР»РЅРµРЅ РїСЂРёРѕСЂРёС‚РµС‚РЅС‹Р№ С…РѕРґ (${scoreLabel}).`);
+      setBoardStatus(`Выполнен приоритетный ход (${scoreLabel}).`);
     }
 
     function updatePriorityMoves(lines = [], perspective = null){
@@ -1671,10 +1657,10 @@
           const empty = document.createElement('div');
           empty.className = 'priority-item mono is-empty';
           empty.textContent = gameEnd?.kind === 'checkmate'
-            ? `${gameEnd.winner_label} РїРѕСЃС‚Р°РІРёР»Рё РјР°С‚`
+            ? `${gameEnd.winner_label} поставили мат`
             : gameEnd?.kind === 'stalemate'
-              ? 'РџР°С‚'
-              : 'РќРµС‚ РїСЂРёРѕСЂРёС‚РµС‚РЅС‹С… С…РѕРґРѕРІ';
+              ? 'Пат'
+              : 'Нет приоритетных ходов';
           list.appendChild(empty);
         });
         return;
@@ -1691,7 +1677,7 @@
           title.className = 'priority-move';
           const moveText = document.createElement('span');
           moveText.className = 'priority-move-text mono';
-          moveText.textContent = line.best_move_uci || 'вЂ”';
+          moveText.textContent = line.best_move_uci || '—';
           title.appendChild(moveText);
           head.appendChild(icon);
           head.appendChild(title);
@@ -1703,12 +1689,12 @@
 
           const pv = document.createElement('div');
           pv.className = 'priority-pv mono';
-          pv.textContent = line.pv_san || 'вЂ”';
+          pv.textContent = line.pv_san || '—';
 
           item.appendChild(head);
           item.appendChild(pv);
           item.setAttribute('role', 'button');
-          item.setAttribute('aria-label', `РЎРґРµР»Р°С‚СЊ С…РѕРґ ${line.best_move_uci || ''}`);
+          item.setAttribute('aria-label', `Сделать ход ${line.best_move_uci || ''}`);
           item.tabIndex = 0;
           item.addEventListener('click', () => applyPriorityMove(line));
           item.addEventListener('keydown', (event) => {
@@ -1982,7 +1968,7 @@
         const isWinningForView = winnerColor === viewColor;
         evalFillEl.style.height = isWinningForView ? '100%' : '0%';
         evalLabelEl.style.top = isWinningForView ? '94%' : '8%';
-        evalLabelEl.textContent = 'РњР°С‚';
+        evalLabelEl.textContent = 'Мат';
         return;
       }
       const { cp, label, mate } = normalizeScore(line, viewColor);
@@ -1999,7 +1985,7 @@
         if (typeof errObj.detail === 'string') return errObj.detail;
         try { return JSON.stringify(errObj.detail); } catch (_) {}
       }
-      return fallback || 'РќРµРёР·РІРµСЃС‚РЅР°СЏ РѕС€РёР±РєР°';
+      return fallback || 'Неизвестная ошибка';
     }
 
     async function fetchJson(url, payload){
@@ -2097,9 +2083,9 @@
     }
 
     function coachSideLabel(side){
-      if (side === 'white') return 'Р‘РµР»С‹Рµ';
-      if (side === 'black') return 'Р§РµСЂРЅС‹Рµ';
-      return 'РЎС‚РѕСЂРѕРЅР°';
+      if (side === 'white') return 'Белые';
+      if (side === 'black') return 'Черные';
+      return 'Сторона';
     }
 
     function oppositeCoachSide(side){
@@ -2278,12 +2264,12 @@
       if (!coachCommentEl) return;
       if (!coachHintsEnabled){
         coachCommentEl.classList.remove('loading');
-        coachCommentEl.textContent = 'AI-РєРѕРјРјРµРЅС‚Р°СЂРёР№ Рё СЃС‚СЂРµР»РєР° РѕС‚РєР»СЋС‡РµРЅС‹.';
+        coachCommentEl.textContent = 'AI-комментарий и стрелка отключены.';
         return;
       }
       const gameEnd = getGameEndState();
       if (!lines?.length && gameEnd?.kind !== 'checkmate'){
-        coachCommentEl.textContent = 'AI-РєРѕРјРјРµРЅС‚Р°СЂРёР№ РїРѕСЏРІРёС‚СЃСЏ РїРѕСЃР»Рµ Р°РЅР°Р»РёР·Р° РїРѕР·РёС†РёРё.';
+        coachCommentEl.textContent = 'AI-комментарий появится после анализа позиции.';
         return;
       }
       const initData = getTelegramInitData();
@@ -2306,7 +2292,7 @@
         rememberCoachEvent(commentPayload.coach_event);
         return;
       }
-      coachCommentEl.textContent = 'AI РѕС†РµРЅРёРІР°РµС‚ РїРѕР·РёС†РёСЋ...';
+      coachCommentEl.textContent = 'AI оценивает позицию...';
       coachCommentEl.classList.add('loading');
       try {
         let data = null;
@@ -2334,7 +2320,7 @@
           }
         }
         if (!data) throw lastError || new Error('Coach comment request failed');
-        const comment = data?.comment || 'Р”РµСЂР¶РёСЃСЊ РїРµСЂРІРѕР№ Р»РёРЅРёРё: РѕРЅР° Р»СѓС‡С€Рµ РІСЃРµРіРѕ СЃРѕС…СЂР°РЅСЏРµС‚ РїР»Р°РЅ РїРѕР·РёС†РёРё.';
+        const comment = data?.comment || 'Держись первой линии: она лучше всего сохраняет план позиции.';
         coachCommentCache.set(cacheKey, comment);
         coachCommentEl.textContent = comment;
         if (currentHistoryNodeId && historyNodes.has(currentHistoryNodeId)){
@@ -2343,7 +2329,7 @@
         rememberCoachEvent(commentPayload.coach_event);
       } catch (err){
         console.warn('AI coach comment failed', err);
-        coachCommentEl.textContent = 'AI-РєРѕРјРјРµРЅС‚Р°СЂРёР№ РІСЂРµРјРµРЅРЅРѕ РЅРµРґРѕСЃС‚СѓРїРµРЅ, РѕСЂРёРµРЅС‚РёСЂСѓР№СЃСЏ РЅР° РїРµСЂРІСѓСЋ Р»РёРЅРёСЋ Р°РЅР°Р»РёР·Р°.';
+        coachCommentEl.textContent = 'AI-комментарий временно недоступен, ориентируйся на первую линию анализа.';
       } finally {
         coachCommentEl.classList.remove('loading');
       }
@@ -2355,7 +2341,7 @@
         targetNodeId = currentHistoryNodeId
       } = typeof options === 'object' && options !== null ? options : {};
       if (!currentFen){
-        setAnalysisStatus('FEN РЅРµ РїРµСЂРµРґР°РЅ. Р’РµСЂРЅРёС‚РµСЃСЊ РЅР° РіР»Р°РІРЅСѓСЋ Рё РѕС‚РєСЂРѕР№С‚Рµ Р°РЅР°Р»РёР· Р·Р°РЅРѕРІРѕ.');
+        setAnalysisStatus('FEN не передан. Вернитесь на главную и откройте анализ заново.');
         return;
       }
 
@@ -2387,7 +2373,7 @@
         return;
       }
 
-      setAnalysisStatus('Р—Р°РїСЂР°С€РёРІР°РµРј Р°РЅР°Р»РёР· Сѓ СЃРµСЂРІРµСЂР°...');
+      setAnalysisStatus('Запрашиваем анализ у сервера...');
       if (refreshBtn) refreshBtn.disabled = true;
       let lastAnalyzeUrl = '';
       try {
@@ -2412,7 +2398,7 @@
             }
           }
           if (!data){
-            throw lastError || new Error('РЎРµСЂРІРµСЂ Р°РЅР°Р»РёР·Р° РЅРµРґРѕСЃС‚СѓРїРµРЅ');
+            throw lastError || new Error('Сервер анализа недоступен');
           }
           return data;
         };
@@ -2426,8 +2412,8 @@
           return cp !== null || mate !== null;
         });
 
-        // РРЅРѕРіРґР° РґРІРёР¶РѕРє РїСЂРё РєРѕСЂРѕС‚РєРѕРј Р»РёРјРёС‚Рµ РІСЂРµРјРµРЅРё РѕС‚РґР°С‘С‚ С…РѕРґ Р±РµР· РѕС†РµРЅРєРё.
-        // РўРѕРіРґР° РґРµР»Р°РµРј РѕРґРёРЅ РїРѕРІС‚РѕСЂ СЃ Р±РѕР»РµРµ С‰РµРґСЂС‹Рј Р»РёРјРёС‚РѕРј, С‡С‚РѕР±С‹ РїРѕР»СѓС‡РёС‚СЊ cp/mate.
+        // Иногда движок при коротком лимите времени отдаёт ход без оценки.
+        // Тогда делаем один повтор с более щедрым лимитом, чтобы получить cp/mate.
         if (!hasEval(normalizedLines)){
           const retryPayload = {
             ...payload,
@@ -2534,7 +2520,7 @@
     function formatTreeMoveLabel(node){
       const raw = node?.move?.label || node?.move?.uci || '';
       const uci = node?.move?.uci || raw;
-      if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(uci)) return raw || 'вЂ”';
+      if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(uci)) return raw || '—';
       const from = uci.slice(0, 2);
       const to = uci.slice(2, 4);
       const parentFen = node?.parentId ? historyNodes.get(node.parentId)?.fen : null;
@@ -2543,7 +2529,7 @@
       if (upper === 'K' && from[0] === 'e' && (to[0] === 'g' || to[0] === 'c')){
         return to[0] === 'g' ? 'O-O' : 'O-O-O';
       }
-      const glyphs = { K: 'в™”', Q: 'в™•', R: 'в™–', B: 'в™—', N: 'в™' };
+      const glyphs = { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘' };
       const promotion = uci.length > 4 ? `=${uci[4].toUpperCase()}` : '';
       return `${glyphs[upper] || ''}${to}${promotion}`;
     }
@@ -2654,7 +2640,7 @@
       stored.moves.forEach((move) => {
         const parentFen = lastFen;
         const parsedParent = parseFenState(parentFen);
-        const label = move?.san || move?.uci || 'вЂ”';
+        const label = move?.san || move?.uci || '—';
         const node = createHistoryNode({
           parentId,
           fen: move?.fen || parentFen,
@@ -2680,7 +2666,7 @@
       fullmove = parsed.fullmove;
       castlingRights = parsed.rights || '-';
       enPassantTarget = parsed.ep || '-';
-      if (fenTextEl) fenTextEl.textContent = currentFen || 'вЂ”';
+      if (fenTextEl) fenTextEl.textContent = currentFen || '—';
       renderBoardFromFen(currentFen);
       renderHistory({ scrollToCursor: true });
       loadHistoryPosition(historyCursor);
@@ -2739,7 +2725,7 @@
         evalBadge.className = 'move-tree-eval mono';
         evalBadge.textContent = formatTreeEval(node);
         if (item.isRoot){
-          whiteMove.textContent = 'РЎС‚Р°СЂС‚РѕРІР°СЏ РїРѕР·РёС†РёСЏ';
+          whiteMove.textContent = 'Стартовая позиция';
           blackMove.remove();
         } else {
           whiteMove.textContent = whiteNode ? formatTreeMoveLabel(whiteNode) : '';
@@ -2835,7 +2821,7 @@
       enPassantTarget = parsed.ep || '-';
       renderBoardFromFen(currentFen);
       if (fenTextEl) fenTextEl.textContent = currentFen;
-      setBoardStatus(`РҐРѕРґ ${activeColor === 'w' ? 'Р±РµР»С‹С…' : 'С‡С‘СЂРЅС‹С…'}.`);
+      setBoardStatus(`Ход ${activeColor === 'w' ? 'белых' : 'чёрных'}.`);
       const viewColor = evaluationPerspective || getFenActiveColor(currentFen);
       const normalizedLines = normalizeAnalysisLines(node?.lines || [], currentFen, activeColor);
       if (node) node.lines = normalizedLines;
@@ -2861,11 +2847,11 @@
         parentId: parent.id,
         fen,
         lines,
-        move: { uci, label: label || uci || 'вЂ”', side, moveNumber, from, to, movingPiece, capturedPiece, promotionPiece, attackedPieces, newAttackedPieces, wasInCheckBefore, resolvedCheck, defendedByKing, sharedPressure, discoveredAttack }
+        move: { uci, label: label || uci || '—', side, moveNumber, from, to, movingPiece, capturedPiece, promotionPiece, attackedPieces, newAttackedPieces, wasInCheckBefore, resolvedCheck, defendedByKing, sharedPressure, discoveredAttack }
       });
       if (existingChild){
         node.fen = fen;
-        node.move = { ...node.move, uci, label: label || uci || node.move?.label || 'вЂ”', side, moveNumber, from, to, movingPiece, capturedPiece, promotionPiece, attackedPieces, newAttackedPieces, wasInCheckBefore, resolvedCheck, defendedByKing, sharedPressure, discoveredAttack };
+        node.move = { ...node.move, uci, label: label || uci || node.move?.label || '—', side, moveNumber, from, to, movingPiece, capturedPiece, promotionPiece, attackedPieces, newAttackedPieces, wasInCheckBefore, resolvedCheck, defendedByKing, sharedPressure, discoveredAttack };
       }
       currentHistoryNodeId = node.id;
       rebuildHistoryPlies({ preserveCursor: true });
@@ -3145,12 +3131,12 @@
 
     function pieceCoachName(piece){
       switch ((piece || '').toUpperCase()){
-        case 'P': return 'РїРµС€РєР°';
-        case 'N': return 'РєРѕРЅСЊ';
-        case 'B': return 'СЃР»РѕРЅ';
-        case 'R': return 'Р»Р°РґСЊСЏ';
-        case 'Q': return 'С„РµСЂР·СЊ';
-        case 'K': return 'РєРѕСЂРѕР»СЊ';
+        case 'P': return 'пешка';
+        case 'N': return 'конь';
+        case 'B': return 'слон';
+        case 'R': return 'ладья';
+        case 'Q': return 'ферзь';
+        case 'K': return 'король';
         default: return '';
       }
     }
@@ -3338,7 +3324,7 @@
         if (selectedSq === square){
           selectedSq = null;
           possibleMoves = [];
-          setBoardStatus('Р’С‹Р±РѕСЂ С„РёРіСѓСЂС‹ РѕС‚РјРµРЅС‘РЅ.');
+          setBoardStatus('Выбор фигуры отменён.');
           renderBoardFromFen(currentFen);
           return;
         }
@@ -3350,7 +3336,7 @@
           return;
         }
         if (getPieceColor(movingPiece) !== activeColor){
-          setBoardStatus('РЎРµР№С‡Р°СЃ С…РѕРґ РґСЂСѓРіРѕРіРѕ С†РІРµС‚Р°.');
+          setBoardStatus('Сейчас ход другого цвета.');
           selectedSq = null;
           possibleMoves = [];
           renderBoardFromFen(currentFen);
@@ -3360,9 +3346,9 @@
           if (piece && getPieceColor(piece) === activeColor){
             selectedSq = square;
             possibleMoves = calculateLegalMoves(square);
-            setBoardStatus('Р’С‹Р±СЂР°РЅР° РґСЂСѓРіР°СЏ С„РёРіСѓСЂР° С‚РѕРіРѕ Р¶Рµ С†РІРµС‚Р°.');
+            setBoardStatus('Выбрана другая фигура того же цвета.');
           } else {
-            setBoardStatus('РўР°РєРѕР№ С…РѕРґ РЅРµ СЂР°Р·СЂРµС€С‘РЅ РїСЂР°РІРёР»Р°РјРё.');
+            setBoardStatus('Такой ход не разрешён правилами.');
             possibleMoves = [];
           }
           renderBoardFromFen(currentFen);
@@ -3370,7 +3356,7 @@
         }
         const capturedPiece = getPieceAt(square);
         if (wouldLeaveKingInCheck(selectedSq, square, movingPiece)){
-          setBoardStatus('РҐРѕРґ РѕСЃС‚Р°РІР»СЏРµС‚ РєРѕСЂРѕР»СЏ РїРѕРґ Р±РѕРµРј.');
+          setBoardStatus('Ход оставляет короля под боем.');
           possibleMoves = [];
           renderBoardFromFen(currentFen);
           return;
@@ -3383,7 +3369,7 @@
           possibleMoves = [];
           renderBoardFromFen(currentFen);
           openPromotionDialog(getPieceColor(movingPiece));
-          setBoardStatus('Р’С‹Р±РµСЂРёС‚Рµ С„РёРіСѓСЂСѓ РґР»СЏ РїСЂРµРІСЂР°С‰РµРЅРёСЏ.');
+          setBoardStatus('Выберите фигуру для превращения.');
           return;
         }
         finalizeMove({ fromSquare: selectedSq, toSquare: square, movingPiece, capturedPiece });
@@ -3392,13 +3378,13 @@
       if (piece && getPieceColor(piece) === activeColor){
         selectedSq = square;
         possibleMoves = calculateLegalMoves(square);
-        setBoardStatus('Р’С‹Р±СЂР°РЅР° С„РёРіСѓСЂР° РґР»СЏ С…РѕРґР°.');
+        setBoardStatus('Выбрана фигура для хода.');
       } else if (piece){
-        setBoardStatus('РЎРµР№С‡Р°СЃ С…РѕРґ РґСЂСѓРіРѕРіРѕ С†РІРµС‚Р°.');
+        setBoardStatus('Сейчас ход другого цвета.');
         selectedSq = null;
         possibleMoves = [];
       } else {
-        setBoardStatus('РџСѓСЃС‚Р°СЏ РєР»РµС‚РєР°. Р’С‹Р±РµСЂРёС‚Рµ С„РёРіСѓСЂСѓ.');
+        setBoardStatus('Пустая клетка. Выберите фигуру.');
         selectedSq = null;
         possibleMoves = [];
       }
@@ -3501,7 +3487,7 @@
       renderBoardFromFen(currentFen);
       playMoveAudio();
       analyzePosition({ force: true, targetNodeId: currentHistoryNodeId });
-      setBoardStatus('РҐРѕРґ РІС‹РїРѕР»РЅРµРЅ.');
+      setBoardStatus('Ход выполнен.');
     }
 
     function handlePromotionChoice(pieceCode){
@@ -3522,13 +3508,13 @@
       castlingRights = parsed.rights || '-';
       enPassantTarget = parsed.ep || '-';
       setupAudioUnlock();
-      setBoardStatus(`РҐРѕРґ ${activeColor === 'w' ? 'Р±РµР»С‹С…' : 'С‡С‘СЂРЅС‹С…'}. Р’С‹Р±РµСЂРёС‚Рµ С„РёРіСѓСЂСѓ.`);
+      setBoardStatus(`Ход ${activeColor === 'w' ? 'белых' : 'чёрных'}. Выберите фигуру.`);
       updateHistoryControlsEnabled();
-      if (fenTextEl) fenTextEl.textContent = currentFen || 'вЂ”';
+      if (fenTextEl) fenTextEl.textContent = currentFen || '—';
       renderBoardCoords();
       renderBoardFromFen(currentFen);
       hydrateHistoryFromStorage();
-      setAnalysisStatus(statusEl?.textContent || 'Р“РѕС‚РѕРІРёРјСЃСЏ Рє Р°РЅР°Р»РёР·Сѓ...');
+      setAnalysisStatus(statusEl?.textContent || 'Готовимся к анализу...');
       setCoachHintsEnabled(readCoachHintsEnabled());
       if (coachHintsToggleEl){
         coachHintsToggleEl.addEventListener('change', () => {
@@ -3557,4 +3543,3 @@
   </script>
 </body>
 </html>
-

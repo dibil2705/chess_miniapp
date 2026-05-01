@@ -1132,14 +1132,6 @@ class MonitorBot:
             return
         try:
             self._prepare_weekly_preview(force_regen=False)
-            if MONITOR_CHAT_ID:
-                try:
-                    self.send_message(
-                        MONITOR_CHAT_ID,
-                        "⏰ Наступило время недельной рассылки. Проверьте предпросмотр и подтвердите отправку.",
-                    )
-                except Exception:
-                    pass
         except Exception as err:
             print(f"[weekly] preview preparation failed: {err}")
             self._log_weekly_broadcast(
