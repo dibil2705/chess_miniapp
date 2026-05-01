@@ -124,6 +124,23 @@ def _build_global_weekly_state(preview):
     }
 
 
+def _extract_weekly_set_week_key(state):
+    root = state.get("state") if isinstance(state, dict) else state
+    if not isinstance(root, dict):
+        return ""
+    puzzle = root.get("puzzle") if isinstance(root.get("puzzle"), dict) else {}
+    weekly_set = puzzle.get("weeklyPuzzleSet") if isinstance(puzzle.get("weeklyPuzzleSet"), dict) else {}
+    return str(weekly_set.get("weekKey") or "").strip()
+
+
+def _should_apply_weekly_seed(app_state, seeded_state):
+    target_week_key = _extract_weekly_set_week_key(seeded_state)
+    if not target_week_key:
+        return False
+    current_week_key = _extract_weekly_set_week_key(app_state)
+    return current_week_key != target_week_key
+
+
 def get_db():
     conn = sqlite3.connect(DATABASE_PATH)
     conn.row_factory = sqlite3.Row
@@ -2421,6 +2438,15 @@ class AnalyticsHandler(BaseHTTPRequestHandler):
         with get_db() as conn:
             save_user(conn, user)
             record_app_open(conn, telegram_id, platform, user_agent)
+            preview = _load_sent_weekly_preview()
+            seeded_state = _build_global_weekly_state(preview) if preview else None
+            if seeded_state:
+                current_state = get_user_state(conn, telegram_id)
+                if _should_apply_weekly_seed(current_state, seeded_state):
+                    try:
+                        save_user_state(conn, telegram_id, seeded_state, force=True)
+                    except Exception as err:
+                        print(f"Weekly seed state failed for telegram_id={telegram_id}: {err}")
             session_id = start_session(conn, telegram_id)
             stats = get_user_stats(conn, telegram_id)
             app_state = get_user_state(conn, telegram_id)
@@ -2460,15 +2486,14 @@ class AnalyticsHandler(BaseHTTPRequestHandler):
         with get_db() as conn:
             save_user(conn, user)
             app_state = get_user_state(conn, telegram_id)
-            if not app_state:
-                preview = _load_sent_weekly_preview()
-                seeded_state = _build_global_weekly_state(preview) if preview else None
-                if seeded_state:
-                    try:
-                        save_user_state(conn, telegram_id, seeded_state, force=True)
-                        app_state = get_user_state(conn, telegram_id)
-                    except Exception as err:
-                        print(f"Weekly seed state failed for telegram_id={telegram_id}: {err}")
+            preview = _load_sent_weekly_preview()
+            seeded_state = _build_global_weekly_state(preview) if preview else None
+            if seeded_state and _should_apply_weekly_seed(app_state, seeded_state):
+                try:
+                    save_user_state(conn, telegram_id, seeded_state, force=True)
+                    app_state = get_user_state(conn, telegram_id)
+                except Exception as err:
+                    print(f"Weekly seed state failed for telegram_id={telegram_id}: {err}")
         json_response(self, 200, {"ok": True, "app_state": app_state})
 
     def handle_state_save(self, payload, user, telegram_id):
