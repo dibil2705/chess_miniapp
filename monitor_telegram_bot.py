@@ -785,8 +785,17 @@ class MonitorBot:
         return random.choice(fallback)
 
     def _weekly_preview_keyboard(self):
+        weekly = self._weekly_state()
+        preview = weekly.get("preview") if isinstance(weekly.get("preview"), dict) else {}
+        selected_day = str(preview.get("scheduled_day") or weekly.get("scheduled_day") or "wednesday")
+        wed_label = "📅 Ср ✅" if selected_day == "wednesday" else "📅 Ср"
+        thu_label = "📅 Чт ✅" if selected_day == "thursday" else "📅 Чт"
         return {
             "inline_keyboard": [
+                [
+                    {"text": wed_label, "callback_data": "action:weekly_day:wednesday"},
+                    {"text": thu_label, "callback_data": "action:weekly_day:thursday"},
+                ],
                 [{"text": "✅ Подтвердить", "callback_data": "action:weekly_confirm"}],
                 [{"text": "🔁 Изменить текст", "callback_data": "action:weekly_regen"}],
                 [{"text": "❌ Отмена", "callback_data": "action:weekly_cancel"}],
@@ -795,11 +804,14 @@ class MonitorBot:
 
     def _format_weekly_preview_text(self, preview):
         first = (preview.get("puzzles") or [{}])[0]
-        extra = preview.get("puzzles") or []
+        day = str(preview.get("scheduled_day") or "wednesday")
+        day_ru = "среда" if day == "wednesday" else "четверг" if day == "thursday" else day
         lines = [
             "📣 <b>Предпросмотр недельной рассылки</b>",
             f"Неделя: <code>{escape(str(preview.get('week_key') or ''))}</code>",
-            f"Выбран день: <code>{escape(str(preview.get('scheduled_day') or ''))}</code>",
+            f"Выбран день: <code>{escape(day_ru)}</code>",
+            "",
+            "<b>Авто-логика:</b> 1 раз в неделю, случайно ср/чт, окно 10:00-12:00, отправка только после подтверждения.",
             "",
             f"<b>Текст:</b> {escape(str(preview.get('text') or ''))}",
             "",
@@ -810,15 +822,6 @@ class MonitorBot:
         ]
         if first.get("url"):
             lines.append(f"• ссылка: {escape(str(first.get('url')))}")
-        if len(extra) > 1:
-            lines.extend(
-                [
-                    "",
-                    "<b>+2 задачи текущего набора:</b>",
-                ]
-            )
-            for idx, item in enumerate(extra[1:3], 1):
-                lines.append(f"{idx}. <code>{escape(str(item.get('url') or item.get('id') or 'n/a'))}</code>")
         lines.extend(
             [
                 "",
@@ -830,9 +833,21 @@ class MonitorBot:
         return "\n".join(lines)
 
     def _send_weekly_preview(self, preview):
+        first = (preview.get("puzzles") or [{}])[0]
+        text = self._format_weekly_preview_text(preview)
+        image_url = self._extract_puzzle_image_url(first)
+        if image_url:
+            self._send_monitor_photo(
+                MONITOR_CHAT_ID,
+                image_url,
+                caption=text,
+                reply_markup=self._weekly_preview_keyboard(),
+                parse_mode="HTML",
+            )
+            return
         self.send_message(
             MONITOR_CHAT_ID,
-            self._format_weekly_preview_text(preview),
+            text,
             reply_markup=self._weekly_preview_keyboard(),
             parse_mode="HTML",
         )
@@ -889,7 +904,59 @@ class MonitorBot:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8") or "{}")
 
-    def _send_main_bot_message(self, chat_id, text):
+    def _extract_puzzle_image_url(self, puzzle):
+        if not isinstance(puzzle, dict):
+            return ""
+        for key in ("image", "image_url", "imageUrl"):
+            val = str(puzzle.get(key) or "").strip()
+            if val.startswith("http://") or val.startswith("https://"):
+                return val
+        return ""
+
+    def _send_monitor_photo(self, chat_id, photo_url, caption="", reply_markup=None, parse_mode=None):
+        payload = {
+            "chat_id": int(chat_id),
+            "photo": str(photo_url),
+            "caption": str(caption or "")[:1024],
+            "disable_web_page_preview": True,
+        }
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
+        return self._telegram_api("sendPhoto", payload, timeout=MAIN_BOT_REQUEST_TIMEOUT)
+
+    def _send_main_bot_photo(self, chat_id, photo_url, caption="", reply_markup=None, parse_mode=None):
+        payload = {
+            "chat_id": int(chat_id),
+            "photo": str(photo_url),
+            "caption": str(caption or "")[:1024],
+            "disable_web_page_preview": True,
+        }
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
+        return self._main_bot_api("sendPhoto", payload, timeout=MAIN_BOT_REQUEST_TIMEOUT)
+
+    def _send_main_bot_message(self, chat_id, text, puzzle=None):
+        image_url = self._extract_puzzle_image_url(puzzle or {})
+        if image_url:
+            return self._send_main_bot_photo(
+                chat_id,
+                image_url,
+                caption=text,
+                reply_markup={
+                    "inline_keyboard": [
+                        [
+                            {
+                                "text": "Открыть Mini App",
+                                "url": MINI_APP_URL,
+                            }
+                        ]
+                    ]
+                },
+            )
         payload = {
             "chat_id": int(chat_id),
             "text": str(text or ""),
@@ -996,7 +1063,7 @@ class MonitorBot:
             for row in rows:
                 tg_id = int(row["telegram_id"])
                 try:
-                    self._send_main_bot_message(tg_id, message_text)
+                    self._send_main_bot_message(tg_id, message_text, puzzle=primary_puzzle)
                     sent += 1
                 except Exception as err:
                     failed += 1
@@ -1171,6 +1238,23 @@ class MonitorBot:
                 self._prepare_weekly_preview(force_regen=True)
             except Exception as err:
                 self.send_message(chat_id, f"⚠️ Ошибка генерации текста: {err}")
+        elif data.startswith("action:weekly_day:"):
+            day = data.split(":", 2)[2].strip().lower()
+            if day not in {"wednesday", "thursday"}:
+                self.answer_callback(callback_id, "Некорректный день")
+                return
+            weekly = self._weekly_state()
+            weekly["scheduled_day"] = day
+            preview = weekly.get("preview") if isinstance(weekly.get("preview"), dict) else {}
+            if isinstance(preview, dict) and preview:
+                preview["scheduled_day"] = day
+                weekly["preview"] = preview
+            self._save_state()
+            self.answer_callback(callback_id, f"День: {'среда' if day == 'wednesday' else 'четверг'}")
+            try:
+                self._prepare_weekly_preview(force_regen=False)
+            except Exception as err:
+                self.send_message(chat_id, f"⚠️ Не удалось обновить день: {err}")
         elif data == "action:weekly_cancel":
             self.answer_callback(callback_id, "Рассылка отменена")
             weekly = self._weekly_state()

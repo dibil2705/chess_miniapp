@@ -32,6 +32,7 @@ MINI_APP_URL = os.environ.get(
     "https://t.me/chess_every_day_bot/app?startapp=test&mode=fullscreen",
 )
 DATABASE_PATH = os.environ.get("ANALYTICS_DB", "analytics.sqlite3")
+MONITOR_STATE_PATH = os.environ.get("MONITOR_STATE_PATH", "monitor_state.json")
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("TELEGRAM_BACKEND_PORT") or os.environ.get("PORT", "12315"))
 STATIC_ROOT = os.path.abspath(os.environ.get("STATIC_ROOT", os.getcwd()))
@@ -50,6 +51,77 @@ def msk_now():
 def current_window_start_ms():
     now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
     return ((now_ms - DAILY_RESET_UTC_OFFSET_MS) // DAY_MS) * DAY_MS + DAILY_RESET_UTC_OFFSET_MS
+
+
+def _load_sent_weekly_preview():
+    if not os.path.exists(MONITOR_STATE_PATH):
+        return None
+    try:
+        with open(MONITOR_STATE_PATH, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception:
+        return None
+    weekly = data.get("weekly_broadcast") if isinstance(data, dict) else None
+    if not isinstance(weekly, dict):
+        return None
+    if str(weekly.get("status") or "") != "sent":
+        return None
+    preview = weekly.get("preview")
+    if not isinstance(preview, dict):
+        return None
+    puzzles = preview.get("puzzles")
+    if not isinstance(puzzles, list) or not puzzles:
+        return None
+    if not isinstance(puzzles[0], dict):
+        return None
+    return preview
+
+
+def _build_global_weekly_state(preview):
+    puzzles = preview.get("puzzles") if isinstance(preview.get("puzzles"), list) else []
+    if not puzzles:
+        return None
+    primary = puzzles[0] if isinstance(puzzles[0], dict) else None
+    if not primary:
+        return None
+    fen = str(primary.get("fen") or "")
+    if not fen:
+        return None
+    now_ms = int(time.time() * 1000)
+    active = "b" if (len(fen.split(" ")) > 1 and fen.split(" ")[1] == "b") else "w"
+    puzzle_set = {
+        "weekKey": str(preview.get("week_key") or ""),
+        "createdAt": now_ms,
+        "puzzles": [p for p in puzzles[:3] if isinstance(p, dict)],
+    }
+    return {
+        "version": 1,
+        "savedAt": now_ms,
+        "quotaResetAt": now_ms,
+        "quota": {
+            "windowStart": current_window_start_ms(),
+            "started": 0,
+            "solved": 0,
+            "bonusActivated": False,
+            "dayDone": False,
+            "bonusUnlocked": False,
+        },
+        "puzzle": {
+            "puzzleData": primary,
+            "puzzleMode": True,
+            "puzzleSolutionMoves": [],
+            "puzzleMoveIndex": 0,
+            "puzzleSolved": False,
+            "puzzleStartFen": fen,
+            "puzzlePlayerColor": active,
+            "puzzleSolutionTargetFen": None,
+            "puzzleLoadedAt": now_ms,
+            "boardFen": fen,
+            "puzzleLockedAfterError": False,
+            "puzzleErrorCount": 0,
+            "weeklyPuzzleSet": puzzle_set,
+        },
+    }
 
 
 def get_db():
@@ -1917,6 +1989,40 @@ def build_context_tail(move_details, eval_change, current_eval, tactical_context
     return deterministic_pick(candidates, seed)
 
 
+def looks_like_mojibake_fragment(text):
+    s = str(text or "")
+    if not s:
+        return False
+    latin1_noise = sum(1 for ch in s if 0x00A0 <= ord(ch) <= 0x00FF)
+    rare_cyr_noise = sum(
+        1
+        for ch in s
+        if (0x0452 <= ord(ch) <= 0x04FF) and ord(ch) not in (0x0451,)
+    )
+    basic_cyr = sum(1 for ch in s if (0x0410 <= ord(ch) <= 0x044F) or ord(ch) == 0x0451)
+    if rare_cyr_noise >= 1 and latin1_noise >= 1:
+        return True
+    if latin1_noise >= 2 and basic_cyr >= 2:
+        return True
+    return False
+
+
+def cleanup_mojibake_comment(comment):
+    text = str(comment or "").strip()
+    if not text:
+        return text
+    parts = [p.strip() for p in text.split(",") if p.strip()]
+    if len(parts) > 1 and looks_like_mojibake_fragment(parts[0]) and not looks_like_mojibake_fragment(parts[1]):
+        text = ", ".join(parts[1:])
+    tokens = text.split()
+    filtered = [tok for tok in tokens if not (len(tok) >= 4 and looks_like_mojibake_fragment(tok))]
+    if filtered:
+        text = " ".join(filtered)
+    text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+    text = re.sub(r"\s{2,}", " ", text).strip(" ,")
+    return text
+
+
 def polish_coach_comment(comment, move_details=None, eval_change=None, current_mate=None):
     comment = str(comment or "").strip()
     comment = re.sub(r"^(?:РѕР№|РїРѕС…РѕР¶Рµ|РЅРµРїСЂРёСЏС‚РЅРѕ|С…РѕСЂРѕС€Рѕ),\s*", "", comment, flags=re.IGNORECASE)
@@ -2053,7 +2159,7 @@ def ensure_moved_piece_mentioned(comment, move_details):
 
 def build_coach_comment(comment_payload):
     if not OPENAI_API_KEY:
-        return "AI-РєРѕРјРјРµРЅС‚Р°СЂРёР№ РЅРµРґРѕСЃС‚СѓРїРµРЅ: РґРѕР±Р°РІСЊ OPENAI_API_KEY РІ .env."
+        return "AI-комментарий недоступен: добавь OPENAI_API_KEY в .env."
 
     current_line = compact_analysis_line(comment_payload.get("current_line"))
     previous_line = compact_analysis_line(comment_payload.get("previous_best_line"))
@@ -2203,10 +2309,11 @@ def build_coach_comment(comment_payload):
         comment = normalize_piece_cases(comment)
         comment = avoid_recent_comment_repetition(comment, recent_comments)
         comment = shorten_coach_comment(comment, max_words=22)
-        return comment or "РџРѕР·РёС†РёСЏ С‚СЂРµР±СѓРµС‚ С‚РѕС‡РЅРѕР№ РёРіСЂС‹."
+        comment = cleanup_mojibake_comment(comment)
+        return comment or "Позиция требует точной игры."
     except Exception as err:
         print("OpenAI coach comment error:", err)
-        return "AI-РєРѕРјРјРµРЅС‚Р°СЂРёР№ РІСЂРµРјРµРЅРЅРѕ РЅРµРґРѕСЃС‚СѓРїРµРЅ, РЅРѕ РїРµСЂРІР°СЏ Р»РёРЅРёСЏ РІСЃС‘ РµС‰С‘ Р»СѓС‡С€РёР№ РѕСЂРёРµРЅС‚РёСЂ РґР»СЏ РїР»Р°РЅР°."
+        return "AI-комментарий временно недоступен, но первая линия всё ещё лучший ориентир."
 
 
 class AnalyticsHandler(BaseHTTPRequestHandler):
@@ -2336,6 +2443,15 @@ class AnalyticsHandler(BaseHTTPRequestHandler):
         with get_db() as conn:
             save_user(conn, user)
             app_state = get_user_state(conn, telegram_id)
+            if not app_state:
+                preview = _load_sent_weekly_preview()
+                seeded_state = _build_global_weekly_state(preview) if preview else None
+                if seeded_state:
+                    try:
+                        save_user_state(conn, telegram_id, seeded_state, force=True)
+                        app_state = get_user_state(conn, telegram_id)
+                    except Exception as err:
+                        print(f"Weekly seed state failed for telegram_id={telegram_id}: {err}")
         json_response(self, 200, {"ok": True, "app_state": app_state})
 
     def handle_state_save(self, payload, user, telegram_id):
