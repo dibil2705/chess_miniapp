@@ -1992,7 +1992,10 @@
     async function fetchJson(url, payload){
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
         body: JSON.stringify(payload),
       });
       const text = await response.text();
@@ -2060,14 +2063,19 @@
       const sameOriginUrl = hasHttpOrigin ? '/analyze' : 'http://127.0.0.1:12315/analyze';
       const host12315Url = hasHttpOrigin ? `${location.protocol}//${location.hostname}:12315/analyze` : '';
       const host8080Url = hasHttpOrigin ? `${location.protocol}//${location.hostname}:8080/analyze` : '';
+      const isGitHubPages = hasHttpOrigin && /\.github\.io$/i.test(location.hostname || '');
+      const isLocalHost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
       const urls = [];
-      if (getTelegramInitData() && configuredBase) urls.push(configuredUrl);
-      urls.push(sameOriginUrl);
-      if (host12315Url) urls.push(host12315Url);
-      if (host8080Url) urls.push(host8080Url);
-      if (!getTelegramInitData()) urls.push('http://127.0.0.1:12315/analyze');
-      if (!getTelegramInitData()) urls.push('http://127.0.0.1:8080/analyze');
-      if (!getTelegramInitData() && configuredBase) urls.push(configuredUrl);
+      if (configuredBase) urls.push(configuredUrl);
+      if (!isGitHubPages){
+        urls.push(sameOriginUrl);
+        if (host12315Url) urls.push(host12315Url);
+        if (host8080Url) urls.push(host8080Url);
+      }
+      if (!hasHttpOrigin || isLocalHost){
+        urls.push('http://127.0.0.1:12315/analyze');
+        urls.push('http://127.0.0.1:8080/analyze');
+      }
       return [...new Set(urls)];
     }
 
