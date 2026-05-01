@@ -2216,12 +2216,17 @@
       const hasHttpOrigin = location.protocol === 'http:' || location.protocol === 'https:';
       const sameOriginUrl = hasHttpOrigin ? '/api/coach/comment' : 'http://127.0.0.1:12315/api/coach/comment';
       const host12315Url = hasHttpOrigin ? `${location.protocol}//${location.hostname}:12315/api/coach/comment` : '';
+      const isGitHubPages = hasHttpOrigin && /\.github\.io$/i.test(location.hostname || '');
+      const isLocalHost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
       const urls = [];
-      if (getTelegramInitData() && configuredBase) urls.push(configuredUrl);
-      urls.push(sameOriginUrl);
-      if (host12315Url) urls.push(host12315Url);
-      if (!getTelegramInitData()) urls.push('http://127.0.0.1:12315/api/coach/comment');
-      if (!getTelegramInitData() && configuredBase) urls.push(configuredUrl);
+      if (configuredBase) urls.push(configuredUrl);
+      if (!isGitHubPages){
+        urls.push(sameOriginUrl);
+        if (host12315Url) urls.push(host12315Url);
+      }
+      if (!hasHttpOrigin || isLocalHost){
+        urls.push('http://127.0.0.1:12315/api/coach/comment');
+      }
       return [...new Set(urls)];
     }
 
@@ -2307,13 +2312,17 @@
         let data = null;
         let lastError = null;
         for (const url of getCoachCommentUrls()){
+          let timeoutId = null;
           try {
+            const controller = new AbortController();
+            timeoutId = setTimeout(() => controller.abort(), 8000);
             const response = await fetch(url, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'ngrok-skip-browser-warning': 'true'
               },
+              signal: controller.signal,
               body: JSON.stringify({
                 initData,
                 userId: getTelegramStorageUserId(),
@@ -2326,6 +2335,8 @@
             data = null;
           } catch (err){
             lastError = err;
+          } finally {
+            if (timeoutId) clearTimeout(timeoutId);
           }
         }
         if (!data) throw lastError || new Error('Coach comment request failed');

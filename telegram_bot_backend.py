@@ -2011,7 +2011,16 @@ def cleanup_mojibake_comment(comment):
     text = str(comment or "").strip()
     if not text:
         return text
+    def _mojibake_score(value):
+        sample = str(value or "")
+        return sum(sample.count(ch) for ch in ("Р", "С", "Ð", "Ñ", "Ѓ", "‚", "€", "™", "љ", "ћ", "џ"))
     # Recover classic "РЈ Р±Рµ..." mojibake produced by cp1251/utf8 mismatch.
+    try:
+        repaired = text.encode("cp1251", errors="strict").decode("utf-8", errors="strict").strip()
+        if repaired and _mojibake_score(repaired) < _mojibake_score(text):
+            text = repaired
+    except Exception:
+        pass
     if looks_like_mojibake_fragment(text):
         try:
             repaired = text.encode("cp1251", errors="strict").decode("utf-8", errors="strict").strip()
