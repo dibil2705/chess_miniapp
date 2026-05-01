@@ -27,7 +27,8 @@ const STAR_SPRITES = ['assets/stars/gold-star.svg'];
 const START_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 
 const tg = window.Telegram?.WebApp;
-const ANALYTICS_API_BASE = window.CHESS_ANALYTICS_API_BASE || '';
+const API_BASE = "https://elza-hillier-jayde.ngrok-free.dev";
+const ANALYTICS_API_BASE = API_BASE || window.CHESS_ANALYTICS_API_BASE || '';
 
 const AUDIO_SOURCES = {
   move: {
@@ -97,6 +98,7 @@ let puzzlePlayerColor = null;
 let puzzleSolutionTargetFen = null;
 let puzzleLoadedAt = 0;
 let puzzleLoading = false;
+let weeklyPuzzleSet = null;
 let moveHistory = [];
 let historyStartFen = START_FEN;
 let soundEnabled = loadSoundPreference();
@@ -610,6 +612,30 @@ function getPuzzleKey(data){
   return `${data?.fen || ''}|${data?.pgn || ''}|${data?.title || ''}`.trim();
 }
 
+function normalizeWeeklyPuzzleSet(raw){
+  if (!raw || typeof raw !== 'object') return null;
+  const puzzles = Array.isArray(raw.puzzles)
+    ? raw.puzzles.filter(item => item && typeof item === 'object' && item.fen)
+    : [];
+  if (!puzzles.length) return null;
+  return {
+    weekKey: String(raw.weekKey || ''),
+    createdAt: Number(raw.createdAt) || Date.now(),
+    puzzles: puzzles.slice(0, 3)
+  };
+}
+
+function getAssignedPuzzleForCurrentQuota(){
+  const normalizedSet = normalizeWeeklyPuzzleSet(weeklyPuzzleSet);
+  if (!normalizedSet) return null;
+  weeklyPuzzleSet = normalizedSet;
+  const quota = getQuotaInfo();
+  const index = Math.max(0, Number(quota?.state?.started) || 0);
+  if (index >= normalizedSet.puzzles.length) return null;
+  const puzzle = normalizedSet.puzzles[index];
+  return puzzle && puzzle.fen ? puzzle : null;
+}
+
 function getRandomPuzzleCooldownRemaining(now = Date.now()){
   if (!puzzleSolved || !puzzleLoadedAt) return 0;
   return Math.max(0, CHESS_COM_RANDOM_COOLDOWN_MS - (now - puzzleLoadedAt));
@@ -815,7 +841,7 @@ function migrateLegacyLocalState(){
 
 function buildCurrentPuzzleState(){
   if (!puzzleData) return null;
-  return {
+  const payload = {
     puzzleData,
     puzzleMode,
     puzzleSolutionMoves,
@@ -833,6 +859,11 @@ function buildCurrentPuzzleState(){
     puzzleLockedAfterError,
     puzzleErrorCount
   };
+  const normalizedSet = normalizeWeeklyPuzzleSet(weeklyPuzzleSet);
+  if (normalizedSet){
+    payload.weeklyPuzzleSet = normalizedSet;
+  }
+  return payload;
 }
 
 function buildCurrentHistoryState(){
@@ -2923,6 +2954,7 @@ async function fetchRandomPuzzle(options = {}){
     const previousPuzzleData = puzzleData;
     const previousPuzzleSolved = puzzleSolved;
     const previousPuzzleLoadedAt = puzzleLoadedAt;
+    const assignedPuzzle = getAssignedPuzzleForCurrentQuota();
 
     closePuzzleOverlay();
     puzzleMode = false;
@@ -2943,9 +2975,14 @@ async function fetchRandomPuzzle(options = {}){
     if (!useBoardLoader){
       render();
     }
-    const res = await fetch('https://api.chess.com/pub/puzzle/random');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    let data = null;
+    if (assignedPuzzle){
+      data = assignedPuzzle;
+    } else {
+      const res = await fetch('https://api.chess.com/pub/puzzle/random');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      data = await res.json();
+    }
     puzzleLoading = false;
     const previousKey = previousPuzzleSolved ? getPuzzleKey(previousPuzzleData) : '';
     const nextKey = getPuzzleKey(data);
@@ -3063,6 +3100,7 @@ function hydratePuzzleState(options = {}){
     puzzleLoading = false;
     puzzleLockedAfterError = false;
     puzzleErrorCount = Number.isInteger(saved.puzzleErrorCount) ? saved.puzzleErrorCount : 0;
+    weeklyPuzzleSet = normalizeWeeklyPuzzleSet(saved.weeklyPuzzleSet);
     promotionState = null;
     resetSelection();
     closePromotionDialog();
