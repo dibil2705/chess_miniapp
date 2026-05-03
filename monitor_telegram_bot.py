@@ -61,6 +61,7 @@ WEEKLY_BROADCAST_SET_SIZE = 3
 WEEKLY_BROADCAST_RANDOM_URL = "https://api.chess.com/pub/puzzle/random"
 WEEKLY_FETCH_TIMEOUT_SECONDS = max(8, int(os.environ.get("WEEKLY_FETCH_TIMEOUT_SECONDS", "20") or "20"))
 WEEKLY_FETCH_RETRIES = max(0, int(os.environ.get("WEEKLY_FETCH_RETRIES", "2") or "2"))
+DAY_MS = 24 * 60 * 60 * 1000
 WEEKLY_RESET_UTC_OFFSET_MS = 4 * 60 * 60 * 1000
 STOCKFISH_TEST_FEN = os.environ.get(
     "MONITOR_STOCKFISH_TEST_FEN",
@@ -655,6 +656,21 @@ class MonitorBot:
             return ""
         return str(puzzle.get("url") or puzzle.get("id") or puzzle.get("fen") or "").strip()
 
+    def _current_window_start_ms(self):
+        now_utc_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        return ((now_utc_ms - WEEKLY_RESET_UTC_OFFSET_MS) // DAY_MS) * DAY_MS + WEEKLY_RESET_UTC_OFFSET_MS
+
+    def _select_weekly_puzzle_for_user(self, puzzles, week_key, telegram_id, rotation_window_start):
+        normalized = [p for p in (puzzles or []) if isinstance(p, dict) and str(p.get("fen") or "").strip()]
+        if not normalized:
+            return None, -1
+        if len(normalized) == 1:
+            return normalized[0], 0
+        seed = f"{week_key}|{int(rotation_window_start)}|{int(telegram_id or 0)}"
+        digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()
+        index = int(digest[:8], 16) % len(normalized)
+        return normalized[index], index
+
     def _build_weekly_puzzle_set(self, size=WEEKLY_BROADCAST_SET_SIZE):
         wanted = max(1, int(size))
         puzzles = []
@@ -994,7 +1010,7 @@ class MonitorBot:
             "weeklyPuzzleSet": puzzle_set,
         }
         now_utc_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-        window_start = ((now_utc_ms - WEEKLY_RESET_UTC_OFFSET_MS) // (24 * 60 * 60 * 1000)) * (24 * 60 * 60 * 1000) + WEEKLY_RESET_UTC_OFFSET_MS
+        window_start = ((now_utc_ms - WEEKLY_RESET_UTC_OFFSET_MS) // DAY_MS) * DAY_MS + WEEKLY_RESET_UTC_OFFSET_MS
         quota_state = {
             "windowStart": int(window_start),
             "started": 0,
@@ -1034,7 +1050,7 @@ class MonitorBot:
             raise RuntimeError(f"Рассылка за неделю {week_key} уже была отправлена.")
         if not MAIN_BOT_TOKEN:
             raise RuntimeError("TELEGRAM_BOT_TOKEN не задан.")
-        puzzles = preview.get("puzzles") or []
+        puzzles = [p for p in (preview.get("puzzles") or []) if isinstance(p, dict) and str(p.get("fen") or "").strip()]
         if not puzzles:
             raise RuntimeError("Набор задач отсутствует.")
         message_text = str(preview.get("text") or "").strip()
@@ -1042,12 +1058,14 @@ class MonitorBot:
             raise RuntimeError("Текст рассылки пустой.")
 
         primary_puzzle = puzzles[0]
-        puzzle_set = {
+        now_ms = int(time.time() * 1000)
+        rotation_window_start = self._current_window_start_ms()
+        base_puzzle_set = {
             "weekKey": week_key,
-            "createdAt": int(time.time() * 1000),
+            "createdAt": now_ms,
+            "rotationWindowStart": int(rotation_window_start),
             "puzzles": puzzles[:WEEKLY_BROADCAST_SET_SIZE],
         }
-        puzzle_state, quota_state, now_ms = self._build_puzzle_state_payload(primary_puzzle, puzzle_set)
 
         with self._db_conn() as conn:
             rows = conn.execute(
@@ -1062,8 +1080,20 @@ class MonitorBot:
             failed = 0
             for row in rows:
                 tg_id = int(row["telegram_id"])
+                assigned_puzzle, assigned_index = self._select_weekly_puzzle_for_user(
+                    base_puzzle_set.get("puzzles"),
+                    week_key,
+                    tg_id,
+                    rotation_window_start,
+                )
+                if not assigned_puzzle:
+                    assigned_puzzle = primary_puzzle
+                    assigned_index = 0
+                puzzle_set = dict(base_puzzle_set)
+                puzzle_set["selectedIndex"] = int(assigned_index)
+                puzzle_state, quota_state, _ = self._build_puzzle_state_payload(assigned_puzzle, puzzle_set)
                 try:
-                    self._send_main_bot_message(tg_id, message_text, puzzle=primary_puzzle)
+                    self._send_main_bot_message(tg_id, message_text, puzzle=assigned_puzzle)
                     sent += 1
                 except Exception as err:
                     failed += 1

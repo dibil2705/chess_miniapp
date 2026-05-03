@@ -53,6 +53,47 @@ def current_window_start_ms():
     return ((now_ms - DAILY_RESET_UTC_OFFSET_MS) // DAY_MS) * DAY_MS + DAILY_RESET_UTC_OFFSET_MS
 
 
+def _normalize_weekly_puzzles(preview):
+    if not isinstance(preview, dict):
+        return []
+    raw = preview.get("puzzles")
+    if not isinstance(raw, list):
+        return []
+    normalized = []
+    for puzzle in raw[:3]:
+        if not isinstance(puzzle, dict):
+            continue
+        fen = str(puzzle.get("fen") or "").strip()
+        if not fen:
+            continue
+        normalized.append(puzzle)
+    return normalized
+
+
+def _puzzle_identity_key(puzzle):
+    if not isinstance(puzzle, dict):
+        return ""
+    direct = str(puzzle.get("url") or puzzle.get("id") or "").strip()
+    if direct:
+        return direct
+    fen = str(puzzle.get("fen") or "").strip()
+    pgn = str(puzzle.get("pgn") or "").strip()
+    title = str(puzzle.get("title") or "").strip()
+    return "|".join([fen, pgn, title]).strip("|")
+
+
+def _select_weekly_puzzle_for_user(puzzles, week_key, telegram_id, rotation_window_start):
+    normalized = [p for p in (puzzles or []) if isinstance(p, dict) and str(p.get("fen") or "").strip()]
+    if not normalized:
+        return None, -1
+    if len(normalized) == 1:
+        return normalized[0], 0
+    seed = f"{week_key}|{int(rotation_window_start)}|{int(telegram_id or 0)}"
+    digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()
+    index = int(digest[:8], 16) % len(normalized)
+    return normalized[index], index
+
+
 def _load_sent_weekly_preview():
     if not os.path.exists(MONITOR_STATE_PATH):
         return None
@@ -69,19 +110,26 @@ def _load_sent_weekly_preview():
     preview = weekly.get("preview")
     if not isinstance(preview, dict):
         return None
-    puzzles = preview.get("puzzles")
-    if not isinstance(puzzles, list) or not puzzles:
+    puzzles = _normalize_weekly_puzzles(preview)
+    if not puzzles:
         return None
-    if not isinstance(puzzles[0], dict):
-        return None
+    preview = dict(preview)
+    preview["puzzles"] = puzzles
     return preview
 
 
-def _build_global_weekly_state(preview):
-    puzzles = preview.get("puzzles") if isinstance(preview.get("puzzles"), list) else []
+def _build_global_weekly_state(preview, telegram_id):
+    puzzles = _normalize_weekly_puzzles(preview)
     if not puzzles:
         return None
-    primary = puzzles[0] if isinstance(puzzles[0], dict) else None
+    week_key = str(preview.get("week_key") or "")
+    rotation_window_start = current_window_start_ms()
+    primary, primary_index = _select_weekly_puzzle_for_user(
+        puzzles,
+        week_key,
+        telegram_id,
+        rotation_window_start,
+    )
     if not primary:
         return None
     fen = str(primary.get("fen") or "")
@@ -90,9 +138,11 @@ def _build_global_weekly_state(preview):
     now_ms = int(time.time() * 1000)
     active = "b" if (len(fen.split(" ")) > 1 and fen.split(" ")[1] == "b") else "w"
     puzzle_set = {
-        "weekKey": str(preview.get("week_key") or ""),
+        "weekKey": week_key,
         "createdAt": now_ms,
-        "puzzles": [p for p in puzzles[:3] if isinstance(p, dict)],
+        "rotationWindowStart": int(rotation_window_start),
+        "selectedIndex": int(primary_index),
+        "puzzles": puzzles,
     }
     return {
         "version": 1,
@@ -133,12 +183,43 @@ def _extract_weekly_set_week_key(state):
     return str(weekly_set.get("weekKey") or "").strip()
 
 
+def _extract_weekly_set_rotation_window_start(state):
+    root = state.get("state") if isinstance(state, dict) else state
+    if not isinstance(root, dict):
+        return 0
+    puzzle = root.get("puzzle") if isinstance(root.get("puzzle"), dict) else {}
+    weekly_set = puzzle.get("weeklyPuzzleSet") if isinstance(puzzle.get("weeklyPuzzleSet"), dict) else {}
+    try:
+        return int(weekly_set.get("rotationWindowStart") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _extract_current_puzzle_key(state):
+    root = state.get("state") if isinstance(state, dict) else state
+    if not isinstance(root, dict):
+        return ""
+    puzzle = root.get("puzzle") if isinstance(root.get("puzzle"), dict) else {}
+    puzzle_data = puzzle.get("puzzleData") if isinstance(puzzle.get("puzzleData"), dict) else None
+    return _puzzle_identity_key(puzzle_data)
+
+
 def _should_apply_weekly_seed(app_state, seeded_state):
     target_week_key = _extract_weekly_set_week_key(seeded_state)
     if not target_week_key:
         return False
     current_week_key = _extract_weekly_set_week_key(app_state)
-    return current_week_key != target_week_key
+    if current_week_key != target_week_key:
+        return True
+    target_rotation_window_start = _extract_weekly_set_rotation_window_start(seeded_state)
+    current_rotation_window_start = _extract_weekly_set_rotation_window_start(app_state)
+    if target_rotation_window_start and target_rotation_window_start != current_rotation_window_start:
+        return True
+    target_puzzle_key = _extract_current_puzzle_key(seeded_state)
+    current_puzzle_key = _extract_current_puzzle_key(app_state)
+    if target_puzzle_key and target_puzzle_key != current_puzzle_key:
+        return True
+    return False
 
 
 def get_db():
@@ -2439,7 +2520,7 @@ class AnalyticsHandler(BaseHTTPRequestHandler):
             save_user(conn, user)
             record_app_open(conn, telegram_id, platform, user_agent)
             preview = _load_sent_weekly_preview()
-            seeded_state = _build_global_weekly_state(preview) if preview else None
+            seeded_state = _build_global_weekly_state(preview, telegram_id) if preview else None
             if seeded_state:
                 current_state = get_user_state(conn, telegram_id)
                 if _should_apply_weekly_seed(current_state, seeded_state):
@@ -2487,7 +2568,7 @@ class AnalyticsHandler(BaseHTTPRequestHandler):
             save_user(conn, user)
             app_state = get_user_state(conn, telegram_id)
             preview = _load_sent_weekly_preview()
-            seeded_state = _build_global_weekly_state(preview) if preview else None
+            seeded_state = _build_global_weekly_state(preview, telegram_id) if preview else None
             if seeded_state and _should_apply_weekly_seed(app_state, seeded_state):
                 try:
                     save_user_state(conn, telegram_id, seeded_state, force=True)
