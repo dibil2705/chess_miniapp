@@ -504,11 +504,27 @@
       padding: 4px 0 2px;
     }
     .puzzle-overlay-stars.visible{ display: flex; }
+    @keyframes puzzle-star-pop{
+      0%{
+        opacity: 0;
+        transform: translateY(8px) scale(.6) rotate(-10deg);
+      }
+      65%{
+        opacity: 1;
+        transform: translateY(-2px) scale(1.12) rotate(4deg);
+      }
+      100%{
+        opacity: 1;
+        transform: translateY(0) scale(1) rotate(0deg);
+      }
+    }
     .puzzle-star{
       width: 34px;
       height: 34px;
+      opacity: 0;
       filter: drop-shadow(0 4px 10px rgba(0,0,0,.35));
       transition: transform .15s ease, opacity .15s ease;
+      animation: puzzle-star-pop .55s cubic-bezier(.2,.84,.24,1) forwards;
     }
     .puzzle-star.inactive{
       opacity: .28;

@@ -69,11 +69,13 @@ const PALETTE_STORAGE_KEY = 'chess-miniapp-board-palette';
 const PIECE_REVEAL_STORAGE_KEY = 'chess-miniapp-piece-reveal-complete';
 const PUZZLE_QUOTA_STORAGE_PREFIX = 'chess-miniapp-quota';
 const ADMIN_ACCESS_STORAGE_PREFIX = 'chess-miniapp-admin-access';
+const RANDOM_PUZZLE_HISTORY_PREFIX = 'chess-miniapp-random-history';
 const DAILY_BASE_PUZZLE_LIMIT = 1;
 const DAILY_BONUS_PUZZLES = 2;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DAILY_RESET_UTC_OFFSET_MS = 4 * 60 * 60 * 1000; // 07:00 Мск = 04:00 UTC
 const CHESS_COM_RANDOM_COOLDOWN_MS = 15 * 1000;
+const RANDOM_PUZZLE_HISTORY_MAX = 80;
 const MOVE_ANIMATION_MIN_MS = 140;
 const MOVE_ANIMATION_MAX_MS = 420;
 const MOVE_ANIMATION_PX_PER_MS = 1.6;
@@ -116,6 +118,8 @@ let analyticsOpenPromise = Promise.resolve(null);
 let analyticsMissingInitDataWarned = false;
 let cloudStateSaveTimerId = null;
 let isApplyingCloudState = false;
+let cloudSyncTimerId = null;
+let cloudSyncInFlight = false;
 let appBootstrapComplete = false;
 let quotaStateCache = null;
 let adminAccessStateCache = null;
@@ -436,6 +440,44 @@ function getHistoryStorageKey(){
   return `${HISTORY_STORAGE_KEY}:${getTelegramStorageUserId()}`;
 }
 
+function getRandomPuzzleHistoryStorageKey(){
+  return `${RANDOM_PUZZLE_HISTORY_PREFIX}:${getTelegramStorageUserId()}`;
+}
+
+function loadRecentRandomPuzzleKeys(){
+  try{
+    const raw = localStorage.getItem(getRandomPuzzleHistoryStorageKey());
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(item => String(item || '').trim())
+      .filter(Boolean)
+      .slice(0, RANDOM_PUZZLE_HISTORY_MAX);
+  } catch (err){
+    console.warn('Could not read random puzzle history', err);
+    return [];
+  }
+}
+
+function saveRecentRandomPuzzleKeys(keys){
+  const normalized = Array.from(new Set((Array.isArray(keys) ? keys : [])
+    .map(item => String(item || '').trim())
+    .filter(Boolean)))
+    .slice(0, RANDOM_PUZZLE_HISTORY_MAX);
+  try{
+    localStorage.setItem(getRandomPuzzleHistoryStorageKey(), JSON.stringify(normalized));
+  } catch (err){
+    console.warn('Could not save random puzzle history', err);
+  }
+}
+
+function rememberRandomPuzzleKey(key){
+  const normalized = String(key || '').trim();
+  if (!normalized) return;
+  const existing = loadRecentRandomPuzzleKeys().filter(item => item !== normalized);
+  saveRecentRandomPuzzleKeys([normalized, ...existing]);
+}
+
 function getCurrentWindowStartMs(){
   const now = Date.now();
   const dayIndex = Math.floor((now - DAILY_RESET_UTC_OFFSET_MS) / DAY_MS);
@@ -612,7 +654,12 @@ function getPuzzleKey(data){
   return `${data?.fen || ''}|${data?.pgn || ''}|${data?.title || ''}`.trim();
 }
 
-async function fetchChessComRandomPuzzleAvoidingDuplicate(excludeKey = '', maxAttempts = 5){
+async function fetchChessComRandomPuzzleAvoidingDuplicate(excludeKeys = [], maxAttempts = 7){
+  const blocked = new Set(
+    (excludeKeys instanceof Set ? Array.from(excludeKeys) : (Array.isArray(excludeKeys) ? excludeKeys : [excludeKeys]))
+      .map(item => String(item || '').trim())
+      .filter(Boolean)
+  );
   let lastData = null;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1){
     const bust = `${Date.now()}_${attempt}`;
@@ -621,7 +668,7 @@ async function fetchChessComRandomPuzzleAvoidingDuplicate(excludeKey = '', maxAt
     const data = await res.json();
     lastData = data;
     const key = getPuzzleKey(data);
-    if (!excludeKey || !key || key !== excludeKey){
+    if (!key || !blocked.has(key)){
       return data;
     }
   }
@@ -1013,6 +1060,67 @@ function getCloudPuzzleFromState(appState){
   return appState?.state?.puzzle || appState?.puzzle || null;
 }
 
+function shouldHydratePuzzleFromCloud(cloudPuzzle){
+  if (!cloudPuzzle?.puzzleData || !cloudPuzzle?.boardFen) return false;
+  const localPuzzleState = buildCurrentPuzzleState() || getStoredPuzzleState();
+  const cloudPuzzleKey = getPuzzleKey(cloudPuzzle?.puzzleData || null) || '';
+  const currentPuzzleKey = getPuzzleKey(puzzleData || null) || '';
+  const localPuzzleKey = getPuzzleKey(localPuzzleState?.puzzleData || null) || currentPuzzleKey;
+  const localBoardFen = String(localPuzzleState?.boardFen || '');
+  const cloudBoardFen = String(cloudPuzzle?.boardFen || '');
+  const localMoveIndex = Number(localPuzzleState?.puzzleMoveIndex) || 0;
+  const cloudMoveIndex = Number(cloudPuzzle?.puzzleMoveIndex) || 0;
+  const localSolved = Boolean(localPuzzleState?.puzzleSolved);
+  const cloudSolved = Boolean(cloudPuzzle?.puzzleSolved);
+  return Boolean(
+    !appBootstrapComplete ||
+    !puzzleData ||
+    !currentPuzzleKey ||
+    !cloudPuzzleKey ||
+    localPuzzleKey !== cloudPuzzleKey ||
+    localBoardFen !== cloudBoardFen ||
+    localMoveIndex !== cloudMoveIndex ||
+    localSolved !== cloudSolved
+  );
+}
+
+async function refreshCloudStateFromServer(){
+  if (!getTelegramInitData() || cloudSyncInFlight) return null;
+  cloudSyncInFlight = true;
+  try {
+    const response = await sendAnalytics('/api/state/load');
+    const data = response?.ok ? await response.json() : null;
+    if (!data?.app_state) return data;
+    const cloudPuzzle = getCloudPuzzleFromState(data.app_state);
+    const shouldHydrateCloudPuzzle = shouldHydratePuzzleFromCloud(cloudPuzzle);
+    applyCloudState(data.app_state);
+    if (shouldHydrateCloudPuzzle){
+      hydratePuzzleState({ suppressRender: false });
+    } else {
+      updatePuzzleStatus();
+    }
+    return data;
+  } catch (err){
+    console.warn('Cloud state refresh failed', err);
+    return null;
+  } finally {
+    cloudSyncInFlight = false;
+  }
+}
+
+function startCloudSyncPolling(){
+  if (!getTelegramInitData() || cloudSyncTimerId) return;
+  cloudSyncTimerId = setInterval(() => {
+    if (document.hidden) return;
+    refreshCloudStateFromServer();
+  }, 15000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden){
+      refreshCloudStateFromServer();
+    }
+  });
+}
+
 function recordMiniAppOpen(){
   if (analyticsOpenSent) return;
   analyticsOpenSent = true;
@@ -1022,19 +1130,7 @@ function recordMiniAppOpen(){
       analyticsSessionId = data?.session_id || null;
       if (data?.app_state){
         const cloudPuzzle = getCloudPuzzleFromState(data.app_state);
-        const cloudPuzzleKey = getPuzzleKey(cloudPuzzle?.puzzleData || null) || '';
-        const currentPuzzleKey = getPuzzleKey(puzzleData || null) || '';
-        const shouldHydrateCloudPuzzle = Boolean(
-          cloudPuzzle?.puzzleData &&
-          cloudPuzzle?.boardFen &&
-          (
-            !appBootstrapComplete ||
-            !puzzleData ||
-            !currentPuzzleKey ||
-            !cloudPuzzleKey ||
-            currentPuzzleKey !== cloudPuzzleKey
-          )
-        );
+        const shouldHydrateCloudPuzzle = shouldHydratePuzzleFromCloud(cloudPuzzle);
         applyCloudState(data.app_state);
         if (shouldHydrateCloudPuzzle){
           hydratePuzzleState({ suppressRender: false });
@@ -1071,6 +1167,7 @@ function initTelegram(){
   bindTelegramEvent('safeAreaChanged', updateAppSafeArea);
   bindTelegramEvent('contentSafeAreaChanged', updateAppSafeArea);
   recordMiniAppOpen();
+  startCloudSyncPolling();
 }
 
 function setPromotionIcons(color){
@@ -1137,6 +1234,7 @@ function renderPuzzleOverlayStars(rating){
     star.loading = 'eager';
     star.setAttribute('aria-hidden', 'true');
     star.className = 'puzzle-star' + (i <= normalized ? '' : ' inactive');
+    star.style.animationDelay = `${(i - 1) * 110}ms`;
     puzzleOverlayRatingEl.appendChild(star);
   }
   puzzleOverlayRatingEl.classList.add('visible');
@@ -2980,7 +3078,8 @@ async function fetchRandomPuzzle(options = {}){
 
     const previousPuzzleData = puzzleData;
     const previousPuzzleSolved = puzzleSolved;
-    const assignedPuzzle = getAssignedPuzzleForCurrentQuota({ skipCurrent: true });
+    const unlimitedMode = quota.unlimited === true;
+    const assignedPuzzle = unlimitedMode ? null : getAssignedPuzzleForCurrentQuota({ skipCurrent: true });
 
     closePuzzleOverlay();
     puzzleMode = false;
@@ -3003,13 +3102,20 @@ async function fetchRandomPuzzle(options = {}){
     }
     let data = null;
     const previousKey = previousPuzzleSolved ? getPuzzleKey(previousPuzzleData) : '';
+    const blockedKeys = new Set(unlimitedMode ? loadRecentRandomPuzzleKeys() : []);
+    if (previousKey) blockedKeys.add(previousKey);
+    const currentKey = getPuzzleKey(previousPuzzleData);
+    if (currentKey) blockedKeys.add(currentKey);
     if (assignedPuzzle){
       data = assignedPuzzle;
     } else {
-      data = await fetchChessComRandomPuzzleAvoidingDuplicate(previousKey, 5);
+      data = await fetchChessComRandomPuzzleAvoidingDuplicate(blockedKeys, unlimitedMode ? 12 : 7);
     }
     puzzleLoading = false;
     const nextKey = getPuzzleKey(data);
+    if (unlimitedMode && nextKey){
+      rememberRandomPuzzleKey(nextKey);
+    }
     if (previousKey && nextKey && previousKey === nextKey){
       // Fallback: even if Chess.com repeats after retries, don't block +2 flow.
       updatePuzzleFeedback('info', 'Chess.com снова вернул ту же задачу. Открываем повтор, чтобы не блокировать лимит +2.');
@@ -3029,6 +3135,7 @@ async function fetchRandomPuzzle(options = {}){
         url: data?.url || '',
         publish_time: data?.publish_time || null
       });
+      await saveCloudStateNow();
     } else {
       puzzleMode = false;
       updatePuzzleStatus();
@@ -3241,6 +3348,11 @@ window.addEventListener('storage', (event) => {
   if (event.key === PALETTE_STORAGE_KEY){
     applyBoardPalette(loadPalettePreference());
     render();
+  }
+  if (event.key === getPuzzleStorageKey() || event.key === getQuotaStorageKey() || event.key === getHistoryStorageKey()){
+    quotaStateCache = null;
+    hydratePuzzleState({ suppressRender: false });
+    updatePuzzleStatus();
   }
   if (event.key === getAdminAccessStorageKey()){
     adminAccessStateCache = null;

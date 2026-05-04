@@ -832,6 +832,7 @@
       }
       if (code === ACCESS_CODE_RESET){
         state = saveAdminAccessState({ ...state, attemptsLeft: ACCESS_CODE_ATTEMPTS_MAX });
+        saveCloudStateNow();
         statusEl.textContent = 'Счетчик попыток сброшен.';
         inputEl.value = '';
         renderAccessCodeState();
@@ -843,6 +844,7 @@
       }
       if (code === ACCESS_CODE_UNLOCK){
         state = saveAdminAccessState({ ...state, unlimitedTasks: true });
+        saveCloudStateNow();
         statusEl.textContent = 'Код принят. Безлимит задач включен.';
         inputEl.value = '';
         renderAccessCodeState();
