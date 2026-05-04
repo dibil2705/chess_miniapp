@@ -38,7 +38,10 @@ MONITOR_BOT_TOKEN = os.environ.get("TELEGRAM_MONITOR_BOT_TOKEN", "").strip()
 MONITOR_CHAT_ID = int(os.environ.get("TELEGRAM_MONITOR_CHAT_ID", "0") or "0")
 MONITOR_STATE_PATH = os.environ.get("MONITOR_STATE_PATH", "monitor_state.json")
 MONITOR_DB_PATH = os.environ.get("ANALYTICS_DB", "analytics.sqlite3")
-MONITOR_HEALTH_URL = os.environ.get("MONITOR_HEALTH_URL", "http://127.0.0.1:12315/health")
+MONITOR_HEALTH_URL = os.environ.get(
+    "MONITOR_HEALTH_URL",
+    f"http://127.0.0.1:{os.environ.get('TELEGRAM_BACKEND_PORT', '12315')}/health",
+)
 MONITOR_INTERVAL_SECONDS = max(10, int(os.environ.get("MONITOR_INTERVAL_SECONDS", "30") or "30"))
 MONITOR_ALERT_COOLDOWN_SECONDS = max(30, int(os.environ.get("MONITOR_ALERT_COOLDOWN_SECONDS", "180") or "180"))
 MONITOR_MIN_FREE_GB = float(os.environ.get("MONITOR_MIN_FREE_GB", "1.0") or "1.0")
@@ -51,6 +54,7 @@ MINI_APP_URL = os.environ.get(
     "MINI_APP_URL",
     "https://t.me/chess_every_day_bot/app?startapp=test&mode=fullscreen",
 ).strip()
+DEFAULT_MINI_APP_URL = "https://t.me/chess_every_day_bot/app?startapp=test&mode=fullscreen"
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.4-nano").strip()
 WEEKLY_BROADCAST_ENABLED = os.environ.get("WEEKLY_BROADCAST_ENABLED", "1").strip() == "1"
@@ -79,6 +83,25 @@ ERROR_PATTERNS = [
 
 def now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def resolve_public_mini_app_url(raw_url):
+    raw = str(raw_url or "").strip()
+    if not raw:
+        return DEFAULT_MINI_APP_URL
+    try:
+        parsed = urllib.parse.urlparse(raw)
+        host = str(parsed.hostname or "").lower().strip()
+    except Exception:
+        return DEFAULT_MINI_APP_URL
+    if host in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}:
+        return DEFAULT_MINI_APP_URL
+    if host == "t.me":
+        return raw
+    return DEFAULT_MINI_APP_URL
+
+
+PUBLIC_MINI_APP_URL = resolve_public_mini_app_url(MINI_APP_URL)
 
 
 def fmt_seconds(seconds):
@@ -967,7 +990,7 @@ class MonitorBot:
                         [
                             {
                                 "text": "Открыть Mini App",
-                                "url": MINI_APP_URL,
+                                "url": PUBLIC_MINI_APP_URL,
                             }
                         ]
                     ]
@@ -982,7 +1005,7 @@ class MonitorBot:
                     [
                         {
                             "text": "Открыть Mini App",
-                            "url": MINI_APP_URL,
+                            "url": PUBLIC_MINI_APP_URL,
                         }
                     ]
                 ]

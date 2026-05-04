@@ -31,6 +31,7 @@ MINI_APP_URL = os.environ.get(
     "MINI_APP_URL",
     "https://t.me/chess_every_day_bot/app?startapp=test&mode=fullscreen",
 )
+DEFAULT_MINI_APP_URL = "https://t.me/chess_every_day_bot/app?startapp=test&mode=fullscreen"
 DATABASE_PATH = os.environ.get("ANALYTICS_DB", "analytics.sqlite3")
 MONITOR_STATE_PATH = os.environ.get("MONITOR_STATE_PATH", "monitor_state.json")
 HOST = os.environ.get("HOST", "0.0.0.0")
@@ -51,6 +52,25 @@ def msk_now():
 def current_window_start_ms():
     now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
     return ((now_ms - DAILY_RESET_UTC_OFFSET_MS) // DAY_MS) * DAY_MS + DAILY_RESET_UTC_OFFSET_MS
+
+
+def _resolve_public_mini_app_url():
+    raw = str(MINI_APP_URL or "").strip()
+    if not raw:
+        return DEFAULT_MINI_APP_URL
+    try:
+        parsed = urllib.parse.urlparse(raw)
+        host = str(parsed.hostname or "").lower().strip()
+    except Exception:
+        return DEFAULT_MINI_APP_URL
+    if host in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}:
+        return DEFAULT_MINI_APP_URL
+    if host == "t.me":
+        return raw
+    return DEFAULT_MINI_APP_URL
+
+
+PUBLIC_MINI_APP_URL = _resolve_public_mini_app_url()
 
 
 def _normalize_weekly_puzzles(preview):
@@ -204,20 +224,31 @@ def _extract_current_puzzle_key(state):
     return _puzzle_identity_key(puzzle_data)
 
 
+def _has_valid_weekly_set(state):
+    root = state.get("state") if isinstance(state, dict) else state
+    if not isinstance(root, dict):
+        return False
+    puzzle = root.get("puzzle") if isinstance(root.get("puzzle"), dict) else {}
+    weekly_set = puzzle.get("weeklyPuzzleSet") if isinstance(puzzle.get("weeklyPuzzleSet"), dict) else {}
+    week_key = str(weekly_set.get("weekKey") or "").strip()
+    puzzles = weekly_set.get("puzzles")
+    if not week_key or not isinstance(puzzles, list):
+        return False
+    return any(isinstance(item, dict) and str(item.get("fen") or "").strip() for item in puzzles)
+
+
 def _should_apply_weekly_seed(app_state, seeded_state):
     target_week_key = _extract_weekly_set_week_key(seeded_state)
     if not target_week_key:
         return False
+    if not _has_valid_weekly_set(app_state):
+        return True
     current_week_key = _extract_weekly_set_week_key(app_state)
     if current_week_key != target_week_key:
         return True
     target_rotation_window_start = _extract_weekly_set_rotation_window_start(seeded_state)
     current_rotation_window_start = _extract_weekly_set_rotation_window_start(app_state)
     if target_rotation_window_start and target_rotation_window_start != current_rotation_window_start:
-        return True
-    target_puzzle_key = _extract_current_puzzle_key(seeded_state)
-    current_puzzle_key = _extract_current_puzzle_key(app_state)
-    if target_puzzle_key and target_puzzle_key != current_puzzle_key:
         return True
     return False
 
@@ -2639,7 +2670,7 @@ def send_welcome(chat_id):
                     [
                         {
                             "text": "Открыть Mini App",
-                            "url": MINI_APP_URL,
+                            "url": PUBLIC_MINI_APP_URL,
                         }
                     ]
                 ]

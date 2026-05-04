@@ -641,12 +641,23 @@ function normalizeWeeklyPuzzleSet(raw){
   };
 }
 
-function getAssignedPuzzleForCurrentQuota(){
+function getAssignedPuzzleForCurrentQuota(options = {}){
+  const { skipCurrent = false } = options;
   const normalizedSet = normalizeWeeklyPuzzleSet(weeklyPuzzleSet);
   if (!normalizedSet) return null;
   weeklyPuzzleSet = normalizedSet;
   const quota = getQuotaInfo();
-  const index = Math.max(0, Number(quota?.state?.started) || 0);
+  let index = Math.max(0, Number(quota?.state?.started) || 0);
+  if (skipCurrent && puzzleData){
+    const currentKey = getPuzzleKey(puzzleData);
+    while (index < normalizedSet.puzzles.length){
+      const candidate = normalizedSet.puzzles[index];
+      if (getPuzzleKey(candidate) !== currentKey){
+        break;
+      }
+      index += 1;
+    }
+  }
   if (index >= normalizedSet.puzzles.length) return null;
   const puzzle = normalizedSet.puzzles[index];
   return puzzle && puzzle.fen ? puzzle : null;
@@ -2969,7 +2980,7 @@ async function fetchRandomPuzzle(options = {}){
 
     const previousPuzzleData = puzzleData;
     const previousPuzzleSolved = puzzleSolved;
-    const assignedPuzzle = getAssignedPuzzleForCurrentQuota();
+    const assignedPuzzle = getAssignedPuzzleForCurrentQuota({ skipCurrent: true });
 
     closePuzzleOverlay();
     puzzleMode = false;
