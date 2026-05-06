@@ -3211,9 +3211,23 @@ function hydratePuzzleState(options = {}){
     historyStartFen = saved.historyStartFen || saved.boardFen;
     moveHistory = Array.isArray(saved.moveHistory) ? saved.moveHistory : [];
     persistMoveHistory();
-    puzzleSolutionMoves = Array.isArray(saved.puzzleSolutionMoves) && saved.puzzleSolutionMoves.length
+    const savedSolutionMoves = Array.isArray(saved.puzzleSolutionMoves) && saved.puzzleSolutionMoves.length
       ? saved.puzzleSolutionMoves
-      : puzzleSolutionMoves;
+      : [];
+    if (savedSolutionMoves.length){
+      puzzleSolutionMoves = savedSolutionMoves;
+    } else {
+      const fallbackParsed = parseSolutionMovesFromPgn(
+        saved?.puzzleData?.pgn || '',
+        saved?.puzzleStartFen || saved?.boardFen || null
+      );
+      if (Array.isArray(fallbackParsed?.moves) && fallbackParsed.moves.length){
+        puzzleSolutionMoves = fallbackParsed.moves;
+        if (!saved.puzzleSolutionTargetFen && fallbackParsed.finalFen){
+          saved.puzzleSolutionTargetFen = fallbackParsed.finalFen;
+        }
+      }
+    }
     puzzleMoveIndex = Number.isInteger(saved.puzzleMoveIndex) ? saved.puzzleMoveIndex : 0;
     puzzleSolved = !!saved.puzzleSolved;
     puzzleMode = !!saved.puzzleMode && puzzleSolutionMoves.length > 0;

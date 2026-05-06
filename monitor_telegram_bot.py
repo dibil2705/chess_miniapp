@@ -1,6 +1,7 @@
 ﻿import json
 import http.client
 import hashlib
+import io
 import mimetypes
 import os
 import random
@@ -15,6 +16,12 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 from threading import RLock
 from uuid import uuid4
+
+try:
+    import chess
+    import chess.pgn
+except Exception:
+    chess = None
 
 
 def load_env_file(path=".env"):
@@ -62,6 +69,7 @@ WEEKLY_BROADCAST_DAYS = (2, 3)  # Wednesday or Thursday
 WEEKLY_BROADCAST_START_HOUR = 10
 WEEKLY_BROADCAST_END_HOUR = 12
 WEEKLY_BROADCAST_SET_SIZE = 3
+WEEKLY_MIN_SOLUTION_PLIES = max(1, int(os.environ.get("WEEKLY_MIN_SOLUTION_PLIES", "3") or "3"))
 WEEKLY_BROADCAST_RANDOM_URL = "https://api.chess.com/pub/puzzle/random"
 WEEKLY_FETCH_TIMEOUT_SECONDS = max(8, int(os.environ.get("WEEKLY_FETCH_TIMEOUT_SECONDS", "20") or "20"))
 WEEKLY_FETCH_RETRIES = max(0, int(os.environ.get("WEEKLY_FETCH_RETRIES", "2") or "2"))
@@ -237,16 +245,18 @@ class MonitorBot:
         self._save_state()
 
     def keyboard_main(self):
-        monitor_label = "🛑 Выключить мониторинг" if self.state.get("monitoring_enabled", True) else "✅ Включить мониторинг"
+        monitor_label = "Disable monitoring" if self.state.get("monitoring_enabled", True) else "Enable monitoring"
         return {
             "inline_keyboard": [
-                [{"text": "📊 Статус", "callback_data": "screen:status"}, {"text": "⚡ Проверить сейчас", "callback_data": "action:check_now"}],
-                [{"text": "♟ Проверка Stockfish", "callback_data": "action:stockfish_check"}],
-                [{"text": "📣 Создать рассылку", "callback_data": "action:weekly_prepare"}],
-                [{"text": "🧾 Отчеты БД", "callback_data": "screen:reports"}, {"text": "🌐 Вся база (HTML)", "callback_data": "action:db_full"}],
+                [{"text": "Status", "callback_data": "screen:status"}, {"text": "Check now", "callback_data": "action:check_now"}],
+                [{"text": "Stockfish check", "callback_data": "action:stockfish_check"}],
+                [{"text": "Create broadcast", "callback_data": "action:weekly_prepare"}],
+                [{"text": "Force send now", "callback_data": "action:weekly_force_send"}],
+                [{"text": "DB reports", "callback_data": "screen:reports"}, {"text": "Full DB (HTML)", "callback_data": "action:db_full"}],
                 [{"text": monitor_label, "callback_data": "action:toggle_monitor"}],
             ]
         }
+
 
     def keyboard_back(self):
         return {"inline_keyboard": [[{"text": "⬅️ Назад", "callback_data": "screen:main"}]]}
@@ -674,6 +684,45 @@ class MonitorBot:
             raise RuntimeError(f"Chess.com random puzzle failed: HTTP {status}")
         return data
 
+    def _extract_puzzle_solution(self, puzzle):
+        if not isinstance(puzzle, dict):
+            return [], None
+        cached_moves = puzzle.get("solution_moves")
+        if isinstance(cached_moves, list):
+            moves = [str(move).strip() for move in cached_moves if str(move).strip()]
+            if moves:
+                target = str(puzzle.get("solution_target_fen") or "").strip() or None
+                return moves, target
+        pgn = str(puzzle.get("pgn") or "").strip()
+        if not pgn or chess is None:
+            return [], None
+        try:
+            game = chess.pgn.read_game(io.StringIO(pgn))
+            if game is None:
+                return [], None
+            fen = str(puzzle.get("fen") or game.headers.get("FEN") or "").strip()
+            board = chess.Board(fen) if fen else game.board()
+            moves = []
+            for move in game.mainline_moves():
+                moves.append(move.uci())
+                board.push(move)
+            if not moves:
+                return [], None
+            return moves, board.fen()
+        except Exception:
+            return [], None
+
+    def _normalize_puzzle_with_solution(self, puzzle):
+        if not isinstance(puzzle, dict):
+            return None, []
+        normalized = dict(puzzle)
+        moves, target_fen = self._extract_puzzle_solution(normalized)
+        if moves:
+            normalized["solution_moves"] = moves
+            if target_fen:
+                normalized["solution_target_fen"] = target_fen
+        return normalized, moves
+
     def _puzzle_key(self, puzzle):
         if not isinstance(puzzle, dict):
             return ""
@@ -703,6 +752,11 @@ class MonitorBot:
         while len(puzzles) < wanted and attempts < max_attempts:
             attempts += 1
             data = self._fetch_chesscom_random_puzzle()
+            data, solution_moves = self._normalize_puzzle_with_solution(data)
+            if not data:
+                continue
+            if len(solution_moves) < WEEKLY_MIN_SOLUTION_PLIES:
+                continue
             key = self._puzzle_key(data)
             if not key or key in seen:
                 continue
@@ -711,6 +765,11 @@ class MonitorBot:
         if len(puzzles) < wanted:
             fallback = self._load_recent_puzzles_from_state(limit=wanted)
             for item in fallback:
+                item, solution_moves = self._normalize_puzzle_with_solution(item)
+                if not item:
+                    continue
+                if len(solution_moves) < WEEKLY_MIN_SOLUTION_PLIES:
+                    continue
                 key = self._puzzle_key(item)
                 if key and key not in seen:
                     seen.add(key)
@@ -718,8 +777,9 @@ class MonitorBot:
                 if len(puzzles) >= wanted:
                     break
         if len(puzzles) < wanted:
-            raise RuntimeError("Не удалось собрать набор задач для рассылки (проверьте доступ к Chess.com).")
+            raise RuntimeError("Could not collect enough puzzles for broadcast.")
         return puzzles
+
 
     def _load_recent_puzzles_from_state(self, limit=3):
         if not os.path.exists(MONITOR_DB_PATH):
@@ -827,19 +887,21 @@ class MonitorBot:
         weekly = self._weekly_state()
         preview = weekly.get("preview") if isinstance(weekly.get("preview"), dict) else {}
         selected_day = str(preview.get("scheduled_day") or weekly.get("scheduled_day") or "wednesday")
-        wed_label = "📅 Ср ✅" if selected_day == "wednesday" else "📅 Ср"
-        thu_label = "📅 Чт ✅" if selected_day == "thursday" else "📅 Чт"
+        wed_label = "Wed *" if selected_day == "wednesday" else "Wed"
+        thu_label = "Thu *" if selected_day == "thursday" else "Thu"
         return {
             "inline_keyboard": [
                 [
                     {"text": wed_label, "callback_data": "action:weekly_day:wednesday"},
                     {"text": thu_label, "callback_data": "action:weekly_day:thursday"},
                 ],
-                [{"text": "✅ Подтвердить", "callback_data": "action:weekly_confirm"}],
-                [{"text": "🔁 Изменить текст", "callback_data": "action:weekly_regen"}],
-                [{"text": "❌ Отмена", "callback_data": "action:weekly_cancel"}],
+                [{"text": "Confirm", "callback_data": "action:weekly_confirm"}],
+                [{"text": "Confirm and force send now", "callback_data": "action:weekly_force_send"}],
+                [{"text": "Regenerate text", "callback_data": "action:weekly_regen"}],
+                [{"text": "Cancel", "callback_data": "action:weekly_cancel"}],
             ]
         }
+
 
     def _format_weekly_preview_text(self, preview):
         first = (preview.get("puzzles") or [{}])[0]
@@ -897,8 +959,18 @@ class MonitorBot:
         scheduled_day = weekly.get("scheduled_day") or "wednesday"
         preview = weekly.get("preview") if isinstance(weekly.get("preview"), dict) else {}
 
-        puzzles = preview.get("puzzles") if isinstance(preview.get("puzzles"), list) else []
-        if not puzzles:
+        raw_puzzles = preview.get("puzzles") if isinstance(preview.get("puzzles"), list) else []
+        puzzles = []
+        for raw in raw_puzzles:
+            normalized, solution_moves = self._normalize_puzzle_with_solution(raw)
+            if not normalized:
+                continue
+            if len(solution_moves) < WEEKLY_MIN_SOLUTION_PLIES:
+                continue
+            puzzles.append(normalized)
+            if len(puzzles) >= WEEKLY_BROADCAST_SET_SIZE:
+                break
+        if len(puzzles) < WEEKLY_BROADCAST_SET_SIZE:
             puzzles = self._build_weekly_puzzle_set(WEEKLY_BROADCAST_SET_SIZE)
 
         previous_text = str(preview.get("text") or "")
@@ -930,6 +1002,7 @@ class MonitorBot:
         )
         self._send_weekly_preview(preview)
         return preview
+
 
     def _main_bot_api(self, method, payload=None, timeout=MAIN_BOT_REQUEST_TIMEOUT):
         if not MAIN_BOT_API_BASE:
@@ -1015,17 +1088,19 @@ class MonitorBot:
 
     def _build_puzzle_state_payload(self, puzzle, puzzle_set):
         now_ms = int(time.time() * 1000)
-        fen = str(puzzle.get("fen") or "")
+        normalized_puzzle, solution_moves = self._normalize_puzzle_with_solution(puzzle)
+        normalized_puzzle = normalized_puzzle or dict(puzzle or {})
+        fen = str(normalized_puzzle.get("fen") or "")
         active = "b" if (len(fen.split(" ")) > 1 and fen.split(" ")[1] == "b") else "w"
         puzzle_state = {
-            "puzzleData": puzzle,
+            "puzzleData": normalized_puzzle,
             "puzzleMode": True,
-            "puzzleSolutionMoves": [],
+            "puzzleSolutionMoves": solution_moves,
             "puzzleMoveIndex": 0,
             "puzzleSolved": False,
             "puzzleStartFen": fen,
             "puzzlePlayerColor": active,
-            "puzzleSolutionTargetFen": None,
+            "puzzleSolutionTargetFen": str(normalized_puzzle.get("solution_target_fen") or "") or None,
             "puzzleLoadedAt": now_ms,
             "boardFen": fen,
             "puzzleLockedAfterError": False,
@@ -1043,6 +1118,7 @@ class MonitorBot:
             "bonusUnlocked": False,
         }
         return puzzle_state, quota_state, now_ms
+
 
     def _upsert_user_state(self, conn, telegram_id, state_json, current_puzzle_json):
         conn.execute(
@@ -1063,22 +1139,31 @@ class MonitorBot:
             ),
         )
 
-    def _execute_weekly_broadcast(self):
+    def _execute_weekly_broadcast(self, force=False):
         weekly = self._weekly_state()
         preview = weekly.get("preview") if isinstance(weekly.get("preview"), dict) else {}
         if not preview:
-            raise RuntimeError("Нет предпросмотра для рассылки.")
+            raise RuntimeError("No weekly preview found.")
         week_key = str(weekly.get("week_key") or self._current_week_key())
-        if str(weekly.get("last_sent_week_key") or "") == week_key:
-            raise RuntimeError(f"Рассылка за неделю {week_key} уже была отправлена.")
+        if not force and str(weekly.get("last_sent_week_key") or "") == week_key:
+            raise RuntimeError(f"Weekly broadcast for {week_key} was already sent.")
         if not MAIN_BOT_TOKEN:
-            raise RuntimeError("TELEGRAM_BOT_TOKEN не задан.")
-        puzzles = [p for p in (preview.get("puzzles") or []) if isinstance(p, dict) and str(p.get("fen") or "").strip()]
+            raise RuntimeError("TELEGRAM_BOT_TOKEN is missing.")
+
+        puzzles = []
+        for raw in (preview.get("puzzles") or []):
+            normalized, solution_moves = self._normalize_puzzle_with_solution(raw)
+            if not normalized:
+                continue
+            if len(solution_moves) < WEEKLY_MIN_SOLUTION_PLIES:
+                continue
+            puzzles.append(normalized)
         if not puzzles:
-            raise RuntimeError("Набор задач отсутствует.")
+            raise RuntimeError("No valid puzzles in preview.")
+
         message_text = str(preview.get("text") or "").strip()
         if not message_text:
-            raise RuntimeError("Текст рассылки пустой.")
+            raise RuntimeError("Broadcast text is empty.")
 
         primary_puzzle = puzzles[0]
         now_ms = int(time.time() * 1000)
@@ -1149,19 +1234,21 @@ class MonitorBot:
         weekly["last_sent_week_key"] = week_key
         preview["approved"] = True
         preview["sent_at"] = now_str()
+        preview["puzzles"] = puzzles
         weekly["preview"] = preview
         self._save_state()
         self._log_weekly_broadcast(
             week_key=weekly.get("week_key"),
             scheduled_day=weekly.get("scheduled_day"),
             puzzle_id=self._puzzle_key(primary_puzzle),
-            status="sent",
+            status="sent_force" if force else "sent",
             approved=1,
             sent_count=sent,
             failed_count=failed,
-            details={"text": message_text},
+            details={"text": message_text, "force": bool(force)},
         )
         return sent, failed
+
 
     def _is_owner(self, chat_id):
         return int(chat_id or 0) == int(MONITOR_CHAT_ID or 0)
@@ -1185,16 +1272,19 @@ class MonitorBot:
             return
         try:
             self._prepare_weekly_preview(force_regen=False)
+            sent, failed = self._execute_weekly_broadcast(force=True)
+            print(f"[weekly] auto force broadcast sent={sent} failed={failed}")
         except Exception as err:
-            print(f"[weekly] preview preparation failed: {err}")
+            print(f"[weekly] preview/send failed: {err}")
             self._log_weekly_broadcast(
                 week_key=weekly.get("week_key"),
                 scheduled_day=weekly.get("scheduled_day"),
                 puzzle_id="",
-                status="preview_failed",
+                status="auto_send_failed",
                 approved=0,
                 details={"error": str(err)},
             )
+
 
     def _handle_message(self, message):
         chat_id = int((message.get("chat") or {}).get("id") or 0)
@@ -1206,45 +1296,53 @@ class MonitorBot:
                 self.clear_flow(chat_id)
                 self.render_screen(chat_id, "main")
             else:
-                self.send_message(chat_id, "Доступ ограничен.")
+                self.send_message(chat_id, "Access denied.")
             return
         if not self._is_owner(chat_id):
-            self.send_message(chat_id, "Доступ ограничен.")
+            self.send_message(chat_id, "Access denied.")
             return
         if self.get_flow(chat_id) == "connect_input":
             try:
                 cfg = json.loads(text)
                 if not isinstance(cfg, dict):
-                    raise ValueError("JSON должен быть объектом")
+                    raise ValueError("JSON must be an object")
                 self.state.setdefault("connections", {})[self._chat_key(chat_id)] = cfg
                 self._save_state()
                 self.clear_flow(chat_id)
-                self.send_message(chat_id, "✅ Данные подключения сохранены.")
+                self.send_message(chat_id, "Connection settings saved.")
                 self.render_screen(chat_id, "main", edit_message_id=self.get_ui_message_id(chat_id))
             except Exception as err:
-                self.send_message(chat_id, f"⚠️ Ошибка JSON: {err}")
+                self.send_message(chat_id, f"JSON error: {err}")
             return
         if self.get_flow(chat_id) == "weekly_custom_text":
             try:
                 self.clear_flow(chat_id)
                 self._prepare_weekly_preview(custom_text=text)
             except Exception as err:
-                self.send_message(chat_id, f"⚠️ Не удалось применить текст: {err}")
+                self.send_message(chat_id, f"Cannot apply text: {err}")
             return
         if self._has_pending_weekly_preview() and not text.startswith("/"):
             try:
                 self._prepare_weekly_preview(custom_text=text)
             except Exception as err:
-                self.send_message(chat_id, f"⚠️ Не удалось обновить предпросмотр: {err}")
+                self.send_message(chat_id, f"Cannot update preview: {err}")
             return
         if text.startswith("/status"):
             self.render_screen(chat_id, "status", edit_message_id=self.get_ui_message_id(chat_id))
+        elif text.startswith("/weekly_force"):
+            try:
+                self._ensure_weekly_schedule()
+                self._prepare_weekly_preview(force_regen=False)
+                sent, failed = self._execute_weekly_broadcast(force=True)
+                self.send_message(chat_id, f"Force broadcast sent.\nSent: {sent}\nFailed: {failed}")
+            except Exception as err:
+                self.send_message(chat_id, f"Force broadcast failed: {err}")
         elif text.startswith("/weekly"):
             try:
                 self._ensure_weekly_schedule()
                 self._prepare_weekly_preview(force_regen=False)
             except Exception as err:
-                self.send_message(chat_id, f"⚠️ Ошибка подготовки рассылки: {err}")
+                self.send_message(chat_id, f"Weekly preview failed: {err}")
         elif text.startswith("/dbquick"):
             self.send_message(chat_id, self.build_db_usage_summary_report())
         elif text.startswith("/dbfull"):
@@ -1256,7 +1354,8 @@ class MonitorBot:
         elif text.startswith("/stockfish"):
             self.send_message(chat_id, self.build_stockfish_check_report(), parse_mode="HTML")
         else:
-            self.send_message(chat_id, "Команды: /status, /weekly, /dbquick, /db, /dbfull, /check, /stockfish")
+            self.send_message(chat_id, "Commands: /status, /weekly, /weekly_force, /dbquick, /db, /dbfull, /check, /stockfish")
+
 
     def _handle_callback(self, callback):
         callback_id = callback.get("id")
@@ -1324,15 +1423,21 @@ class MonitorBot:
             )
             self.send_message(chat_id, "❌ Недельная рассылка отменена. Автоотправка не выполнялась.")
         elif data == "action:weekly_confirm":
-            self.answer_callback(callback_id, "Запускаю рассылку")
+            self.answer_callback(callback_id, "Sending")
             try:
                 sent, failed = self._execute_weekly_broadcast()
-                self.send_message(
-                    chat_id,
-                    f"✅ Недельная рассылка отправлена.\nУспешно: {sent}\nОшибки: {failed}",
-                )
+                self.send_message(chat_id, f"Weekly broadcast sent.\nSent: {sent}\nFailed: {failed}")
             except Exception as err:
-                self.send_message(chat_id, f"⚠️ Ошибка отправки рассылки: {err}")
+                self.send_message(chat_id, f"Broadcast send failed: {err}")
+        elif data == "action:weekly_force_send":
+            self.answer_callback(callback_id, "Force sending")
+            try:
+                self._ensure_weekly_schedule()
+                self._prepare_weekly_preview(force_regen=False)
+                sent, failed = self._execute_weekly_broadcast(force=True)
+                self.send_message(chat_id, f"Force broadcast sent.\nSent: {sent}\nFailed: {failed}")
+            except Exception as err:
+                self.send_message(chat_id, f"Force broadcast failed: {err}")
         elif data == "action:db_short":
             self.answer_callback(callback_id, "Готовлю")
             self.send_message(chat_id, self.build_db_report())

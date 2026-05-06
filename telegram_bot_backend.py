@@ -1,4 +1,5 @@
 ﻿import hashlib
+import io
 import hmac
 import json
 import mimetypes
@@ -14,6 +15,12 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from dotenv import load_dotenv
+
+try:
+    import chess
+    import chess.pgn
+except Exception:
+    chess = None
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -73,6 +80,47 @@ def _resolve_public_mini_app_url():
 PUBLIC_MINI_APP_URL = _resolve_public_mini_app_url()
 
 
+def _extract_puzzle_solution(puzzle):
+    if not isinstance(puzzle, dict):
+        return [], None
+    cached_moves = puzzle.get("solution_moves")
+    if isinstance(cached_moves, list):
+        moves = [str(move).strip() for move in cached_moves if str(move).strip()]
+        if moves:
+            target = str(puzzle.get("solution_target_fen") or "").strip() or None
+            return moves, target
+    pgn = str(puzzle.get("pgn") or "").strip()
+    if not pgn or chess is None:
+        return [], None
+    try:
+        game = chess.pgn.read_game(io.StringIO(pgn))
+        if game is None:
+            return [], None
+        fen = str(puzzle.get("fen") or game.headers.get("FEN") or "").strip()
+        board = chess.Board(fen) if fen else game.board()
+        moves = []
+        for move in game.mainline_moves():
+            moves.append(move.uci())
+            board.push(move)
+        if not moves:
+            return [], None
+        return moves, board.fen()
+    except Exception:
+        return [], None
+
+
+def _normalize_puzzle_with_solution(puzzle):
+    if not isinstance(puzzle, dict):
+        return None
+    normalized = dict(puzzle)
+    moves, target_fen = _extract_puzzle_solution(normalized)
+    if moves:
+        normalized["solution_moves"] = moves
+        if target_fen:
+            normalized["solution_target_fen"] = target_fen
+    return normalized
+
+
 def _normalize_weekly_puzzles(preview):
     if not isinstance(preview, dict):
         return []
@@ -81,12 +129,13 @@ def _normalize_weekly_puzzles(preview):
         return []
     normalized = []
     for puzzle in raw[:3]:
-        if not isinstance(puzzle, dict):
+        enriched = _normalize_puzzle_with_solution(puzzle)
+        if not isinstance(enriched, dict):
             continue
-        fen = str(puzzle.get("fen") or "").strip()
+        fen = str(enriched.get("fen") or "").strip()
         if not fen:
             continue
-        normalized.append(puzzle)
+        normalized.append(enriched)
     return normalized
 
 
@@ -152,9 +201,11 @@ def _build_global_weekly_state(preview, telegram_id):
     )
     if not primary:
         return None
+    primary = _normalize_puzzle_with_solution(primary)
     fen = str(primary.get("fen") or "")
     if not fen:
         return None
+    solution_moves, target_fen = _extract_puzzle_solution(primary)
     now_ms = int(time.time() * 1000)
     active = "b" if (len(fen.split(" ")) > 1 and fen.split(" ")[1] == "b") else "w"
     puzzle_set = {
@@ -179,12 +230,12 @@ def _build_global_weekly_state(preview, telegram_id):
         "puzzle": {
             "puzzleData": primary,
             "puzzleMode": True,
-            "puzzleSolutionMoves": [],
+            "puzzleSolutionMoves": solution_moves,
             "puzzleMoveIndex": 0,
             "puzzleSolved": False,
             "puzzleStartFen": fen,
             "puzzlePlayerColor": active,
-            "puzzleSolutionTargetFen": None,
+            "puzzleSolutionTargetFen": target_fen,
             "puzzleLoadedAt": now_ms,
             "boardFen": fen,
             "puzzleLockedAfterError": False,
@@ -2136,20 +2187,23 @@ def looks_like_mojibake_fragment(text):
     return False
 
 
+def mojibake_score(text):
+    sample = str(text or "")
+    return sum(sample.count(ch) for ch in ("Р", "С", "Ð", "Ñ", "Ѓ", "‚", "€", "™", "љ", "ћ", "џ"))
+
+
 def cleanup_mojibake_comment(comment):
     text = str(comment or "").strip()
     if not text:
         return text
-    def _mojibake_score(value):
-        sample = str(value or "")
-        return sum(sample.count(ch) for ch in ("Р", "С", "Ð", "Ñ", "Ѓ", "‚", "€", "™", "љ", "ћ", "џ"))
-    # Recover classic "РЈ Р±Рµ..." mojibake produced by cp1251/utf8 mismatch.
-    try:
-        repaired = text.encode("cp1251", errors="strict").decode("utf-8", errors="strict").strip()
-        if repaired and _mojibake_score(repaired) < _mojibake_score(text):
-            text = repaired
-    except Exception:
-        pass
+    # Recover classic mojibake produced by legacy cp1251/utf8 mismatches.
+    for src_encoding in ("cp1251", "latin1", "cp866", "koi8_r"):
+        try:
+            repaired = text.encode(src_encoding, errors="strict").decode("utf-8", errors="strict").strip()
+            if repaired and mojibake_score(repaired) + 1 < mojibake_score(text):
+                text = repaired
+        except Exception:
+            continue
     if looks_like_mojibake_fragment(text):
         try:
             repaired = text.encode("cp1251", errors="strict").decode("utf-8", errors="strict").strip()
@@ -2166,7 +2220,19 @@ def cleanup_mojibake_comment(comment):
         text = " ".join(filtered)
     text = re.sub(r"\s+([,.;:!?])", r"\1", text)
     text = re.sub(r"\s{2,}", " ", text).strip(" ,")
+    if looks_like_mojibake_fragment(text) or mojibake_score(text) >= 6:
+        return ""
     return text
+
+
+def finalize_coach_comment(comment, move_details=None):
+    cleaned = cleanup_mojibake_comment(comment)
+    if cleaned and not looks_like_mojibake_fragment(cleaned) and mojibake_score(cleaned) < 6:
+        return cleaned
+    summary = str((move_details or {}).get("summary") or "").strip().strip(" ,;:-")
+    if summary:
+        return f"{summary[0].upper() + summary[1:] if summary else summary}."
+    return "Позиция требует точной игры."
 
 
 def polish_coach_comment(comment, move_details=None, eval_change=None, current_mate=None):
@@ -2346,16 +2412,16 @@ def build_coach_comment(comment_payload):
         coach_event["blunder"] = blunder_context
     deterministic_comment = build_deterministic_coach_comment(coach_event, played_move_details, board_snapshot)
     if deterministic_comment:
-        return deterministic_comment
+        return finalize_coach_comment(deterministic_comment, played_move_details)
     mate_defense_comment = build_mate_defense_comment(coach_event, played_move_details)
     if mate_defense_comment:
-        return mate_defense_comment
+        return finalize_coach_comment(mate_defense_comment, played_move_details)
     king_escape_comment = build_king_escape_from_check_comment(played_move_details, eval_change_context)
     if king_escape_comment:
-        return king_escape_comment
+        return finalize_coach_comment(king_escape_comment, played_move_details)
     check_defense_comment = build_check_defense_comment(played_move_details, eval_change_context)
     if check_defense_comment:
-        return check_defense_comment
+        return finalize_coach_comment(check_defense_comment, played_move_details)
     tactical_context = build_tactical_context(played_move_details, current_line)
     motif_focus = build_motif_focus_context(tactical_context, played_move_details, current_mate, eval_change_context)
     board_profile = build_board_profile(board_snapshot)
@@ -2455,8 +2521,7 @@ def build_coach_comment(comment_payload):
         comment = normalize_piece_cases(comment)
         comment = avoid_recent_comment_repetition(comment, recent_comments)
         comment = shorten_coach_comment(comment, max_words=22)
-        comment = cleanup_mojibake_comment(comment)
-        return comment or "Позиция требует точной игры."
+        return finalize_coach_comment(comment, played_move_details)
     except Exception as err:
         print("OpenAI coach comment error:", err)
         return "AI-комментарий временно недоступен, но первая линия всё ещё лучший ориентир."
