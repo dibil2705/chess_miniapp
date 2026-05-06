@@ -2535,6 +2535,9 @@
       if (mateInOneByLine || mateInOneBySearch){
         return { code: 'mate_in_one', label: 'мат в 1', priority: 900 };
       }
+      if (currentMate?.mating_side && moverSide && currentMate.mating_side === moverSide && Number(currentMate.moves) > 1){
+        return { code: 'mate_threat', label: 'матовая угроза', priority: 850 };
+      }
       if (kingTargeted){
         return { code: 'check', label: 'шах', priority: 800 };
       }
@@ -2592,6 +2595,9 @@
       if (threat.code === 'mate_in_one'){
         return canSideMateInOneOnBoard(replyBoard, mover);
       }
+      if (threat.code === 'mate_threat'){
+        return canSideMateInOneOnBoard(replyBoard, mover);
+      }
       if (threat.code === 'check'){
         return isKingInCheckOnBoard(defender, replyBoard);
       }
@@ -2617,6 +2623,12 @@
         return state.importantTargets.length > 0;
       }
       return false;
+    }
+
+    function canOpponentCaptureSquare(board, defenderColor, square){
+      if (!square) return false;
+      const responses = generateLegalMovesOnBoard(board, defenderColor);
+      return responses.some((move) => move.to === square);
     }
 
     function evaluateThreatNeutralization(board, move, threat, moverColor){
@@ -2747,58 +2759,106 @@
       if (gameStatus?.kind === 'checkmate'){
         return 'После хода поставлен мат.';
       }
-      if (move.wasInCheckBefore && move.resolvedCheck && mainThreat.priority < 800){
-        return `Ход ${movedPieceLabel} на ${movedSquare} снял шах с короля.`;
-      }
       const neutralization = evaluateThreatNeutralization(board, move, mainThreat, moverColor);
+      const captureExists = canOpponentCaptureSquare(board, opponentColor, movedSquare);
 
-      let firstSentence = '';
-      if (movedUnderAttack && mainThreat.priority >= 500){
-        firstSentence = `${movedPieceLabel} на ${movedSquare} под боем, но создаёт более срочную угрозу: ${mainThreat.label}.`;
-      } else if (mainThreat.priority > 0){
-        firstSentence = `Ход ${movedPieceLabel} на ${movedSquare} создал угрозу: ${mainThreat.label}.`;
+      const sentences = [];
+      let primaryUsedOwnRisk = false;
+      if (mainThreat.priority > 0){
+        switch (mainThreat.code){
+          case 'mate_in_one':
+            sentences.push('Ход создаёт угрозу мата в один.');
+            break;
+          case 'mate_threat':
+            sentences.push('Ход создаёт матовую угрозу.');
+            break;
+          case 'check':
+            sentences.push('Ход даёт шах.');
+            break;
+          case 'win_queen':
+            sentences.push('Ход создаёт угрозу выигрыша ферзя.');
+            break;
+          case 'win_rook':
+            sentences.push('Ход создаёт угрозу выигрыша ладьи.');
+            break;
+          case 'win_piece':
+            sentences.push('Ход создаёт угрозу выигрыша фигуры.');
+            break;
+          case 'fork':
+            sentences.push('Ход создаёт вилку.');
+            break;
+          case 'pin':
+            sentences.push('Ход создаёт связку.');
+            break;
+          case 'discovered':
+            sentences.push('Ход открывает вскрытое нападение.');
+            break;
+          case 'double_attack':
+            sentences.push('Ход создаёт двойную атаку.');
+            break;
+          default:
+            sentences.push(`Ход ${movedPieceLabel} на ${movedSquare} создаёт угрозу.`);
+            break;
+        }
       } else if (movedUnderAttack){
-        firstSentence = `${movedPieceLabel} на ${movedSquare} под боем после хода.`;
-      } else if (move.capturedPiece){
-        firstSentence = `Ход ${movedPieceLabel} на ${movedSquare} с взятием: снята ${normalizePieceLabel(pieceCoachName(move.capturedPiece))}.`;
-      } else if (shared.length){
-        const item = shared[0];
-        const allyRaw = String((item?.ally_pieces || [])[0] || '').trim();
-        const ally = allyRaw ? normalizePieceLabel(allyRaw) : '';
-        const target = normalizePieceLabel(item?.target_piece);
-        firstSentence = ally && item?.target_square
-          ? `${movedPieceLabel} и ${ally} усилили давление на ${target} (${item.target_square}).`
-          : `Ход ${movedPieceLabel} на ${movedSquare} усилил давление.`;
-      } else if (nonKingTargets.length === 1){
-        firstSentence = `Ход ${movedPieceLabel} на ${movedSquare} усилил давление на ${joinPieceTargets(nonKingTargets, 1)}.`;
+        sentences.push(`${movedPieceLabel} на ${movedSquare} находится под боем.`);
       } else {
-        firstSentence = `Ход ${movedPieceLabel} на ${movedSquare} без прямой тактики, но с улучшением координации.`;
-      }
-
-      const secondParts = [];
-      const topOwnRisk = ownPressure.vulnerable[0] || ownPressure.attacked[0] || null;
-      if (topOwnRisk){
-        const riskTag = topOwnRisk.vulnerable ? 'без достаточной защиты' : 'под атакой';
-        secondParts.push(`${topOwnRisk.piece_name} на ${topOwnRisk.square} остаётся ${riskTag}`);
+        const topOwnRisk = ownPressure.vulnerable[0] || ownPressure.attacked[0] || null;
+        if (move.wasInCheckBefore && move.resolvedCheck){
+          sentences.push(`Ход ${movedPieceLabel} на ${movedSquare} снял шах с короля.`);
+        } else if (topOwnRisk){
+          const riskTag = topOwnRisk.vulnerable ? 'без достаточной защиты' : 'под атакой';
+          sentences.push(`${topOwnRisk.piece_name} на ${topOwnRisk.square} остаётся ${riskTag}.`);
+          primaryUsedOwnRisk = true;
+        } else if (move.capturedPiece){
+          sentences.push(`Сделано взятие: снята ${normalizePieceLabel(pieceCoachName(move.capturedPiece))}.`);
+        } else if (shared.length){
+          const item = shared[0];
+          const allyRaw = String((item?.ally_pieces || [])[0] || '').trim();
+          const ally = allyRaw ? normalizePieceLabel(allyRaw) : '';
+          const target = normalizePieceLabel(item?.target_piece);
+          sentences.push(
+            ally && item?.target_square
+              ? `${movedPieceLabel} и ${ally} усилили давление на ${target} (${item.target_square}).`
+              : `Ход ${movedPieceLabel} на ${movedSquare} усилил давление.`
+          );
+        } else if (nonKingTargets.length === 1){
+          sentences.push(`Ход ${movedPieceLabel} на ${movedSquare} усилил давление на ${joinPieceTargets(nonKingTargets, 1)}.`);
+        } else {
+          sentences.push(`Ход ${movedPieceLabel} на ${movedSquare} без прямой тактики.`);
+        }
       }
 
       if (mainThreat.priority > 0){
-        if (neutralization.capture && neutralization.forcing){
-          secondParts.push(`соперник может снять угрозу взятием на ${movedSquare} или форсирующим шахом`);
-        } else if (neutralization.capture){
-          secondParts.push(`соперник может снять угрозу взятием на ${movedSquare}`);
+        if (movedUnderAttack){
+          if (mainThreat.code === 'mate_in_one' || mainThreat.code === 'mate_threat'){
+            sentences.push('Фигура находится под боем, но это вторично: соперник должен сначала решить матовую угрозу.');
+          } else {
+            sentences.push('Фигура находится под боем, но это вторично из-за главной угрозы хода.');
+          }
+        }
+        if (captureExists){
+          if (neutralization.capture){
+            sentences.push('Однако соперник может снять угрозу взятием этой фигуры.');
+          } else {
+            sentences.push('Даже взятие этой фигуры не снимает главную угрозу.');
+          }
         } else if (neutralization.forcing){
-          secondParts.push('соперник может снять угрозу форсирующим шахом');
-        } else {
-          secondParts.push('быстрого форсирующего снятия угрозы не видно');
+          sentences.push('Однако соперник может временно сдержать угрозу форсирующим шахом.');
         }
       } else if (movedUnderAttack){
-        const defenseTag = movedDefenders === 0 ? 'без защиты' : 'поддержан защитой';
-        secondParts.push(`${movedPieceLabel} ${defenseTag}`);
+        const defenseTag = movedDefenders === 0 ? 'без защиты' : 'с защитой';
+        sentences.push(`После хода эта фигура остаётся ${defenseTag}.`);
+      } else {
+        const topOwnRisk = ownPressure.vulnerable[0] || ownPressure.attacked[0] || null;
+        if (topOwnRisk && !primaryUsedOwnRisk){
+          const riskTag = topOwnRisk.vulnerable ? 'без достаточной защиты' : 'под атакой';
+          sentences.push(`${topOwnRisk.piece_name} на ${topOwnRisk.square} остаётся ${riskTag}.`);
+        }
       }
 
-      if (!secondParts.length) return firstSentence;
-      return `${firstSentence} ${secondParts.join(', ')}.`;
+      const limited = sentences.filter(Boolean).slice(0, 3);
+      return limited.join(' ');
     }
 
     function buildFormalCoachComment(commentPayload, lines = []){
