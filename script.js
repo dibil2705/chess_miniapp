@@ -126,6 +126,8 @@ let adminAccessStateCache = null;
 let cloudQuotaResetAt = 0;
 let spritePreloadPromise = null;
 let pendingMoveAnimations = [];
+let autoOpponentMoveTimeoutId = null;
+let autoOpponentMoveNonce = 0;
 let initialPieceRevealPending = shouldRevealPiecesOnLoad();
 const boardLoaderReasons = new Set();
 const PIECE_APPEAR_DELAY_MS = 35;
@@ -1289,6 +1291,7 @@ function parseFenState(fen){
 
 function loadPositionFromFen(fen, options = {}){
   const { preservePuzzleProgress = false } = options;
+  cancelPendingAutoOpponentMove();
   const parsed = parseFenState(fen);
   boardState = parsed.board;
   activeColor = parsed.active;
@@ -2198,6 +2201,7 @@ function resetPuzzleProgress(){
 }
 
 function restartCurrentPuzzle(){
+  cancelPendingAutoOpponentMove();
   puzzleSolved = false;
   puzzleMoveIndex = 0;
   puzzleLockedAfterError = false;
@@ -2338,6 +2342,7 @@ function buildSolvedActions(){
 
 function resetPuzzleBoardToStart(){
   if (!puzzleStartFen) return;
+  cancelPendingAutoOpponentMove();
   loadPositionFromFen(puzzleStartFen);
 }
 
@@ -2534,6 +2539,14 @@ function handlePromotionChoice(pieceCode){
   applyMove({ fromR, fromC, toR, toC, piece, promotionPiece });
 }
 
+function cancelPendingAutoOpponentMove(){
+  autoOpponentMoveNonce += 1;
+  if (autoOpponentMoveTimeoutId !== null){
+    clearTimeout(autoOpponentMoveTimeoutId);
+    autoOpponentMoveTimeoutId = null;
+  }
+}
+
 function performMove(fromR, fromC, toR, toC, options = {}){
   if (!isMoveAllowed(fromR, fromC, toR, toC)) return;
   const piece = boardState[fromR][fromC];
@@ -2552,6 +2565,7 @@ function attemptAutoOpponentMove(){
   if (!puzzleSolutionMoves.length) return;
   if (puzzleMoveIndex >= puzzleSolutionMoves.length) return;
   if (activeColor === puzzlePlayerColor) return;
+  cancelPendingAutoOpponentMove();
 
   const moveKey = puzzleSolutionMoves[puzzleMoveIndex];
   const parsed = parseMoveKey(moveKey);
@@ -2567,9 +2581,19 @@ function attemptAutoOpponentMove(){
   const promoPiece = promotionPiece
     ? (activeColor === 'w' ? promotionPiece.toUpperCase() : promotionPiece.toLowerCase())
     : null;
+  const moveNonce = autoOpponentMoveNonce;
 
-  setTimeout(() => {
-    applyMove({ fromR, fromC, toR, toC, piece, promotionPiece: promoPiece });
+  autoOpponentMoveTimeoutId = setTimeout(() => {
+    autoOpponentMoveTimeoutId = null;
+    if (moveNonce !== autoOpponentMoveNonce) return;
+    if (!puzzleMode || puzzleSolved || puzzleLockedAfterError) return;
+    if (puzzleMoveIndex >= puzzleSolutionMoves.length) return;
+    if (puzzleSolutionMoves[puzzleMoveIndex] !== moveKey) return;
+    if (activeColor === puzzlePlayerColor) return;
+    const livePiece = boardState[fromR]?.[fromC];
+    if (!livePiece) return;
+    if ((activeColor === 'w' && isBlack(livePiece)) || (activeColor === 'b' && isWhite(livePiece))) return;
+    applyMove({ fromR, fromC, toR, toC, piece: livePiece, promotionPiece: promoPiece });
   }, 200);
 }
 
