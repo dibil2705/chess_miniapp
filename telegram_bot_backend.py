@@ -1012,11 +1012,23 @@ def build_tactical_context(move_details, current_line):
         item for item in new_attacked_pieces
         if isinstance(item, dict) and str(item.get("piece") or "").lower() not in ("РєРѕСЂРѕР»СЏ", "king")
     ]
+    vulnerable_non_king_targets = [
+        item
+        for item in non_king_targets
+        if str(item.get("defense_state") or "").strip().lower() in ("undefended", "overloaded")
+    ]
+    vulnerable_target_pieces = [
+        str(item.get("piece") or "").strip()
+        for item in vulnerable_non_king_targets
+        if str(item.get("piece") or "").strip()
+    ][:3]
     return {
         "capture_is_exchange": bool(move_details.get("captured_piece") and is_capture_token(first_reply)),
         "reply_is_capture": is_capture_token(first_reply),
         "reply_is_check": "+" in str(first_reply or "") or "#" in str(first_reply or ""),
         "is_fork": len(non_king_targets) >= 2,
+        "is_vulnerable_fork": len(vulnerable_non_king_targets) >= 2,
+        "fork_target_pieces": vulnerable_target_pieces,
         "target_count": len(new_attacked_pieces),
         "was_in_check_before": bool(move_details.get("was_in_check_before")),
         "resolved_check": bool(move_details.get("resolved_check")),
@@ -1067,7 +1079,7 @@ def build_motif_focus_context(tactical_context, move_details, current_mate, eval
         motifs.append("РјР°С‚РѕРІР°СЏ СѓРіСЂРѕР·Р°")
     if tactical_context.get("was_in_check_before") and tactical_context.get("resolved_check"):
         motifs.append("Р·Р°С‰РёС‚Р° РѕС‚ С€Р°С…Р°")
-    if tactical_context.get("is_fork"):
+    if tactical_context.get("is_vulnerable_fork"):
         motifs.append("РІРёР»РєР°")
     discovered = move_details.get("discovered_attack") if isinstance(move_details, dict) else {}
     if isinstance(discovered, dict) and discovered.get("attacker_piece"):
@@ -1322,6 +1334,36 @@ def rook_on_open_file(move, board_snapshot):
     return True
 
 
+def rook_doubling_context(move):
+    if piece_nominative(move.get("movingPiece")) != "Р»Р°РґСЊСЏ":
+        return ""
+    shared = move.get("sharedPressure") if isinstance(move.get("sharedPressure"), list) else []
+    if not shared:
+        return ""
+    to_sq = str(move.get("to") or "")
+    to_file = to_sq[0] if len(to_sq) >= 2 else ""
+    to_rank = to_sq[1] if len(to_sq) >= 2 else ""
+    for item in shared:
+        if not isinstance(item, dict):
+            continue
+        ally_codes = [str(code or "").upper() for code in (item.get("ally_piece_codes") or []) if str(code or "").strip()]
+        ally_squares = [str(square or "") for square in (item.get("ally_squares") or []) if str(square or "").strip()]
+        same_file_or_rank = any(
+            len(square) >= 2 and (
+                (to_file and square[0] == to_file) or
+                (to_rank and square[1] == to_rank)
+            )
+            for square in ally_squares
+        )
+        if not same_file_or_rank:
+            continue
+        if "R" in ally_codes:
+            return "Р»Р°РґСЊСЏ СЃРґРІРѕРёР»Р°СЃСЊ СЃ РґСЂСѓРіРѕР№ Р»Р°РґСЊРµР№ Рё СѓСЃРёР»РёР»Р° РґР°РІР»РµРЅРёРµ РїРѕ Р»РёРЅРёРё"
+        if "Q" in ally_codes:
+            return "Р»Р°РґСЊСЏ СЃРєРѕРѕСЂРґРёРЅРёСЂРѕРІР°Р»Р°СЃСЊ СЃ С„РµСЂР·РµРј Рё СѓСЃРёР»РёР»Р° РґР°РІР»РµРЅРёРµ РїРѕ Р»РёРЅРёРё"
+    return ""
+
+
 def pawn_ready_to_promote(move, board_snapshot):
     if piece_nominative(move.get("movingPiece")) != "РїРµС€РєР°":
         return False
@@ -1346,6 +1388,13 @@ def build_move_summary(move, board_snapshot=None):
     captured = piece_label(move.get("capturedPiece"))
     label = str(move.get("label") or move.get("san") or "").lower()
     attacks = move.get("newAttackedPieces") if isinstance(move.get("newAttackedPieces"), list) else []
+    vulnerable_non_king_attacks = [
+        item
+        for item in attacks
+        if isinstance(item, dict)
+        and str(item.get("piece") or "").upper() != "K"
+        and str(item.get("defense_state") or "").strip().lower() in ("undefended", "overloaded")
+    ]
     move_verb = move_past_verb(piece)
     if captured:
         if "x" in label:
@@ -1369,8 +1418,15 @@ def build_move_summary(move, board_snapshot=None):
             verb = "РЅР°РїР°Р»Р°" if piece in ("РїРµС€РєР°", "Р»Р°РґСЊСЏ") else "РЅР°РїР°Р»"
             return f"{piece} {verb} РЅР° {target_name}".strip()
     non_king_attacks = [item for item in attacks if isinstance(item, dict) and str(item.get("piece") or "").upper() != "K"]
-    if len(non_king_attacks) >= 2:
-        return f"{piece} СЃРґРµР»Р°Р» РІРёР»РєСѓ".strip()
+    if len(vulnerable_non_king_attacks) >= 2:
+        vulnerable_non_pawn = [
+            item
+            for item in vulnerable_non_king_attacks
+            if str(item.get("piece") or "").upper() != "P"
+        ]
+        if vulnerable_non_pawn:
+            return f"{piece} СЃРґРµР»Р°Р» РІРёР»РєСѓ".strip()
+        return f"{piece} СЃРѕР·РґР°Р» РґРІРѕР№РЅСѓСЋ СѓРіСЂРѕР·Сѓ РїРµС€РєР°Рј".strip()
     if len(attacks) >= 2:
         target = non_king_attacks[0] if non_king_attacks else (attacks[0] if isinstance(attacks[0], dict) else {})
         target_name = piece_label(target.get("piece")) or target.get("piece_name")
@@ -1380,6 +1436,9 @@ def build_move_summary(move, board_snapshot=None):
                 attack_verb = "РЅР°РїР°Р»Р°" if piece in ("РїРµС€РєР°", "Р»Р°РґСЊСЏ") else "РЅР°РїР°Р»"
                 return f"{piece} {check_verb} С€Р°С… Рё {attack_verb} РЅР° {target_name}".strip()
             return f"{piece} СЃРѕР·РґР°Р» РґРІРѕР№РЅСѓСЋ СѓРіСЂРѕР·Сѓ".strip()
+    rook_doubling = rook_doubling_context(move)
+    if rook_doubling:
+        return rook_doubling
     if is_initial_square_move(move, piece):
         if piece == "Р»Р°РґСЊСЏ" and rook_on_open_file(move, board_snapshot):
             return "Р»Р°РґСЊСЏ СЂР°Р·РІРёР»Р°СЃСЊ Рё РІС‹С€Р»Р° РЅР° РѕС‚РєСЂС‹С‚СѓСЋ Р»РёРЅРёСЋ, РµР№ С‚Р°Рј РєРѕРјС„РѕСЂС‚РЅРµРµ"
@@ -1410,7 +1469,10 @@ def compact_move_details(move, board_snapshot=None):
         "shared_pressure": [
             {
                 "moved_piece": str(item.get("moved_piece") or ""),
+                "moved_piece_code": str(item.get("moved_piece_code") or "").upper(),
                 "ally_pieces": [str(piece or "") for piece in (item.get("ally_pieces") or [])[:2]],
+                "ally_piece_codes": [str(code or "").upper() for code in (item.get("ally_piece_codes") or [])[:2]],
+                "ally_squares": [str(square or "") for square in (item.get("ally_squares") or [])[:2]],
                 "target_square": str(item.get("target_square") or ""),
                 "target_piece": str(item.get("target_piece") or ""),
             }
@@ -1441,6 +1503,9 @@ def compact_move_details(move, board_snapshot=None):
             {
                 "piece": piece_label(item.get("piece")) or item.get("piece_name"),
                 "square": item.get("square") or "",
+                "defense_state": str(item.get("defense_state") or "").strip().lower(),
+                "attackers": item.get("attackers"),
+                "defenders": item.get("defenders"),
             }
             for item in (move.get("newAttackedPieces") if isinstance(move.get("newAttackedPieces"), list) else [])[:3]
             if isinstance(item, dict)
@@ -1889,8 +1954,8 @@ def validate_comment_against_eval(comment, current_eval, current_mate=None, eval
     lower = comment.lower()
     same_side_had_advantage = bool(eval_change and eval_change.get("previous_advantage_side") == advantage_side)
     moving_side = normalize_score_side(eval_change.get("side")) if eval_change else None
-    white_positive = "Р±РµР»" in lower and any(word in lower for word in ("РІС‹РёРіСЂ", "Р°С‚Р°Рє", "РёРЅРёС†РёР°С‚РёРІ", "РґР°РІ", "РїСЂРµРёРјСѓС‰"))
-    black_positive = ("С‡РµСЂРЅ" in lower or "С‡С‘СЂРЅ" in lower) and any(word in lower for word in ("РІС‹РёРіСЂ", "Р°С‚Р°Рє", "РёРЅРёС†РёР°С‚РёРІ", "РґР°РІ", "РїСЂРµРёРјСѓС‰"))
+    white_positive = "Р±РµР»" in lower and any(word in lower for word in ("РІС‹РёРіСЂ", "Р°С‚Р°Рє", "РёРЅРёС†РёР°С‚РёРІ", "РґР°РІ", "РїСЂРµРёРјСѓС‰", "РїРµСЂРµРІРµСЃ"))
+    black_positive = ("С‡РµСЂРЅ" in lower or "С‡С‘СЂРЅ" in lower) and any(word in lower for word in ("РІС‹РёРіСЂ", "Р°С‚Р°Рє", "РёРЅРёС†РёР°С‚РёРІ", "РґР°РІ", "РїСЂРµРёРјСѓС‰", "РїРµСЂРµРІРµСЃ"))
 
     if moving_side and moving_side != advantage_side and any(word in lower for word in ("СЃРѕС…СЂР°РЅРёР»", "СЃРѕС…СЂР°РЅРёР»Р°", "СЃРѕС…СЂР°РЅРёР»Рё", "СѓСЃРёР»РёР»", "СѓСЃРёР»РёР»Р°", "СѓСЃРёР»РёР»Рё")):
         return f"РџРµСЂРµРІРµСЃ РѕСЃС‚Р°Р»СЃСЏ Сѓ {side_genitive(advantage_side)}."
@@ -2024,7 +2089,11 @@ def build_context_tail(move_details, eval_change, current_eval, tactical_context
     is_capture = bool((move_details or {}).get("captured_piece"))
     is_exchange = bool((tactical_context or {}).get("capture_is_exchange"))
     reply_is_capture = bool((tactical_context or {}).get("reply_is_capture"))
-    fork_signal = bool((tactical_context or {}).get("is_fork"))
+    fork_signal = bool((tactical_context or {}).get("is_vulnerable_fork"))
+    try:
+        mate_in_line = int((current_line or {}).get("mate"))
+    except (TypeError, ValueError):
+        mate_in_line = 0
     discovered = (move_details or {}).get("discovered_attack") if isinstance((move_details or {}).get("discovered_attack"), dict) else {}
     shared_pressure = (move_details or {}).get("shared_pressure") if isinstance((move_details or {}).get("shared_pressure"), list) else []
     cp_value = (current_eval or {}).get("cp")
@@ -2061,9 +2130,21 @@ def build_context_tail(move_details, eval_change, current_eval, tactical_context
         allies = ", ".join([str(item).strip() for item in sample.get("ally_pieces", []) if str(item).strip()])
         moved_piece = str(sample.get("moved_piece") or "").strip() or "С„РёРіСѓСЂР°"
         target_piece = str(sample.get("target_piece") or "").strip()
+        ally_codes = [str(code or "").upper() for code in sample.get("ally_piece_codes", []) if str(code or "").strip()]
+        ally_squares = [str(square or "") for square in sample.get("ally_squares", []) if str(square or "").strip()]
+        to_sq = str((move_details or {}).get("to") or "")
+        same_file_or_rank = any(
+            len(to_sq) >= 2 and len(square) >= 2 and (square[0] == to_sq[0] or square[1] == to_sq[1])
+            for square in ally_squares
+        )
+        if moved_piece == "Р»Р°РґСЊСЏ" and same_file_or_rank and ("R" in ally_codes or "Q" in ally_codes):
+            if "R" in ally_codes:
+                candidates.append("Рё Р»Р°РґСЊСЏ СЃРґРІРѕРёР»Р°СЃСЊ СЃ РґСЂСѓРіРѕР№ Р»Р°РґСЊРµР№ РїРѕ Р»РёРЅРёРё")
+            elif "Q" in ally_codes:
+                candidates.append("Рё Р»Р°РґСЊСЏ СЃРєРѕРѕСЂРґРёРЅРёСЂРѕРІР°Р»Р°СЃСЊ СЃ С„РµСЂР·РµРј РїРѕ Р»РёРЅРёРё")
         if allies and target_piece:
             candidates.append(f"Рё СЌС‚Рѕ СЃРѕРІРјРµСЃС‚РЅРѕРµ РґР°РІР»РµРЅРёРµ: {moved_piece} Рё {allies} Р°С‚Р°РєСѓСЋС‚ {target_piece}")
-    if fork_signal:
+    if fork_signal and mate_in_line <= 0:
         if eval_kind == "worsened":
             candidates.extend(
                 [
@@ -2463,6 +2544,14 @@ def build_coach_comment(comment_payload):
         },
     }
     instructions = load_coach_rules()
+    instructions += (
+        "\n\nДополнительные правила точности:\n"
+        "1) Называй «вилку» только если tactical_context.is_vulnerable_fork = true.\n"
+        "2) Если в current_best_line есть матовая оценка (mate > 0), приоритет у матового плана, а не у вилки на пешки.\n"
+        "3) Если shared_pressure показывает ладью вместе с ладьей/ферзем по одной линии, упомяни сдвоение/координацию тяжёлых фигур.\n"
+        "4) Если ход снимал шах или спасал от матовой угрозы, сначала скажи об обороне.\n"
+        "5) Не приписывай перевес стороне, которая хуже по evaluation.current.\n"
+    )
     if position_only:
         instructions += (
             "\n\nРежим snapshot-позиции: это не комментарий к последнему ходу. "
@@ -2494,7 +2583,7 @@ def build_coach_comment(comment_payload):
                 comment = f"{summary.capitalize()}, РЅРѕ С…РѕРґ РѕРєР°Р·Р°Р»СЃСЏ РЅРµС‚РѕС‡РЅС‹Рј."
             else:
                 comment = f"{summary.capitalize()}."
-        fork_signal = (not position_only) and (bool(tactical_context.get("is_fork")) or ("РІРёР»Рє" in summary.lower()))
+        fork_signal = (not position_only) and (bool(tactical_context.get("is_vulnerable_fork")) or ("РІРёР»Рє" in summary.lower()))
         if fork_signal and eval_change_context and eval_change_context.get("kind") == "worsened":
             if "Р·РµРІ" not in comment.lower():
                 mover = normalize_score_side(moving_side)

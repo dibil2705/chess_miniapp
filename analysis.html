@@ -3239,7 +3239,10 @@
         if (!allies.length) return;
         result.push({
           moved_piece: movedPieceName,
+          moved_piece_code: movedPieceCode ? movedPieceCode.toUpperCase() : '',
           ally_pieces: allies.map((item) => item.piece_name).filter(Boolean).slice(0, 2),
+          ally_piece_codes: allies.map((item) => String(item.piece || '').toUpperCase()).filter(Boolean).slice(0, 2),
+          ally_squares: allies.map((item) => String(item.square || '')).filter(Boolean).slice(0, 2),
           target_square: target.square,
           target_piece: target.piece_name || pieceCoachName(target.piece || '')
         });
@@ -3293,6 +3296,8 @@
       if (!piece) return [];
       const { fileIdx, rankIdx } = squareToIndices(square);
       if (!isInsideBoard(rankIdx, fileIdx)) return [];
+      const attackerColor = getPieceColor(piece);
+      const defenderColor = attackerColor === 'w' ? 'b' : 'w';
       const targets = [];
       for (let r = 0; r < 8; r++){
         for (let f = 0; f < 8; f++){
@@ -3300,10 +3305,18 @@
           if (!target || getPieceColor(target) === getPieceColor(piece)) continue;
           const targetSquare = `${files[f]}${ranks[r]}`;
           if (!isLegalPieceMove(piece, square, targetSquare, board)) continue;
+          const attackers = getAttackersOnSquare(board, targetSquare, attackerColor).length;
+          const defenders = getAttackersOnSquare(board, targetSquare, defenderColor).length;
+          const defense_state = defenders === 0
+            ? 'undefended'
+            : (attackers > defenders ? 'overloaded' : 'defended');
           targets.push({
             square: targetSquare,
             piece: target,
-            piece_name: pieceCoachName(target)
+            piece_name: pieceCoachName(target),
+            attackers,
+            defenders,
+            defense_state
           });
         }
       }
