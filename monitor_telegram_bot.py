@@ -881,6 +881,25 @@ class MonitorBot:
         ]
         return "\n".join(lines)
 
+    def _player_moves_required(self, puzzle):
+        moves, _ = self._extract_puzzle_solution(puzzle)
+        if not moves:
+            return 0
+        # В задачах решение обычно чередуется: ход игрока, ответ, и т.д.
+        return max(1, (len(moves) + 1) // 2)
+
+    def _build_local_weekly_short_text(self, puzzle):
+        required = self._player_moves_required(puzzle)
+        side = "Белые" if str((puzzle or {}).get("fen") or "").split(" ")[1:2] == ["w"] else "Черные"
+        if required <= 1:
+            return f"{side} на ходе: найдите точное решение без подсказок."
+        return f"{side} на ходе: найдите точную цепочку из {required} ходов."
+
+    def _looks_like_one_move_claim(self, text):
+        normalized = str(text or "").lower()
+        one_move_markers = ("один ход", "за один ход", "с одного хода", "в один ход")
+        return any(marker in normalized for marker in one_move_markers)
+
     def _generate_weekly_short_text(self, previous_text="", puzzle=None):
         fallback = [
             "♟ Попробуй найти лучший ход в сегодняшней задаче.",
@@ -888,14 +907,17 @@ class MonitorBot:
             "Сможешь найти точный ход без подсказки?",
         ]
         if not OPENAI_API_KEY:
-            return random.choice(fallback)
+            return self._build_local_weekly_short_text(puzzle) if isinstance(puzzle, dict) else random.choice(fallback)
         puzzle_context = self._build_puzzle_prompt_context(puzzle)
+        required_player_moves = self._player_moves_required(puzzle)
         prompt = (
             "Ты пишешь короткую подводку к шахматной задаче для Telegram.\n"
             "У тебя есть полный контекст задачи: позиция, расстановка фигур, решение и целевая позиция.\n"
             "Сделай ОДНО короткое предложение на русском, чтобы заинтересовать пользователя.\n"
             "Строго без спойлеров: не называй ходы, поля, матовые идеи, жертвы и конкретные тактические мотивы.\n"
             "Не раскрывай решение напрямую, только интригуй.\n"
+            f"Важное ограничение: указывай сложность корректно, игроку нужно сделать примерно {required_player_moves} ход(а/ов).\n"
+            "Если ходов больше одного, не пиши формулировки про один ход.\n"
             "Максимум 90 символов. Без кавычек и без списка.\n\n"
             f"Контекст задачи:\n{puzzle_context}"
         )
@@ -921,10 +943,12 @@ class MonitorBot:
             text = self._extract_openai_text(data).strip()
             text = re.sub(r"\s+", " ", text).strip().strip("\"'“”")
             if text:
+                if required_player_moves > 1 and self._looks_like_one_move_claim(text):
+                    return self._build_local_weekly_short_text(puzzle)
                 return text[:220]
         except Exception as err:
             print(f"[weekly] openai weekly text failed: {err}")
-        return random.choice(fallback)
+        return self._build_local_weekly_short_text(puzzle) if isinstance(puzzle, dict) else random.choice(fallback)
 
     def _weekly_preview_keyboard(self):
         weekly = self._weekly_state()
@@ -1083,6 +1107,7 @@ class MonitorBot:
 
         puzzles[0] = replacement
         preview["puzzles"] = puzzles[:WEEKLY_BROADCAST_SET_SIZE]
+        preview["text"] = self._build_local_weekly_short_text(replacement)
         preview["created_at"] = now_str()
         preview["approved"] = False
         weekly["preview"] = preview
@@ -1369,7 +1394,7 @@ class MonitorBot:
         if int(time.time()) < scheduled_ts:
             return
         try:
-            self._prepare_weekly_preview(force_regen=False)
+            self._prepare_weekly_preview(force_regen=True)
             sent, failed = self._execute_weekly_broadcast(force=True)
             print(f"[weekly] auto force broadcast sent={sent} failed={failed}")
         except Exception as err:
@@ -1430,7 +1455,7 @@ class MonitorBot:
         elif text.startswith("/weekly_force"):
             try:
                 self._ensure_weekly_schedule()
-                self._prepare_weekly_preview(force_regen=False)
+                self._prepare_weekly_preview(force_regen=True)
                 sent, failed = self._execute_weekly_broadcast(force=True)
                 self.send_message(chat_id, f"🚀 Принудительная рассылка отправлена.\nУспешно: {sent}\nОшибки: {failed}")
             except Exception as err:
@@ -1438,7 +1463,7 @@ class MonitorBot:
         elif text.startswith("/weekly"):
             try:
                 self._ensure_weekly_schedule()
-                self._prepare_weekly_preview(force_regen=False)
+                self._prepare_weekly_preview(force_regen=True)
             except Exception as err:
                 self.send_message(chat_id, f"⚠️ Ошибка подготовки рассылки: {err}")
         elif text.startswith("/dbquick"):
@@ -1479,7 +1504,7 @@ class MonitorBot:
             self.answer_callback(callback_id, "Готовлю рассылку")
             try:
                 self._ensure_weekly_schedule()
-                self._prepare_weekly_preview(force_regen=False)
+                self._prepare_weekly_preview(force_regen=True)
             except Exception as err:
                 self.send_message(chat_id, f"⚠️ Ошибка подготовки рассылки: {err}")
         elif data == "action:weekly_regen":
@@ -1529,6 +1554,7 @@ class MonitorBot:
         elif data == "action:weekly_confirm":
             self.answer_callback(callback_id, "Запускаю рассылку")
             try:
+                self._prepare_weekly_preview(force_regen=True)
                 sent, failed = self._execute_weekly_broadcast(force=True)
                 self.send_message(chat_id, f"✅ Недельная рассылка отправлена.\nУспешно: {sent}\nОшибки: {failed}")
             except Exception as err:
@@ -1537,7 +1563,7 @@ class MonitorBot:
             self.answer_callback(callback_id, "Принудительная отправка")
             try:
                 self._ensure_weekly_schedule()
-                self._prepare_weekly_preview(force_regen=False)
+                self._prepare_weekly_preview(force_regen=True)
                 sent, failed = self._execute_weekly_broadcast(force=True)
                 self.send_message(chat_id, f"🚀 Принудительная рассылка отправлена.\nУспешно: {sent}\nОшибки: {failed}")
             except Exception as err:
