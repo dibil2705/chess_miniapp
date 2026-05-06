@@ -1508,12 +1508,22 @@
         clearMoveQuality();
         return;
       }
+      const playedUci = normalizeUciMove(move.uci);
+      const bestUci = normalizeUciMove(getPriorityMoveUci(bestLine) || bestLine?.best_move_uci || '');
+      const currentMate = getForcedMateContext(playedLine, evaluationPerspective);
+      const previousMate = getForcedMateContext(bestLine, evaluationPerspective);
+      if (playedUci && bestUci && playedUci === bestUci){
+        const matchedCategory = hasBrilliantMoveIdea(move, currentMate, previousMate)
+          ? { label: 'Блестящий ход', className: 'brilliant' }
+          : { label: 'Лучший ход', className: 'best' };
+        moveQualityEl.className = `move-quality visible ${matchedCategory.className}`;
+        moveQualityEl.textContent = matchedCategory.label;
+        return;
+      }
       const moverSide = move.side || getFenActiveColor(parent?.fen || '');
       const bestScore = normalizeScore(bestLine, moverSide);
       const playedScore = normalizeScore(playedLine, moverSide);
       let lossCp = Math.max(0, Math.round(bestScore.cp - playedScore.cp));
-      const currentMate = getForcedMateContext(playedLine, evaluationPerspective);
-      const previousMate = getForcedMateContext(bestLine, evaluationPerspective);
       if (bestScore.mate !== null || playedScore.mate !== null){
         if (bestScore.mate !== null && playedScore.mate !== null){
           if (bestScore.mate > 0 && playedScore.mate > 0){
