@@ -2534,7 +2534,7 @@
       };
     }
 
-    function evaluateMainThreat({ move, targets = [], kingTargeted = false, importantTargets = [], currentMate = null, gameStatus = null, discovered = null, pin = null, board = null, moverSide = null }){
+    function evaluateMainThreat({ move, targets = [], kingTargeted = false, importantTargets = [], currentMate = null, gameStatus = null, discovered = null, pin = null, board = null, moverSide = null, knightFork = null }){
       if (gameStatus?.kind === 'checkmate'){
         return { code: 'mate_done', label: 'мат', priority: 1000 };
       }
@@ -2547,6 +2547,9 @@
       }
       if (currentMate?.mating_side && moverSide && currentMate.mating_side === moverSide && Number(currentMate.moves) > 1){
         return { code: 'mate_threat', label: 'матовая угроза', priority: 850 };
+      }
+      if (knightFork?.realFork && knightFork.forkClass === 'fork_check'){
+        return { code: 'fork_check', label: 'вилка с шахом', priority: knightFork.forkPriority || 805 };
       }
       if (kingTargeted){
         return { code: 'check', label: 'шах', priority: 800 };
@@ -2564,6 +2567,15 @@
       const minor = vulnerable.find((item) => item.piece_code === 'B' || item.piece_code === 'N');
       if (minor){
         return { code: 'win_piece', label: `выигрыш фигуры на ${minor.square}`, priority: 500 };
+      }
+      if (knightFork?.realFork){
+        if (knightFork.forkClass === 'fork_qr'){
+          return { code: 'fork_qr', label: 'вилка на ферзя и ладью', priority: knightFork.forkPriority || 710 };
+        }
+        if (knightFork.forkClass === 'fork_qpiece'){
+          return { code: 'fork_qpiece', label: 'вилка на ферзя и фигуру', priority: knightFork.forkPriority || 650 };
+        }
+        return { code: 'fork_two', label: 'вилка на две фигуры', priority: knightFork.forkPriority || 560 };
       }
       if (shouldCallItFork(targets)){
         return { code: 'fork', label: 'вилка', priority: 420 };
@@ -2625,6 +2637,10 @@
       }
       if (threat.code === 'fork'){
         return shouldCallItFork(targets);
+      }
+      if (threat.code === 'fork_check' || threat.code === 'fork_qr' || threat.code === 'fork_qpiece' || threat.code === 'fork_two'){
+        const nextKnightFork = buildKnightForkContext(replyBoard, move, mover);
+        return Boolean(nextKnightFork?.realFork);
       }
       if (threat.code === 'double_attack'){
         return state.importantTargets.length >= 2 || (state.kingTargeted && state.importantTargets.length >= 1);
@@ -2706,6 +2722,118 @@
         return `после размена теряется материал (${netForMover})`;
       }
       return 'получается равный размен';
+    }
+
+    function isValuableForkTarget(pieceCode){
+      return ['K', 'Q', 'R', 'B', 'N'].includes(String(pieceCode || '').toUpperCase());
+    }
+
+    function canPieceMakeLegalMoveOnBoard(board, fromSquare, toSquare){
+      const fromIdx = squareToIndices(fromSquare);
+      const toIdx = squareToIndices(toSquare);
+      if (!isInsideBoard(fromIdx.rankIdx, fromIdx.fileIdx) || !isInsideBoard(toIdx.rankIdx, toIdx.fileIdx)) return false;
+      const piece = board[fromIdx.rankIdx]?.[fromIdx.fileIdx] || '';
+      if (!piece) return false;
+      if (!isLegalPieceMove(piece, fromSquare, toSquare, board)) return false;
+      if (wouldLeaveKingInCheckOnBoard(board, fromSquare, toSquare, piece)) return false;
+      return true;
+    }
+
+    function getKnightForkTargetsOnBoard(board, knightSquare, moverColor){
+      const idx = squareToIndices(knightSquare);
+      if (!isInsideBoard(idx.rankIdx, idx.fileIdx)) return { all: [], key: [], king: null, nonKing: [] };
+      const piece = board[idx.rankIdx]?.[idx.fileIdx] || '';
+      if (!piece || getPieceColor(piece) !== moverColor || piece.toUpperCase() !== 'N'){
+        return { all: [], key: [], king: null, nonKing: [] };
+      }
+      const allTargets = normalizeAttackTargets(getAttackedPiecesFromSquare(piece, knightSquare, board));
+      const keyTargets = allTargets.filter((item) => isValuableForkTarget(item.piece_code));
+      const kingTarget = keyTargets.find((item) => item.king) || null;
+      const nonKingTargets = keyTargets.filter((item) => !item.king);
+      return { all: allTargets, key: keyTargets, king: kingTarget, nonKing: nonKingTargets };
+    }
+
+    function buildKnightForkContext(board, move, moverColor){
+      const movedPieceCode = String(move?.movingPiece || '').toUpperCase();
+      const movedSquare = String(move?.to || '').trim();
+      if (movedPieceCode !== 'N' || !movedSquare) return null;
+      const opponent = oppositeColorCode(moverColor);
+      const state = getKnightForkTargetsOnBoard(board, movedSquare, moverColor);
+      const kingTarget = state.king || null;
+      const nonKingTargets = state.nonKing || [];
+      const queenTarget = nonKingTargets.find((item) => item.piece_code === 'Q') || null;
+      const rookTarget = nonKingTargets.find((item) => item.piece_code === 'R') || null;
+      const knightAttackers = getAttackersOnSquare(board, movedSquare, opponent);
+      const targetsThatCanCaptureKnight = nonKingTargets.filter((target) => canPieceMakeLegalMoveOnBoard(board, target.square, movedSquare));
+
+      let targetsDefendEachOther = false;
+      for (let i = 0; i < nonKingTargets.length; i++){
+        for (let j = i + 1; j < nonKingTargets.length; j++){
+          const a = nonKingTargets[i];
+          const b = nonKingTargets[j];
+          if (canPieceMakeLegalMoveOnBoard(board, a.square, b.square) || canPieceMakeLegalMoveOnBoard(board, b.square, a.square)){
+            targetsDefendEachOther = true;
+            break;
+          }
+        }
+        if (targetsDefendEachOther) break;
+      }
+
+      let forkClass = 'none';
+      let forkPriority = 0;
+      if (kingTarget && nonKingTargets.length >= 1){
+        forkClass = 'fork_check';
+        forkPriority = 805;
+      } else if (queenTarget && rookTarget){
+        forkClass = 'fork_qr';
+        forkPriority = 710;
+      } else if (queenTarget && nonKingTargets.length >= 2){
+        forkClass = 'fork_qpiece';
+        forkPriority = 650;
+      } else if (nonKingTargets.length >= 2){
+        forkClass = 'fork_two';
+        forkPriority = 560;
+      }
+
+      let neutralizedInOne = false;
+      let neutralizeMove = null;
+      if (forkClass !== 'none'){
+        const replies = generateLegalMovesOnBoard(board, opponent);
+        for (const reply of replies){
+          const replyBoard = applyMoveOnBoard(board, reply.from, reply.to, reply.piece);
+          if (reply.to === movedSquare){
+            neutralizedInOne = true;
+            neutralizeMove = reply;
+            break;
+          }
+          const nextState = getKnightForkTargetsOnBoard(replyBoard, movedSquare, moverColor);
+          const stillFork = (nextState.king && nextState.nonKing.length >= 1) || (nextState.nonKing.length >= 2);
+          if (!stillFork){
+            neutralizedInOne = true;
+            neutralizeMove = reply;
+            break;
+          }
+        }
+      }
+
+      return {
+        movedSquare,
+        forkClass,
+        forkPriority,
+        kingTarget,
+        nonKingTargets,
+        queenTarget,
+        rookTarget,
+        knightCanBeCaptured: knightAttackers.length > 0,
+        knightAttackersCount: knightAttackers.length,
+        knightDefendersCount: getAttackersOnSquare(board, movedSquare, moverColor).length,
+        targetsThatCanCaptureKnight,
+        targetsDefendEachOther,
+        neutralizedInOne,
+        neutralizeMove,
+        realFork: forkClass !== 'none' && !neutralizedInOne,
+        weakFork: forkClass !== 'none' && neutralizedInOne
+      };
     }
 
     function findThreatTarget(threatCode, targets = []){
@@ -2823,6 +2951,7 @@
       const nonKingTargets = targets.filter((item) => !item.king);
       const kingTargeted = movedTargetsState.kingTargeted || isKingInCheckOnBoard(opponentColor, board);
       const importantTargets = movedTargetsState.importantTargets;
+      const knightFork = buildKnightForkContext(board, move, moverColor);
       const shared = Array.isArray(move.sharedPressure) ? move.sharedPressure : [];
       const discovered = move.discoveredAttack && typeof move.discoveredAttack === 'object' ? move.discoveredAttack : null;
       const pin = detectPinFromMovedPiece(move);
@@ -2844,7 +2973,8 @@
         discovered,
         pin,
         board,
-        moverSide: mover
+        moverSide: mover,
+        knightFork
       });
 
       if (gameStatus?.kind === 'checkmate'){
@@ -2923,6 +3053,30 @@
           case 'fork':
             sentences.push(`Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт вилку на ${joinPieceTargets(targets.filter((t) => t.king || t.vulnerable || t.priority >= 3), 2)}.`);
             break;
+          case 'fork_check': {
+            const topTarget = (knightFork?.nonKingTargets || []).sort((a, b) => b.priority - a.priority)[0];
+            sentences.push(topTarget
+              ? `Конь с ${move.from} даёт шах и одновременно атакует ${topTarget.piece_name} на ${topTarget.square}.`
+              : `Конь с ${move.from} даёт шах и создаёт вилку.`);
+            break;
+          }
+          case 'fork_qr':
+            sentences.push(`Конь с ${move.from} одновременно атакует ферзя на ${knightFork?.queenTarget?.square || '?'} и ладью на ${knightFork?.rookTarget?.square || '?'}.`);
+            break;
+          case 'fork_qpiece': {
+            const pieceTarget = (knightFork?.nonKingTargets || []).find((t) => t.piece_code !== 'Q');
+            sentences.push(pieceTarget
+              ? `Конь с ${move.from} одновременно атакует ферзя на ${knightFork?.queenTarget?.square || '?'} и ${pieceTarget.piece_name} на ${pieceTarget.square}.`
+              : `Конь с ${move.from} создаёт вилку на ферзя и фигуру.`);
+            break;
+          }
+          case 'fork_two': {
+            const topTwo = (knightFork?.nonKingTargets || []).sort((a, b) => b.priority - a.priority).slice(0, 2);
+            sentences.push(topTwo.length >= 2
+              ? `Конь с ${move.from} одновременно атакует ${topTwo[0].piece_name} на ${topTwo[0].square} и ${topTwo[1].piece_name} на ${topTwo[1].square}.`
+              : `Конь с ${move.from} создаёт вилку на две фигуры.`);
+            break;
+          }
           case 'pin':
             sentences.push(`Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт связку по линии.`);
             break;
@@ -2937,6 +3091,19 @@
           default:
             sentences.push(`Ход ${movedPieceLabel} на ${movedSquare} создаёт угрозу.`);
             break;
+        }
+      }
+      if (!sentences.length && knightFork?.weakFork){
+        const topTwo = (knightFork.nonKingTargets || []).sort((a, b) => b.priority - a.priority).slice(0, 2);
+        const neutralizer = knightFork.neutralizeMove || null;
+        const neutralizerPiece = normalizePieceLabel(pieceCoachName(neutralizer?.piece || ''));
+        if (topTwo.length >= 2 && neutralizer){
+          sentences.push(
+            `Формально конь с ${move.from} атакует ${topTwo[0].piece_name} на ${topTwo[0].square} и ${topTwo[1].piece_name} на ${topTwo[1].square}, ` +
+            `но ${neutralizerPiece} с ${neutralizer.from} может сразу снять коня на ${neutralizer.to}.`
+          );
+        } else {
+          sentences.push(`Формально конь с ${move.from} атакует несколько фигур, но соперник нейтрализует атаку за один ход.`);
         }
       }
       if (!sentences.length && movedUnderAttack){
