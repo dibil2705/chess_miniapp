@@ -2631,6 +2631,73 @@
       return responses.some((move) => move.to === square);
     }
 
+    function getMaterialValue(pieceCode){
+      switch (String(pieceCode || '').toUpperCase()){
+        case 'Q': return 9;
+        case 'R': return 5;
+        case 'B':
+        case 'N': return 3;
+        case 'P': return 1;
+        default: return 0;
+      }
+    }
+
+    function getLinePvUciMoves(line, maxMoves = 4){
+      const source = Array.isArray(line?.pv_uci)
+        ? line.pv_uci
+        : (typeof line?.pv_uci === 'string'
+          ? line.pv_uci.split(/\s+/)
+          : (Array.isArray(line?.pv)
+            ? line.pv
+            : (typeof line?.pv === 'string' ? line.pv.split(/\s+/) : [])));
+      const normalized = source
+        .map((token) => normalizeUciMove(token))
+        .filter(Boolean);
+      return normalized.slice(0, Math.max(0, maxMoves));
+    }
+
+    function simulateMainlineSequence(board, sideToMove, uciMoves = [], maxPlies = 3){
+      const moves = [];
+      let workBoard = cloneBoard(board);
+      let side = normalizeSideToken(sideToMove, null);
+      if (!side) return moves;
+      for (const uci of uciMoves.slice(0, Math.max(0, maxPlies))){
+        const coords = uciToCoords(uci);
+        if (!coords) break;
+        const fromIdx = squareToIndices(coords.from);
+        const toIdx = squareToIndices(coords.to);
+        if (!isInsideBoard(fromIdx.rankIdx, fromIdx.fileIdx) || !isInsideBoard(toIdx.rankIdx, toIdx.fileIdx)) break;
+        const movingPiece = workBoard[fromIdx.rankIdx]?.[fromIdx.fileIdx] || '';
+        if (!movingPiece || getPieceColor(movingPiece) !== side) break;
+        const capturedPiece = workBoard[toIdx.rankIdx]?.[toIdx.fileIdx] || '';
+        moves.push({
+          uci,
+          side,
+          from: coords.from,
+          to: coords.to,
+          movingPiece,
+          movingPieceName: normalizePieceLabel(pieceCoachName(movingPiece)),
+          capturedPiece,
+          capturedPieceName: normalizePieceLabel(pieceCoachName(capturedPiece))
+        });
+        workBoard = applyMoveOnBoard(workBoard, coords.from, coords.to, movingPiece);
+        side = oppositeColorCode(side);
+      }
+      return moves;
+    }
+
+    function formatMaterialResult(netForMover){
+      if (netForMover > 0){
+        if (netForMover === 1) return 'в размене остаётся лишняя пешка';
+        if (netForMover === 2) return 'в размене получается выигрыш двух пешек';
+        return `в размене остаётся перевес по материалу (+${netForMover})`;
+      }
+      if (netForMover < 0){
+        return `после размена теряется материал (${netForMover})`;
+      }
+      return 'получается равный размен';
+    }
+
     function findThreatTarget(threatCode, targets = []){
       const byPriority = [...targets].sort((a, b) => b.priority - a.priority);
       if (threatCode === 'win_queen') return byPriority.find((t) => t.piece_code === 'Q' && t.vulnerable) || null;
@@ -2774,10 +2841,40 @@
       const neutralization = evaluateThreatNeutralization(board, move, mainThreat, moverColor);
       const captureExists = canOpponentCaptureSquare(board, opponentColor, movedSquare);
       const primaryTarget = findThreatTarget(mainThreat.code, targets);
+      const pvMoves = getLinePvUciMoves(commentPayload?.current_line, 3);
+      const pvSequence = simulateMainlineSequence(board, opponentColor, pvMoves, 3);
 
       const sentences = [];
       let primaryUsedOwnRisk = false;
-      if (mainThreat.priority > 0){
+      if (move.capturedPiece){
+        const capturedLabel = normalizePieceLabel(pieceCoachName(move.capturedPiece));
+        sentences.push(`${movedPieceLabel} с ${move.from} бьёт ${capturedLabel} на ${movedSquare}.`);
+        const firstReply = pvSequence[0] || null;
+        const secondReply = pvSequence[1] || null;
+        const isImmediateRecapture = Boolean(firstReply?.capturedPiece && firstReply.to === movedSquare);
+        if (isImmediateRecapture){
+          let netForMover = getMaterialValue(move.capturedPiece);
+          netForMover -= getMaterialValue(firstReply.capturedPiece);
+          let exchangeText = `По основной линии ${firstReply.movingPieceName} с ${firstReply.from} бьёт на ${firstReply.to}`;
+          if (secondReply?.capturedPiece){
+            netForMover += getMaterialValue(secondReply.capturedPiece);
+            exchangeText += `, ${secondReply.movingPieceName} с ${secondReply.from} бьёт в ответ на ${secondReply.to}`;
+          }
+          exchangeText += `: ${formatMaterialResult(netForMover)}.`;
+          sentences.push(exchangeText);
+          return sentences.slice(0, 2).join(' ');
+        }
+        if (mainThreat.priority >= 800){
+          if (mainThreat.code === 'mate_in_one'){
+            sentences.push('После взятия остаётся угроза мата в один.');
+          } else if (mainThreat.code === 'mate_threat'){
+            sentences.push('После взятия сохраняется матовая угроза.');
+          } else if (mainThreat.code === 'check'){
+            sentences.push('После взятия создаётся шах.');
+          }
+          return sentences.slice(0, 2).join(' ');
+        }
+      } else if (mainThreat.priority > 0){
         switch (mainThreat.code){
           case 'mate_in_one':
             sentences.push(`Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт угрозу мата в один.`);
@@ -2821,9 +2918,11 @@
             sentences.push(`Ход ${movedPieceLabel} на ${movedSquare} создаёт угрозу.`);
             break;
         }
-      } else if (movedUnderAttack){
+      }
+      if (!sentences.length && movedUnderAttack){
         sentences.push(`${movedPieceLabel} на ${movedSquare} находится под боем.`);
-      } else {
+      }
+      if (!sentences.length){
         const topOwnRisk = ownPressure.vulnerable[0] || ownPressure.attacked[0] || null;
         if (move.wasInCheckBefore && move.resolvedCheck){
           sentences.push(`Ход ${movedPieceLabel} на ${movedSquare} снял шах с короля.`);
@@ -2850,7 +2949,7 @@
         }
       }
 
-      if (mainThreat.priority > 0){
+      if (mainThreat.priority > 0 && sentences.length < 2){
         if (movedUnderAttack){
           if (mainThreat.code === 'mate_in_one' || mainThreat.code === 'mate_threat'){
             sentences.push(`${movedPieceLabel} на ${movedSquare} под боем (${movedAttackers} атакующих), но это вторично: соперник должен сначала решить матовую угрозу.`);
@@ -2875,10 +2974,10 @@
             ? `Однако соперник может временно сдержать угрозу: ${fp} ${fm.from}-${fm.to} с шахом.`
             : 'Однако соперник может временно сдержать угрозу форсирующим шахом.');
         }
-      } else if (movedUnderAttack){
+      } else if (movedUnderAttack && sentences.length < 2){
         const defenseTag = movedDefenders === 0 ? 'без защиты' : 'с защитой';
         sentences.push(`После хода эта фигура остаётся ${defenseTag}.`);
-      } else {
+      } else if (sentences.length < 2){
         const topOwnRisk = ownPressure.vulnerable[0] || ownPressure.attacked[0] || null;
         if (topOwnRisk && !primaryUsedOwnRisk){
           const riskTag = topOwnRisk.vulnerable ? 'без достаточной защиты' : 'под атакой';
@@ -2886,7 +2985,7 @@
         }
       }
 
-      const limited = sentences.filter(Boolean).slice(0, 3);
+      const limited = sentences.filter(Boolean).slice(0, 2);
       return limited.join(' ');
     }
 
