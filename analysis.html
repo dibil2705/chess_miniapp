@@ -2631,28 +2631,40 @@
       return responses.some((move) => move.to === square);
     }
 
+    function findThreatTarget(threatCode, targets = []){
+      const byPriority = [...targets].sort((a, b) => b.priority - a.priority);
+      if (threatCode === 'win_queen') return byPriority.find((t) => t.piece_code === 'Q' && t.vulnerable) || null;
+      if (threatCode === 'win_rook') return byPriority.find((t) => t.piece_code === 'R' && t.vulnerable) || null;
+      if (threatCode === 'win_piece') return byPriority.find((t) => (t.piece_code === 'B' || t.piece_code === 'N') && t.vulnerable) || null;
+      return null;
+    }
+
     function evaluateThreatNeutralization(board, move, threat, moverColor){
-      if (!threat || threat.priority <= 0) return { neutralizable: false, capture: false, forcing: false };
+      if (!threat || threat.priority <= 0) return { neutralizable: false, capture: false, forcing: false, captureMove: null, forcingMove: null };
       const mover = normalizeSideToken(moverColor, null);
-      if (!mover) return { neutralizable: false, capture: false, forcing: false };
+      if (!mover) return { neutralizable: false, capture: false, forcing: false, captureMove: null, forcingMove: null };
       const defender = oppositeColorCode(mover);
       const responses = generateLegalMovesOnBoard(board, defender);
       const movedSquare = String(move?.to || '').trim();
       let capture = false;
       let forcing = false;
+      let captureMove = null;
+      let forcingMove = null;
       for (const response of responses){
         const replyBoard = applyMoveOnBoard(board, response.from, response.to, response.piece);
         const neutralized = !doesThreatRemainAfterReply(replyBoard, threat, move, mover);
         if (!neutralized) continue;
         if (response.to === movedSquare){
           capture = true;
+          if (!captureMove) captureMove = response;
         }
         if (isKingInCheckOnBoard(mover, replyBoard)){
           forcing = true;
+          if (!forcingMove) forcingMove = response;
         }
         if (capture && forcing) break;
       }
-      return { neutralizable: capture || forcing, capture, forcing };
+      return { neutralizable: capture || forcing, capture, forcing, captureMove, forcingMove };
     }
 
     function detectPinFromMovedPiece(move){
@@ -2761,40 +2773,49 @@
       }
       const neutralization = evaluateThreatNeutralization(board, move, mainThreat, moverColor);
       const captureExists = canOpponentCaptureSquare(board, opponentColor, movedSquare);
+      const primaryTarget = findThreatTarget(mainThreat.code, targets);
 
       const sentences = [];
       let primaryUsedOwnRisk = false;
       if (mainThreat.priority > 0){
         switch (mainThreat.code){
           case 'mate_in_one':
-            sentences.push('Ход создаёт угрозу мата в один.');
+            sentences.push(`Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт угрозу мата в один.`);
             break;
           case 'mate_threat':
-            sentences.push('Ход создаёт матовую угрозу.');
+            sentences.push(`Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт матовую угрозу.`);
             break;
           case 'check':
-            sentences.push('Ход даёт шах.');
+            sentences.push(`Ход ${movedPieceLabel} ${move.from}-${movedSquare} даёт шах королю соперника.`);
             break;
           case 'win_queen':
-            sentences.push('Ход создаёт угрозу выигрыша ферзя.');
+            sentences.push(primaryTarget
+              ? `Ход ${movedPieceLabel} ${move.from}-${movedSquare} атакует ${primaryTarget.piece_name} на ${primaryTarget.square} и создаёт угрозу выигрыша ферзя.`
+              : `Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт угрозу выигрыша ферзя.`);
             break;
           case 'win_rook':
-            sentences.push('Ход создаёт угрозу выигрыша ладьи.');
+            sentences.push(primaryTarget
+              ? `Ход ${movedPieceLabel} ${move.from}-${movedSquare} атакует ${primaryTarget.piece_name} на ${primaryTarget.square} и создаёт угрозу выигрыша ладьи.`
+              : `Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт угрозу выигрыша ладьи.`);
             break;
           case 'win_piece':
-            sentences.push('Ход создаёт угрозу выигрыша фигуры.');
+            sentences.push(primaryTarget
+              ? `Ход ${movedPieceLabel} ${move.from}-${movedSquare} атакует ${primaryTarget.piece_name} на ${primaryTarget.square} и создаёт угрозу выигрыша фигуры.`
+              : `Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт угрозу выигрыша фигуры.`);
             break;
           case 'fork':
-            sentences.push('Ход создаёт вилку.');
+            sentences.push(`Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт вилку на ${joinPieceTargets(targets.filter((t) => t.king || t.vulnerable || t.priority >= 3), 2)}.`);
             break;
           case 'pin':
-            sentences.push('Ход создаёт связку.');
+            sentences.push(`Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт связку по линии.`);
             break;
           case 'discovered':
-            sentences.push('Ход открывает вскрытое нападение.');
+            sentences.push(discovered?.attacker_piece && discovered?.target_square
+              ? `Ход ${movedPieceLabel} ${move.from}-${movedSquare} открывает линию: ${normalizePieceLabel(discovered.attacker_piece)} атакует ${normalizePieceLabel(discovered.target_piece)} на ${discovered.target_square}.`
+              : `Ход ${movedPieceLabel} ${move.from}-${movedSquare} открывает вскрытое нападение.`);
             break;
           case 'double_attack':
-            sentences.push('Ход создаёт двойную атаку.');
+            sentences.push(`Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт двойную атаку на ${joinPieceTargets(importantTargets, 2)}.`);
             break;
           default:
             sentences.push(`Ход ${movedPieceLabel} на ${movedSquare} создаёт угрозу.`);
@@ -2832,19 +2853,27 @@
       if (mainThreat.priority > 0){
         if (movedUnderAttack){
           if (mainThreat.code === 'mate_in_one' || mainThreat.code === 'mate_threat'){
-            sentences.push('Фигура находится под боем, но это вторично: соперник должен сначала решить матовую угрозу.');
+            sentences.push(`${movedPieceLabel} на ${movedSquare} под боем (${movedAttackers} атакующих), но это вторично: соперник должен сначала решить матовую угрозу.`);
           } else {
-            sentences.push('Фигура находится под боем, но это вторично из-за главной угрозы хода.');
+            sentences.push(`${movedPieceLabel} на ${movedSquare} под боем (${movedAttackers} атакующих), но это вторично из-за главной угрозы хода.`);
           }
         }
         if (captureExists){
           if (neutralization.capture){
-            sentences.push('Однако соперник может снять угрозу взятием этой фигуры.');
+            const cap = neutralization.captureMove;
+            const capPiece = normalizePieceLabel(pieceCoachName(cap?.piece || ''));
+            sentences.push(cap
+              ? `Однако соперник может снять угрозу: ${capPiece} с ${cap.from} бьёт на ${cap.to}.`
+              : 'Однако соперник может снять угрозу взятием этой фигуры.');
           } else {
             sentences.push('Даже взятие этой фигуры не снимает главную угрозу.');
           }
         } else if (neutralization.forcing){
-          sentences.push('Однако соперник может временно сдержать угрозу форсирующим шахом.');
+          const fm = neutralization.forcingMove;
+          const fp = normalizePieceLabel(pieceCoachName(fm?.piece || ''));
+          sentences.push(fm
+            ? `Однако соперник может временно сдержать угрозу: ${fp} ${fm.from}-${fm.to} с шахом.`
+            : 'Однако соперник может временно сдержать угрозу форсирующим шахом.');
         }
       } else if (movedUnderAttack){
         const defenseTag = movedDefenders === 0 ? 'без защиты' : 'с защитой';
