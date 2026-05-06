@@ -8,6 +8,7 @@ import random
 import re
 import shutil
 import sqlite3
+import ssl
 import time
 import urllib.error
 import urllib.parse
@@ -57,6 +58,8 @@ MONITOR_LOG_FILES = [x.strip() for x in os.environ.get("MONITOR_LOG_FILES", "bac
 MAIN_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
 MAIN_BOT_API_BASE = f"https://api.telegram.org/bot{MAIN_BOT_TOKEN}" if MAIN_BOT_TOKEN else ""
 MAIN_BOT_REQUEST_TIMEOUT = max(8, int(os.environ.get("MAIN_BOT_REQUEST_TIMEOUT", "20") or "20"))
+MONITOR_HTTP_RETRIES = max(0, int(os.environ.get("MONITOR_HTTP_RETRIES", "2") or "2"))
+MONITOR_HTTP_RETRY_DELAY_SECONDS = max(0.1, float(os.environ.get("MONITOR_HTTP_RETRY_DELAY_SECONDS", "1.0") or "1.0"))
 MINI_APP_URL = os.environ.get(
     "MINI_APP_URL",
     "https://t.me/chess_every_day_bot/app?startapp=test&mode=fullscreen",
@@ -164,6 +167,23 @@ class MonitorBot:
             with open(MONITOR_STATE_PATH, "w", encoding="utf-8") as f:
                 json.dump(self.state, f, ensure_ascii=False, indent=2)
 
+    def _request_json_with_retries(self, request, timeout=20, retries=None):
+        total_retries = MONITOR_HTTP_RETRIES if retries is None else max(0, int(retries))
+        last_error = None
+        for attempt in range(total_retries + 1):
+            try:
+                with urllib.request.urlopen(request, timeout=timeout) as resp:
+                    raw = resp.read().decode("utf-8")
+                    status = int(getattr(resp, "status", 200) or 200)
+                    return status, json.loads(raw or "{}")
+            except (urllib.error.URLError, TimeoutError, ssl.SSLError, OSError, ConnectionError, http.client.RemoteDisconnected) as err:
+                last_error = err
+                if attempt < total_retries:
+                    time.sleep(MONITOR_HTTP_RETRY_DELAY_SECONDS * (attempt + 1))
+                    continue
+                break
+        raise last_error if last_error else RuntimeError("HTTP request failed")
+
     def _telegram_api(self, method, payload=None, timeout=20):
         req = urllib.request.Request(
             f"{self.api_base}/{method}",
@@ -171,8 +191,8 @@ class MonitorBot:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+        _, data = self._request_json_with_retries(req, timeout=timeout)
+        return data
 
     def send_message(self, chat_id, text, reply_markup=None, parse_mode=None):
         payload = {"chat_id": int(chat_id), "text": str(text or ""), "disable_web_page_preview": True}
@@ -1134,8 +1154,8 @@ class MonitorBot:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8") or "{}")
+        _, data = self._request_json_with_retries(req, timeout=timeout)
+        return data
 
     def _extract_puzzle_image_url(self, puzzle):
         if not isinstance(puzzle, dict):
@@ -1658,9 +1678,7 @@ class MonitorBot:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8")
-            return resp.status, json.loads(raw or "{}")
+        return self._request_json_with_retries(req, timeout=timeout)
 
     def build_stockfish_check_report(self):
         started = time.time()

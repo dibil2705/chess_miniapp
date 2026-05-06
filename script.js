@@ -354,7 +354,7 @@ function saveSoundPreference(enabled){
 
 function loadPalettePreference(){
   const stored = localStorage.getItem(PALETTE_STORAGE_KEY);
-  return boardPalettes[stored] ? stored : 'coffee';
+  return boardPalettes[stored] ? stored : 'default';
 }
 
 function applyBoardPalette(name){
