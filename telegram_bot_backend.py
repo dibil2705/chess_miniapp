@@ -2860,6 +2860,14 @@ class AnalyticsHandler(BaseHTTPRequestHandler):
         comment_payload = payload.get("commentPayload") or {}
         if not isinstance(comment_payload, dict):
             raise ValueError("commentPayload object is required")
+        # AI в анализе работает только как редактор уже готового математического текста.
+        # Не запускаем старый режим коуч-анализа по шахматным правилам.
+        if not comment_payload.get("source_comment"):
+            fallback_source = str(comment_payload.get("source") or "").strip()
+            if fallback_source:
+                comment_payload["source_comment"] = fallback_source
+        comment_payload["rewrite_only"] = True
+        comment_payload.pop("strict_formal_mode", None)
         init_data = payload.get("initData", "")
         telegram_id = None
         ai_user_key = normalize_ai_user_key(
