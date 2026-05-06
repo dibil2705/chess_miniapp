@@ -2342,16 +2342,114 @@
       return labels.join(' и ');
     }
 
-    function buildFormalScoreSentence(lines = [], perspective = null){
-      const primary = lines?.[0] || null;
-      if (!primary) return 'По шкале оценка недоступна для этой позиции.';
-      const viewColor = perspective || evaluationPerspective || getFenActiveColor(currentFen) || 'w';
-      const { label, mate } = normalizeScore(primary, viewColor);
-      if (mate !== null){
-        const side = mate > 0 ? 'белых' : 'чёрных';
-        return `По шкале ${label}: форсированный мат за ${Math.abs(mate)} для ${side}.`;
+    function getPiecePriority(pieceCode){
+      switch (String(pieceCode || '').toUpperCase()){
+        case 'K': return 100;
+        case 'Q': return 9;
+        case 'R': return 5;
+        case 'B':
+        case 'N': return 3;
+        case 'P': return 1;
+        default: return 0;
       }
-      return `По шкале ${label}: без форсированного мата.`;
+    }
+
+    function isVulnerableTarget(target){
+      const state = String(target?.defense_state || '');
+      return state === 'undefended' || state === 'overloaded';
+    }
+
+    function normalizeAttackTargets(targets = []){
+      const unique = new Map();
+      for (const item of targets){
+        if (!item?.square) continue;
+        const key = `${item.square}:${String(item?.piece || '').toUpperCase()}`;
+        if (!unique.has(key)) unique.set(key, item);
+      }
+      return Array.from(unique.values()).map((item) => {
+        const pieceCode = String(item?.piece || '').toUpperCase();
+        return {
+          ...item,
+          piece_code: pieceCode,
+          piece_name: normalizePieceLabel(item?.piece_name || pieceCoachName(pieceCode)),
+          vulnerable: isVulnerableTarget(item),
+          king: pieceCode === 'K',
+          pawn: pieceCode === 'P',
+          priority: getPiecePriority(pieceCode)
+        };
+      });
+    }
+
+    function shouldCallItFork(targets = []){
+      if (!targets.length) return false;
+      const kingTarget = targets.find((item) => item.king);
+      const vulnerableNonKing = targets.filter((item) => !item.king && item.vulnerable);
+      const vulnerableValuable = vulnerableNonKing.filter((item) => item.priority >= 3);
+      const queenTarget = targets.find((item) => item.piece_code === 'Q');
+
+      if (kingTarget && vulnerableNonKing.length >= 1) return true;
+      if (queenTarget && vulnerableNonKing.length >= 1) return true;
+      if (vulnerableValuable.length >= 2) return true;
+      if (vulnerableNonKing.filter((item) => !item.pawn).length >= 2) return true;
+      return false;
+    }
+
+    function detectPinFromMovedPiece(move){
+      const movedPiece = String(move?.movingPiece || '').trim();
+      const toSquare = String(move?.to || '').trim();
+      if (!movedPiece || !toSquare) return null;
+      const upper = movedPiece.toUpperCase();
+      if (!['B', 'R', 'Q'].includes(upper)) return null;
+      const moverColor = getPieceColor(movedPiece);
+      if (!moverColor) return null;
+      const origin = squareToIndices(toSquare);
+      if (!isInsideBoard(origin.rankIdx, origin.fileIdx)) return null;
+
+      const directions = [];
+      if (upper === 'B' || upper === 'Q'){
+        directions.push([-1, -1], [-1, 1], [1, -1], [1, 1]);
+      }
+      if (upper === 'R' || upper === 'Q'){
+        directions.push([-1, 0], [1, 0], [0, -1], [0, 1]);
+      }
+
+      for (const [dr, df] of directions){
+        let r = origin.rankIdx + dr;
+        let f = origin.fileIdx + df;
+        let blocker = null;
+        while (isInsideBoard(r, f)){
+          const piece = boardState[r]?.[f] || '';
+          if (piece){
+            const color = getPieceColor(piece);
+            if (!blocker){
+              if (color === moverColor || piece.toUpperCase() === 'K') break;
+              blocker = { piece, square: `${files[f]}${ranks[r]}` };
+            } else {
+              if (color === moverColor) break;
+              const behindCode = piece.toUpperCase();
+              if (behindCode === 'K'){
+                return {
+                  kind: 'absolute',
+                  pinned_piece: pieceCoachName(blocker.piece),
+                  pinned_square: blocker.square
+                };
+              }
+              if (behindCode === 'Q' || behindCode === 'R'){
+                return {
+                  kind: 'relative',
+                  pinned_piece: pieceCoachName(blocker.piece),
+                  pinned_square: blocker.square,
+                  behind_piece: pieceCoachName(piece)
+                };
+              }
+              break;
+            }
+          }
+          r += dr;
+          f += df;
+        }
+      }
+      return null;
     }
 
     function buildFormalMoveSentence(commentPayload){
@@ -2359,22 +2457,25 @@
       if (!move?.uci){
         return 'Это снимок текущей позиции без комментария к последнему ходу.';
       }
-      const newTargets = Array.isArray(move.newAttackedPieces) ? move.newAttackedPieces : [];
-      const nonKingTargets = newTargets.filter((item) => String(item?.piece || '').toUpperCase() !== 'K');
-      const kingTargeted = newTargets.some((item) => String(item?.piece || '').toUpperCase() === 'K');
-      const undefendedTargets = nonKingTargets.filter((item) => item?.defense_state === 'undefended');
-      const overloadedTargets = nonKingTargets.filter((item) => item?.defense_state === 'overloaded');
+      const rawTargets = Array.isArray(move.newAttackedPieces) ? move.newAttackedPieces : [];
+      const targets = normalizeAttackTargets(rawTargets);
+      const nonKingTargets = targets.filter((item) => !item.king);
+      const kingTargeted = targets.some((item) => item.king);
+      const overloadedTargets = nonKingTargets.filter((item) => String(item?.defense_state || '') === 'overloaded');
+      const importantTargets = nonKingTargets.filter((item) => item.priority >= 3 || item.vulnerable);
       const shared = Array.isArray(move.sharedPressure) ? move.sharedPressure : [];
       const discovered = move.discoveredAttack && typeof move.discoveredAttack === 'object' ? move.discoveredAttack : null;
+      const pin = detectPinFromMovedPiece(move);
       const coachEvent = commentPayload?.coach_event || {};
       const currentMate = coachEvent?.current_forced_mate || null;
+      const gameStatus = commentPayload?.game_status || {};
       const mover = toCoachSide(move.side);
 
+      if (gameStatus?.kind === 'checkmate'){
+        return 'После хода поставлен мат.';
+      }
       if (move.wasInCheckBefore && move.resolvedCheck){
         return 'Ход снял шах с короля и сохранил защиту.';
-      }
-      if (kingTargeted){
-        return 'После хода объявлен шах королю.';
       }
       if (discovered?.attacker_piece && discovered?.target_square){
         const attacker = normalizePieceLabel(discovered.attacker_piece);
@@ -2384,11 +2485,26 @@
           : (discovered.defense_state === 'overloaded' ? ' с перегруженной защитой' : '');
         return `Открылось вскрытое нападение: ${attacker} давит на ${target} на ${discovered.target_square}${defenseTag}.`;
       }
-      if (undefendedTargets.length >= 2){
-        return `Появилась вилка на ${joinPieceTargets(undefendedTargets)}.`;
+      if (pin?.pinned_piece && pin?.pinned_square){
+        if (pin.kind === 'absolute'){
+          return `Создана абсолютная связка: ${normalizePieceLabel(pin.pinned_piece)} на ${pin.pinned_square}.`;
+        }
+        return `Создана связка: ${normalizePieceLabel(pin.pinned_piece)} на ${pin.pinned_square} перед ${normalizePieceLabel(pin.behind_piece)}.`;
       }
-      if (nonKingTargets.length >= 2){
-        return `Появилась двойная атака на ${joinPieceTargets(nonKingTargets)}.`;
+      if (shouldCallItFork(targets)){
+        const forkTargets = targets
+          .filter((item) => item.king || item.vulnerable || item.priority >= 3)
+          .sort((a, b) => b.priority - a.priority);
+        return `Появилась вилка на ${joinPieceTargets(forkTargets)}.`;
+      }
+      if (kingTargeted && importantTargets.length >= 1){
+        return `Появилась двойная атака: шах и давление на ${joinPieceTargets(importantTargets, 1)}.`;
+      }
+      if (importantTargets.length >= 2){
+        return `Появилась двойная атака на ${joinPieceTargets(importantTargets)}.`;
+      }
+      if (kingTargeted){
+        return 'После хода объявлен шах королю.';
       }
       if (shared.length){
         const item = shared[0];
@@ -2416,9 +2532,8 @@
     }
 
     function buildFormalCoachComment(commentPayload, lines = []){
-      const scoreSentence = buildFormalScoreSentence(lines, evaluationPerspective);
       const moveSentence = buildFormalMoveSentence(commentPayload);
-      return `${scoreSentence} ${moveSentence}`.trim();
+      return moveSentence;
     }
 
     async function updateCoachComment(lines = []){
