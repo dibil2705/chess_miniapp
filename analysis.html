@@ -2394,6 +2394,255 @@
       return false;
     }
 
+    function oppositeColorCode(color){
+      return color === 'w' ? 'b' : 'w';
+    }
+
+    function cloneBoard(board){
+      return Array.isArray(board) ? board.map((row) => Array.isArray(row) ? row.slice() : []) : [];
+    }
+
+    function isKingInCheckOnBoard(color, board){
+      const kingPos = findKing(color, board);
+      if (!kingPos) return false;
+      const kingSquare = `${files[kingPos.fileIdx]}${ranks[kingPos.rankIdx]}`;
+      return isSquareAttacked(kingSquare, color, board);
+    }
+
+    function wouldLeaveKingInCheckOnBoard(board, fromSquare, toSquare, piece){
+      const { fileIdx: fromFile, rankIdx: fromRank } = squareToIndices(fromSquare);
+      const { fileIdx: toFile, rankIdx: toRank } = squareToIndices(toSquare);
+      if (!isInsideBoard(fromRank, fromFile) || !isInsideBoard(toRank, toFile)) return true;
+      const simulated = cloneBoard(board);
+      simulated[toRank][toFile] = piece;
+      simulated[fromRank][fromFile] = '';
+      const color = getPieceColor(piece);
+      const kingPos = findKing(color, simulated);
+      if (!kingPos) return false;
+      const kingSquare = `${files[kingPos.fileIdx]}${ranks[kingPos.rankIdx]}`;
+      return isSquareAttacked(kingSquare, color, simulated);
+    }
+
+    function generateLegalMovesOnBoard(board, color){
+      const moves = [];
+      for (let r = 0; r < 8; r++){
+        for (let f = 0; f < 8; f++){
+          const piece = board[r]?.[f];
+          if (!piece || getPieceColor(piece) !== color) continue;
+          const fromSquare = `${files[f]}${ranks[r]}`;
+          for (let tr = 0; tr < 8; tr++){
+            for (let tf = 0; tf < 8; tf++){
+              const toSquare = `${files[tf]}${ranks[tr]}`;
+              if (!isLegalPieceMove(piece, fromSquare, toSquare, board)) continue;
+              if (wouldLeaveKingInCheckOnBoard(board, fromSquare, toSquare, piece)) continue;
+              moves.push({ from: fromSquare, to: toSquare, piece });
+            }
+          }
+        }
+      }
+      return moves;
+    }
+
+    function applyMoveOnBoard(board, fromSquare, toSquare, pieceOverride = ''){
+      const simulated = cloneBoard(board);
+      const { fileIdx: fromFile, rankIdx: fromRank } = squareToIndices(fromSquare);
+      const { fileIdx: toFile, rankIdx: toRank } = squareToIndices(toSquare);
+      if (!isInsideBoard(fromRank, fromFile) || !isInsideBoard(toRank, toFile)) return simulated;
+      const movedPiece = pieceOverride || simulated[fromRank]?.[fromFile] || '';
+      if (!movedPiece) return simulated;
+
+      const upper = movedPiece.toUpperCase();
+      const color = getPieceColor(movedPiece);
+      const deltaFile = toFile - fromFile;
+      if (upper === 'K' && Math.abs(deltaFile) === 2){
+        const homeRank = color === 'w' ? 7 : 0;
+        const isKingside = deltaFile === 2;
+        const rookFromFile = isKingside ? 7 : 0;
+        const rookToFile = isKingside ? 5 : 3;
+        const rookPiece = simulated[homeRank]?.[rookFromFile] || '';
+        if (rookPiece && rookPiece.toUpperCase() === 'R'){
+          simulated[homeRank][rookToFile] = rookPiece;
+          simulated[homeRank][rookFromFile] = '';
+        }
+      }
+
+      let placedPiece = movedPiece;
+      if (upper === 'P' && (toRank === 0 || toRank === 7)){
+        placedPiece = color === 'w' ? 'Q' : 'q';
+      }
+      simulated[toRank][toFile] = placedPiece;
+      simulated[fromRank][fromFile] = '';
+      return simulated;
+    }
+
+    function canSideMateInOneOnBoard(board, side){
+      const attacker = normalizeSideToken(side, null);
+      if (!attacker) return false;
+      const defender = oppositeColorCode(attacker);
+      const legalMoves = generateLegalMovesOnBoard(board, attacker);
+      for (const move of legalMoves){
+        const nextBoard = applyMoveOnBoard(board, move.from, move.to, move.piece);
+        if (!isKingInCheckOnBoard(defender, nextBoard)) continue;
+        const defenderReplies = generateLegalMovesOnBoard(nextBoard, defender);
+        if (!defenderReplies.length) return true;
+      }
+      return false;
+    }
+
+    function collectOwnPiecesUnderAttack(board, side, excludeSquare = ''){
+      const color = normalizeSideToken(side, null);
+      if (!color) return { attacked: [], vulnerable: [] };
+      const enemy = oppositeColorCode(color);
+      const attacked = [];
+      for (let r = 0; r < 8; r++){
+        for (let f = 0; f < 8; f++){
+          const piece = board[r]?.[f];
+          if (!piece || getPieceColor(piece) !== color) continue;
+          const square = `${files[f]}${ranks[r]}`;
+          if (excludeSquare && square === excludeSquare) continue;
+          const attackers = getAttackersOnSquare(board, square, enemy).length;
+          if (!attackers) continue;
+          const defenders = getAttackersOnSquare(board, square, color).length;
+          attacked.push({
+            square,
+            piece,
+            piece_name: normalizePieceLabel(pieceCoachName(piece)),
+            attackers,
+            defenders,
+            vulnerable: defenders === 0 || attackers > defenders,
+            priority: getPiecePriority(piece)
+          });
+        }
+      }
+      attacked.sort((a, b) => {
+        if (a.vulnerable !== b.vulnerable) return a.vulnerable ? -1 : 1;
+        return b.priority - a.priority;
+      });
+      return {
+        attacked,
+        vulnerable: attacked.filter((item) => item.vulnerable)
+      };
+    }
+
+    function evaluateMainThreat({ move, targets = [], kingTargeted = false, importantTargets = [], currentMate = null, gameStatus = null, discovered = null, pin = null, board = null, moverSide = null }){
+      if (gameStatus?.kind === 'checkmate'){
+        return { code: 'mate_done', label: 'мат', priority: 1000 };
+      }
+      const moverColor = normalizeSideToken(moverSide, null);
+      const mateInOneByLine = currentMate?.mating_side && moverSide && currentMate.mating_side === moverSide && Number(currentMate.moves) === 1;
+      const tacticalSignal = kingTargeted || Boolean(discovered?.target_square) || Boolean(pin?.pinned_square) || importantTargets.length > 0;
+      const mateInOneBySearch = Boolean((!mateInOneByLine) && tacticalSignal && board && moverColor && canSideMateInOneOnBoard(board, moverColor));
+      if (mateInOneByLine || mateInOneBySearch){
+        return { code: 'mate_in_one', label: 'мат в 1', priority: 900 };
+      }
+      if (kingTargeted){
+        return { code: 'check', label: 'шах', priority: 800 };
+      }
+
+      const vulnerable = targets.filter((item) => !item.king && item.vulnerable).sort((a, b) => b.priority - a.priority);
+      const queen = vulnerable.find((item) => item.piece_code === 'Q');
+      if (queen){
+        return { code: 'win_queen', label: `выигрыш ферзя на ${queen.square}`, priority: 700 };
+      }
+      const rook = vulnerable.find((item) => item.piece_code === 'R');
+      if (rook){
+        return { code: 'win_rook', label: `выигрыш ладьи на ${rook.square}`, priority: 600 };
+      }
+      const minor = vulnerable.find((item) => item.piece_code === 'B' || item.piece_code === 'N');
+      if (minor){
+        return { code: 'win_piece', label: `выигрыш фигуры на ${minor.square}`, priority: 500 };
+      }
+      if (shouldCallItFork(targets)){
+        return { code: 'fork', label: 'вилка', priority: 420 };
+      }
+      if (pin?.pinned_square){
+        return { code: 'pin', label: 'связка', priority: 390 };
+      }
+      if (discovered?.target_square){
+        return { code: 'discovered', label: 'вскрытое нападение', priority: 380 };
+      }
+      if (importantTargets.length >= 2){
+        return { code: 'double_attack', label: 'двойная атака', priority: 360 };
+      }
+      return { code: 'none', label: '', priority: 0 };
+    }
+
+    function buildThreatStateOnBoard(board, move, moverColor){
+      const movedSquare = String(move?.to || '').trim();
+      if (!movedSquare) return { targets: [], importantTargets: [], kingTargeted: false };
+      const movedIdx = squareToIndices(movedSquare);
+      const pieceOnSquare = isInsideBoard(movedIdx.rankIdx, movedIdx.fileIdx)
+        ? (board[movedIdx.rankIdx]?.[movedIdx.fileIdx] || '')
+        : '';
+      const movedPiece = pieceOnSquare && getPieceColor(pieceOnSquare) === moverColor ? pieceOnSquare : '';
+      if (!movedPiece){
+        return { targets: [], importantTargets: [], kingTargeted: false };
+      }
+      const attacked = normalizeAttackTargets(getAttackedPiecesFromSquare(movedPiece, movedSquare, board));
+      const kingTargeted = attacked.some((item) => item.king);
+      const importantTargets = attacked.filter((item) => !item.king && (item.priority >= 3 || item.vulnerable));
+      return { targets: attacked, importantTargets, kingTargeted };
+    }
+
+    function doesThreatRemainAfterReply(replyBoard, threat, move, moverColor){
+      if (!threat || threat.priority <= 0) return false;
+      const mover = normalizeSideToken(moverColor, null);
+      if (!mover) return false;
+      const defender = oppositeColorCode(mover);
+      if (threat.code === 'mate_in_one'){
+        return canSideMateInOneOnBoard(replyBoard, mover);
+      }
+      if (threat.code === 'check'){
+        return isKingInCheckOnBoard(defender, replyBoard);
+      }
+
+      const state = buildThreatStateOnBoard(replyBoard, move, mover);
+      const targets = state.targets;
+      if (threat.code === 'win_queen'){
+        return targets.some((item) => item.piece_code === 'Q' && item.vulnerable);
+      }
+      if (threat.code === 'win_rook'){
+        return targets.some((item) => item.piece_code === 'R' && item.vulnerable);
+      }
+      if (threat.code === 'win_piece'){
+        return targets.some((item) => (item.piece_code === 'B' || item.piece_code === 'N') && item.vulnerable);
+      }
+      if (threat.code === 'fork'){
+        return shouldCallItFork(targets);
+      }
+      if (threat.code === 'double_attack'){
+        return state.importantTargets.length >= 2 || (state.kingTargeted && state.importantTargets.length >= 1);
+      }
+      if (threat.code === 'pin' || threat.code === 'discovered'){
+        return state.importantTargets.length > 0;
+      }
+      return false;
+    }
+
+    function evaluateThreatNeutralization(board, move, threat, moverColor){
+      if (!threat || threat.priority <= 0) return { neutralizable: false, capture: false, forcing: false };
+      const mover = normalizeSideToken(moverColor, null);
+      if (!mover) return { neutralizable: false, capture: false, forcing: false };
+      const defender = oppositeColorCode(mover);
+      const responses = generateLegalMovesOnBoard(board, defender);
+      const movedSquare = String(move?.to || '').trim();
+      let capture = false;
+      let forcing = false;
+      for (const response of responses){
+        const replyBoard = applyMoveOnBoard(board, response.from, response.to, response.piece);
+        const neutralized = !doesThreatRemainAfterReply(replyBoard, threat, move, mover);
+        if (!neutralized) continue;
+        if (response.to === movedSquare){
+          capture = true;
+        }
+        if (isKingInCheckOnBoard(mover, replyBoard)){
+          forcing = true;
+        }
+        if (capture && forcing) break;
+      }
+      return { neutralizable: capture || forcing, capture, forcing };
+    }
+
     function detectPinFromMovedPiece(move){
       const movedPiece = String(move?.movingPiece || '').trim();
       const toSquare = String(move?.to || '').trim();
@@ -2457,78 +2706,99 @@
       if (!move?.uci){
         return 'Это снимок текущей позиции без комментария к последнему ходу.';
       }
-      const rawTargets = Array.isArray(move.newAttackedPieces) ? move.newAttackedPieces : [];
-      const targets = normalizeAttackTargets(rawTargets);
+
+      const board = boardState;
+      const moverColor = normalizeSideToken(move.side, null) || null;
+      if (!moverColor){
+        return 'Не удалось определить цвет стороны для формального анализа хода.';
+      }
+      const opponentColor = oppositeColorCode(moverColor);
+      const movedSquare = String(move.to || '').trim();
+      const movedPieceLabel = normalizePieceLabel(pieceCoachName(move.movingPiece || ''));
+      const movedTargetsState = buildThreatStateOnBoard(board, move, moverColor);
+      const targets = movedTargetsState.targets;
       const nonKingTargets = targets.filter((item) => !item.king);
-      const kingTargeted = targets.some((item) => item.king);
-      const overloadedTargets = nonKingTargets.filter((item) => String(item?.defense_state || '') === 'overloaded');
-      const importantTargets = nonKingTargets.filter((item) => item.priority >= 3 || item.vulnerable);
+      const kingTargeted = movedTargetsState.kingTargeted || isKingInCheckOnBoard(opponentColor, board);
+      const importantTargets = movedTargetsState.importantTargets;
       const shared = Array.isArray(move.sharedPressure) ? move.sharedPressure : [];
       const discovered = move.discoveredAttack && typeof move.discoveredAttack === 'object' ? move.discoveredAttack : null;
       const pin = detectPinFromMovedPiece(move);
       const coachEvent = commentPayload?.coach_event || {};
       const currentMate = coachEvent?.current_forced_mate || null;
       const gameStatus = commentPayload?.game_status || {};
-      const mover = toCoachSide(move.side);
+      const mover = toCoachSide(moverColor);
+      const movedAttackers = movedSquare ? getAttackersOnSquare(board, movedSquare, opponentColor).length : 0;
+      const movedDefenders = movedSquare ? getAttackersOnSquare(board, movedSquare, moverColor).length : 0;
+      const movedUnderAttack = movedAttackers > 0;
+      const ownPressure = collectOwnPiecesUnderAttack(board, moverColor, movedSquare);
+      const mainThreat = evaluateMainThreat({
+        move,
+        targets,
+        kingTargeted,
+        importantTargets,
+        currentMate,
+        gameStatus,
+        discovered,
+        pin,
+        board,
+        moverSide: mover
+      });
 
       if (gameStatus?.kind === 'checkmate'){
         return 'После хода поставлен мат.';
       }
-      if (move.wasInCheckBefore && move.resolvedCheck){
-        return 'Ход снял шах с короля и сохранил защиту.';
+      if (move.wasInCheckBefore && move.resolvedCheck && mainThreat.priority < 800){
+        return `Ход ${movedPieceLabel} на ${movedSquare} снял шах с короля.`;
       }
-      if (discovered?.attacker_piece && discovered?.target_square){
-        const attacker = normalizePieceLabel(discovered.attacker_piece);
-        const target = normalizePieceLabel(discovered.target_piece);
-        const defenseTag = discovered.defense_state === 'undefended'
-          ? ' без защиты'
-          : (discovered.defense_state === 'overloaded' ? ' с перегруженной защитой' : '');
-        return `Открылось вскрытое нападение: ${attacker} давит на ${target} на ${discovered.target_square}${defenseTag}.`;
-      }
-      if (pin?.pinned_piece && pin?.pinned_square){
-        if (pin.kind === 'absolute'){
-          return `Создана абсолютная связка: ${normalizePieceLabel(pin.pinned_piece)} на ${pin.pinned_square}.`;
-        }
-        return `Создана связка: ${normalizePieceLabel(pin.pinned_piece)} на ${pin.pinned_square} перед ${normalizePieceLabel(pin.behind_piece)}.`;
-      }
-      if (shouldCallItFork(targets)){
-        const forkTargets = targets
-          .filter((item) => item.king || item.vulnerable || item.priority >= 3)
-          .sort((a, b) => b.priority - a.priority);
-        return `Появилась вилка на ${joinPieceTargets(forkTargets)}.`;
-      }
-      if (kingTargeted && importantTargets.length >= 1){
-        return `Появилась двойная атака: шах и давление на ${joinPieceTargets(importantTargets, 1)}.`;
-      }
-      if (importantTargets.length >= 2){
-        return `Появилась двойная атака на ${joinPieceTargets(importantTargets)}.`;
-      }
-      if (kingTargeted){
-        return 'После хода объявлен шах королю.';
-      }
-      if (shared.length){
+      const neutralization = evaluateThreatNeutralization(board, move, mainThreat, moverColor);
+
+      let firstSentence = '';
+      if (movedUnderAttack && mainThreat.priority >= 500){
+        firstSentence = `${movedPieceLabel} на ${movedSquare} под боем, но создаёт более срочную угрозу: ${mainThreat.label}.`;
+      } else if (mainThreat.priority > 0){
+        firstSentence = `Ход ${movedPieceLabel} на ${movedSquare} создал угрозу: ${mainThreat.label}.`;
+      } else if (movedUnderAttack){
+        firstSentence = `${movedPieceLabel} на ${movedSquare} под боем после хода.`;
+      } else if (move.capturedPiece){
+        firstSentence = `Ход ${movedPieceLabel} на ${movedSquare} с взятием: снята ${normalizePieceLabel(pieceCoachName(move.capturedPiece))}.`;
+      } else if (shared.length){
         const item = shared[0];
-        const movedPiece = normalizePieceLabel(item?.moved_piece);
         const allyRaw = String((item?.ally_pieces || [])[0] || '').trim();
         const ally = allyRaw ? normalizePieceLabel(allyRaw) : '';
         const target = normalizePieceLabel(item?.target_piece);
-        if (ally && item?.target_square){
-          return `${movedPiece} и ${ally} создали двойное давление на ${target} (${item.target_square}).`;
+        firstSentence = ally && item?.target_square
+          ? `${movedPieceLabel} и ${ally} усилили давление на ${target} (${item.target_square}).`
+          : `Ход ${movedPieceLabel} на ${movedSquare} усилил давление.`;
+      } else if (nonKingTargets.length === 1){
+        firstSentence = `Ход ${movedPieceLabel} на ${movedSquare} усилил давление на ${joinPieceTargets(nonKingTargets, 1)}.`;
+      } else {
+        firstSentence = `Ход ${movedPieceLabel} на ${movedSquare} без прямой тактики, но с улучшением координации.`;
+      }
+
+      const secondParts = [];
+      const topOwnRisk = ownPressure.vulnerable[0] || ownPressure.attacked[0] || null;
+      if (topOwnRisk){
+        const riskTag = topOwnRisk.vulnerable ? 'без достаточной защиты' : 'под атакой';
+        secondParts.push(`${topOwnRisk.piece_name} на ${topOwnRisk.square} остаётся ${riskTag}`);
+      }
+
+      if (mainThreat.priority > 0){
+        if (neutralization.capture && neutralization.forcing){
+          secondParts.push(`соперник может снять угрозу взятием на ${movedSquare} или форсирующим шахом`);
+        } else if (neutralization.capture){
+          secondParts.push(`соперник может снять угрозу взятием на ${movedSquare}`);
+        } else if (neutralization.forcing){
+          secondParts.push('соперник может снять угрозу форсирующим шахом');
+        } else {
+          secondParts.push('быстрого форсирующего снятия угрозы не видно');
         }
+      } else if (movedUnderAttack){
+        const defenseTag = movedDefenders === 0 ? 'без защиты' : 'поддержан защитой';
+        secondParts.push(`${movedPieceLabel} ${defenseTag}`);
       }
-      if (currentMate?.mating_side && mover && currentMate.mating_side === mover && Number(currentMate.moves) > 0){
-        return `Создана матовая угроза: мат за ${Number(currentMate.moves)}.`;
-      }
-      if (move.capturedPiece){
-        return `Сделано взятие: снята ${normalizePieceLabel(pieceCoachName(move.capturedPiece))}.`;
-      }
-      if (overloadedTargets.length){
-        return `Создано давление на перегруженную фигуру: ${joinPieceTargets(overloadedTargets, 1)}.`;
-      }
-      if (nonKingTargets.length === 1){
-        return `Ход усилил давление на ${joinPieceTargets(nonKingTargets, 1)}.`;
-      }
-      return 'Прямой тактический мотив не зафиксирован: ход улучшает координацию фигур.';
+
+      if (!secondParts.length) return firstSentence;
+      return `${firstSentence} ${secondParts.join(', ')}.`;
     }
 
     function buildFormalCoachComment(commentPayload, lines = []){
