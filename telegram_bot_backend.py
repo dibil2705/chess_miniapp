@@ -2457,6 +2457,7 @@ def build_coach_comment(comment_payload):
     current_line = compact_analysis_line(comment_payload.get("current_line"))
     previous_line = compact_analysis_line(comment_payload.get("previous_best_line"))
     position_only = bool(comment_payload.get("position_only"))
+    strict_formal_mode = bool(comment_payload.get("strict_formal_mode"))
     user_move = "" if position_only else str(comment_payload.get("played_move") or "")
     board_snapshot = compact_board_snapshot(comment_payload.get("board_snapshot"))
     played_move_details = (
@@ -2495,9 +2496,9 @@ def build_coach_comment(comment_payload):
         coach_event["kind"] = "blunder"
         coach_event["blunder"] = blunder_context
     deterministic_comment = build_deterministic_coach_comment(coach_event, played_move_details, board_snapshot)
-    if deterministic_comment:
+    if deterministic_comment and not strict_formal_mode:
         return finalize_coach_comment(deterministic_comment, played_move_details)
-    if not position_only:
+    if (not position_only) and (not strict_formal_mode):
         mate_defense_comment = build_mate_defense_comment(coach_event, played_move_details)
         if mate_defense_comment:
             return finalize_coach_comment(mate_defense_comment, played_move_details)
@@ -2558,10 +2559,19 @@ def build_coach_comment(comment_payload):
             "Оцени только текущую позицию, план и баланс сил. "
             "Не пиши, кто сходил и что произошло после хода."
         )
+    if strict_formal_mode:
+        instructions += (
+            "\n\nСтрогий формальный режим (обязательно): "
+            "1) 1-2 коротких предложения простым шахматным языком. "
+            "2) Пиши только факты из JSON: атаки/защиты, шах, вилка, связка, двойная атака, вскрытое нападение, матовая угроза, взятие материала. "
+            "3) Не оценивай позицию самостоятельно, не выдумывай тактику и не добавляй варианты. "
+            "4) Не используй фразы про «большой перевес», если это не следует напрямую из evaluation.current. "
+            "5) Если явного тактического мотива нет, скажи нейтрально: ход улучшает координацию/давление без прямой тактики."
+        )
     request_body = {
         "model": OPENAI_MODEL,
         "input": f"{instructions}\n\nР”Р°РЅРЅС‹Рµ Р°РЅР°Р»РёР·Р° JSON:\n{json.dumps(prompt, ensure_ascii=False)}",
-        "max_output_tokens": 110,
+        "max_output_tokens": 90 if strict_formal_mode else 110,
     }
     request = urllib.request.Request(
         "https://api.openai.com/v1/responses",
@@ -2576,6 +2586,9 @@ def build_coach_comment(comment_payload):
         with urllib.request.urlopen(request, timeout=20) as response:
             data = json.loads(response.read().decode("utf-8"))
         comment = extract_response_text(data)
+        if strict_formal_mode:
+            comment = shorten_coach_comment(comment, max_words=28)
+            return finalize_coach_comment(comment, None if position_only else played_move_details)
         comment = polish_coach_comment(shorten_coach_comment(comment), played_move_details, eval_change_context, current_mate)
         summary = str(played_move_details.get("summary") or "").strip().rstrip(".!?")
         if (not position_only) and summary and is_generic_position_comment(comment):

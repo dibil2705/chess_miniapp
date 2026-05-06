@@ -1027,6 +1027,7 @@
     const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
     const PUZZLE_STORAGE_KEY = 'chess-miniapp-current-puzzle';
     const COACH_HINTS_STORAGE_KEY = 'chess-miniapp-coach-hints-enabled';
+    const ADMIN_ACCESS_STORAGE_PREFIX = 'chess-miniapp-admin-access';
     const boardPalettes = {
       default: { dark: '#769656', light: '#eeeed2' },
       coffee: { dark: '#8b5e3c', light: '#d7c9aa' },
@@ -1096,6 +1097,30 @@
 
     function getHistoryStorageKey(){
       return `${HISTORY_STORAGE_KEY}:${getTelegramStorageUserId()}`;
+    }
+
+    function getAdminAccessStorageKey(){
+      return `${ADMIN_ACCESS_STORAGE_PREFIX}:${getTelegramStorageUserId()}`;
+    }
+
+    function loadAdminAccessState(){
+      const fallback = { unlimitedTasks: false, attemptsLeft: 3, updatedAt: 0 };
+      try {
+        const raw = localStorage.getItem(getAdminAccessStorageKey());
+        if (!raw) return fallback;
+        const parsed = JSON.parse(raw);
+        return {
+          unlimitedTasks: Boolean(parsed?.unlimitedTasks),
+          attemptsLeft: Number.isFinite(Number(parsed?.attemptsLeft)) ? Number(parsed.attemptsLeft) : 3,
+          updatedAt: Number.isFinite(Number(parsed?.updatedAt)) ? Number(parsed.updatedAt) : 0
+        };
+      } catch (_) {
+        return fallback;
+      }
+    }
+
+    function isCheater322Enabled(){
+      return Boolean(loadAdminAccessState()?.unlimitedTasks);
     }
 
     function getInitialFenFromPuzzleState(){
@@ -2301,6 +2326,101 @@
       };
     }
 
+    function normalizePieceLabel(pieceName){
+      const text = String(pieceName || '').trim().toLowerCase();
+      return text || 'фигура';
+    }
+
+    function joinPieceTargets(targets = [], maxItems = 2){
+      const labels = [];
+      for (const item of targets){
+        if (!item?.square) continue;
+        const piece = normalizePieceLabel(item.piece_name || pieceCoachName(item.piece || ''));
+        labels.push(`${piece} на ${item.square}`);
+        if (labels.length >= maxItems) break;
+      }
+      return labels.join(' и ');
+    }
+
+    function buildFormalScoreSentence(lines = [], perspective = null){
+      const primary = lines?.[0] || null;
+      if (!primary) return 'По шкале оценка недоступна для этой позиции.';
+      const viewColor = perspective || evaluationPerspective || getFenActiveColor(currentFen) || 'w';
+      const { label, mate } = normalizeScore(primary, viewColor);
+      if (mate !== null){
+        const side = mate > 0 ? 'белых' : 'чёрных';
+        return `По шкале ${label}: форсированный мат за ${Math.abs(mate)} для ${side}.`;
+      }
+      return `По шкале ${label}: без форсированного мата.`;
+    }
+
+    function buildFormalMoveSentence(commentPayload){
+      const move = commentPayload?.played_move_details || null;
+      if (!move?.uci){
+        return 'Это снимок текущей позиции без комментария к последнему ходу.';
+      }
+      const newTargets = Array.isArray(move.newAttackedPieces) ? move.newAttackedPieces : [];
+      const nonKingTargets = newTargets.filter((item) => String(item?.piece || '').toUpperCase() !== 'K');
+      const kingTargeted = newTargets.some((item) => String(item?.piece || '').toUpperCase() === 'K');
+      const undefendedTargets = nonKingTargets.filter((item) => item?.defense_state === 'undefended');
+      const overloadedTargets = nonKingTargets.filter((item) => item?.defense_state === 'overloaded');
+      const shared = Array.isArray(move.sharedPressure) ? move.sharedPressure : [];
+      const discovered = move.discoveredAttack && typeof move.discoveredAttack === 'object' ? move.discoveredAttack : null;
+      const coachEvent = commentPayload?.coach_event || {};
+      const currentMate = coachEvent?.current_forced_mate || null;
+      const mover = toCoachSide(move.side);
+
+      if (move.wasInCheckBefore && move.resolvedCheck){
+        return 'Ход снял шах с короля и сохранил защиту.';
+      }
+      if (kingTargeted){
+        return 'После хода объявлен шах королю.';
+      }
+      if (discovered?.attacker_piece && discovered?.target_square){
+        const attacker = normalizePieceLabel(discovered.attacker_piece);
+        const target = normalizePieceLabel(discovered.target_piece);
+        const defenseTag = discovered.defense_state === 'undefended'
+          ? ' без защиты'
+          : (discovered.defense_state === 'overloaded' ? ' с перегруженной защитой' : '');
+        return `Открылось вскрытое нападение: ${attacker} давит на ${target} на ${discovered.target_square}${defenseTag}.`;
+      }
+      if (undefendedTargets.length >= 2){
+        return `Появилась вилка на ${joinPieceTargets(undefendedTargets)}.`;
+      }
+      if (nonKingTargets.length >= 2){
+        return `Появилась двойная атака на ${joinPieceTargets(nonKingTargets)}.`;
+      }
+      if (shared.length){
+        const item = shared[0];
+        const movedPiece = normalizePieceLabel(item?.moved_piece);
+        const allyRaw = String((item?.ally_pieces || [])[0] || '').trim();
+        const ally = allyRaw ? normalizePieceLabel(allyRaw) : '';
+        const target = normalizePieceLabel(item?.target_piece);
+        if (ally && item?.target_square){
+          return `${movedPiece} и ${ally} создали двойное давление на ${target} (${item.target_square}).`;
+        }
+      }
+      if (currentMate?.mating_side && mover && currentMate.mating_side === mover && Number(currentMate.moves) > 0){
+        return `Создана матовая угроза: мат за ${Number(currentMate.moves)}.`;
+      }
+      if (move.capturedPiece){
+        return `Сделано взятие: снята ${normalizePieceLabel(pieceCoachName(move.capturedPiece))}.`;
+      }
+      if (overloadedTargets.length){
+        return `Создано давление на перегруженную фигуру: ${joinPieceTargets(overloadedTargets, 1)}.`;
+      }
+      if (nonKingTargets.length === 1){
+        return `Ход усилил давление на ${joinPieceTargets(nonKingTargets, 1)}.`;
+      }
+      return 'Прямой тактический мотив не зафиксирован: ход улучшает координацию фигур.';
+    }
+
+    function buildFormalCoachComment(commentPayload, lines = []){
+      const scoreSentence = buildFormalScoreSentence(lines, evaluationPerspective);
+      const moveSentence = buildFormalMoveSentence(commentPayload);
+      return `${scoreSentence} ${moveSentence}`.trim();
+    }
+
     async function updateCoachComment(lines = []){
       if (!coachCommentEl) return;
       if (!coachHintsEnabled){
@@ -2315,7 +2435,10 @@
       }
       const initData = getTelegramInitData();
       const commentPayload = buildCoachCommentPayload(lines);
+      const cheaterMode = isCheater322Enabled();
+      const formalComment = buildFormalCoachComment(commentPayload, lines);
       const cacheKey = JSON.stringify({
+        mode: cheaterMode ? 'cheater_322' : 'formal_only',
         fen: commentPayload.fen,
         position_only: Boolean(commentPayload.position_only),
         move: commentPayload.played_move,
@@ -2334,7 +2457,16 @@
         rememberCoachEvent(commentPayload.coach_event);
         return;
       }
-      coachCommentEl.textContent = 'AI оценивает позицию...';
+      if (!cheaterMode){
+        coachCommentCache.set(cacheKey, formalComment);
+        coachCommentEl.textContent = formalComment;
+        if (currentHistoryNodeId && historyNodes.has(currentHistoryNodeId)){
+          historyNodes.get(currentHistoryNodeId).coachComment = formalComment;
+        }
+        rememberCoachEvent(commentPayload.coach_event);
+        return;
+      }
+      coachCommentEl.textContent = 'Формальный разбор готов; AI дополняет комментарий...';
       coachCommentEl.classList.add('loading');
       try {
         let data = null;
@@ -2354,7 +2486,7 @@
               body: JSON.stringify({
                 initData,
                 userId: getTelegramStorageUserId(),
-                commentPayload
+                commentPayload: { ...commentPayload, strict_formal_mode: true }
               })
             });
             data = await response.json().catch(() => null);
@@ -2368,16 +2500,17 @@
           }
         }
         if (!data) throw lastError || new Error('Coach comment request failed');
-        const comment = data?.comment || 'Держись первой линии: она лучше всего сохраняет план позиции.';
-        coachCommentCache.set(cacheKey, comment);
-        coachCommentEl.textContent = comment;
+        const aiComment = String(data?.comment || '').trim() || 'Формальный AI-комментарий временно не получен.';
+        const combinedComment = `${formalComment}\nAI: ${aiComment}`;
+        coachCommentCache.set(cacheKey, combinedComment);
+        coachCommentEl.textContent = combinedComment;
         if (currentHistoryNodeId && historyNodes.has(currentHistoryNodeId)){
-          historyNodes.get(currentHistoryNodeId).coachComment = comment;
+          historyNodes.get(currentHistoryNodeId).coachComment = combinedComment;
         }
         rememberCoachEvent(commentPayload.coach_event);
       } catch (err){
         console.warn('AI coach comment failed', err);
-        coachCommentEl.textContent = 'AI-комментарий временно недоступен, ориентируйся на первую линию анализа.';
+        coachCommentEl.textContent = formalComment;
       } finally {
         coachCommentEl.classList.remove('loading');
       }
