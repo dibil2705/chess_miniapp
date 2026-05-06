@@ -122,7 +122,7 @@
       width:min(760px, 100%);
       margin:0 auto;
       display:grid;
-      grid-template-columns: 20px 10px minmax(0, 1fr);
+      grid-template-columns: 28px 10px minmax(0, 1fr);
       grid-template-rows: 1fr auto;
       grid-template-areas:
         "cp ranks board"
@@ -176,7 +176,7 @@
     .eval-bar{
       grid-area: cp;
       position: relative;
-      width: 18px;
+      width: 26px;
       justify-self: center;
       background:
         linear-gradient(90deg, rgba(255,255,255,.14), rgba(255,255,255,.02) 28%, rgba(255,255,255,.02) 72%, rgba(255,255,255,.12)),
@@ -383,7 +383,7 @@
       .board-wrapper{
         width: 100%;
         margin: 0;
-        grid-template-columns: 18px 10px 1fr;
+        grid-template-columns: 24px 10px 1fr;
         grid-template-rows: 1fr auto;
         grid-template-areas:
           "cp ranks board"
@@ -392,7 +392,7 @@
         row-gap: 6px;
       }
       .coord-ranks{ justify-items: end; padding-right: 0; margin-left: 0; width: 10px; }
-      .eval-bar{ width: 18px; }
+      .eval-bar{ width: 24px; }
       .coord-files{ padding: 0; }
       .priority-moves{ grid-template-columns: 1fr; }
       .history-body{ padding-right: 0; }
@@ -1337,11 +1337,13 @@
       const rawToken = line?.score_side || line?.side || line?.turn || line?.active || line?.move_color;
       const token = normalizeSideToken(rawToken, null);
       if (token === 'b' || token === 'w') return token;
+      const fallbackToken = normalizeSideToken(fallback, null);
+      if (fallbackToken === 'b' || fallbackToken === 'w') return fallbackToken;
       const fenToken = line?.fen || line?.line_fen || line?.position_fen || fallbackFen;
       if (fenToken){
         return getFenActiveColor(fenToken);
       }
-      return normalizeSideToken(fallback, 'w') || 'w';
+      return 'w';
     }
 
     function coerceNumber(value){
@@ -1390,7 +1392,7 @@
 
     function normalizeAnalysisLines(lines, fenContext = null, sideFallback = null){
       const baseFen = fenContext || currentFen;
-      const defaultSide = normalizeSideToken(sideFallback, null) || getFenActiveColor(baseFen);
+      const defaultSide = normalizeSideToken(sideFallback, null) || normalizeSideToken(evaluationPerspective, null) || 'w';
       if (!Array.isArray(lines)) return [];
       return lines.map((line) => {
         const positionFen = line?.position_fen || line?.line_fen || line?.fen || baseFen;
@@ -2247,24 +2249,31 @@
       const parent = node?.parentId ? historyNodes.get(node.parentId) : null;
       const previousBestLine = parent?.lines?.[0] || null;
       const previousBestMove = previousBestLine?.best_move_uci || '';
-      const playedMove = node?.move?.uci || '';
-      const previousActiveColor = parent?.fen ? getFenActiveColor(parent.fen) : node?.move?.side || null;
-      const currentMate = getForcedMateContext(lines?.[0] || null, activeColor);
+      const hasPlayedMove = Boolean(node?.move?.uci);
+      const playedMove = hasPlayedMove ? (node?.move?.uci || '') : '';
+      const previousActiveColor = parent?.fen
+        ? getFenActiveColor(parent.fen)
+        : (hasPlayedMove ? node?.move?.side || null : null);
+      const currentMate = getForcedMateContext(lines?.[0] || null, evaluationPerspective);
       const previousMate = getForcedMateContext(previousBestLine, previousActiveColor);
       const gameEnd = getGameEndState();
       const coachEvent = buildCoachEvent({
         currentMate,
         previousMate,
-        movingSide: node?.move?.side || previousActiveColor,
+        movingSide: hasPlayedMove ? (node?.move?.side || previousActiveColor) : null,
         activeSide: activeColor
       });
+      if (!hasPlayedMove && coachEvent.kind === 'position'){
+        coachEvent.kind = 'position_snapshot';
+      }
       return {
         fen: currentFen,
         active_color: activeColor,
         previous_active_color: previousActiveColor,
         board_snapshot: serializeBoardSnapshot(),
         played_move: playedMove,
-        played_move_details: node?.move || null,
+        played_move_details: hasPlayedMove ? (node?.move || null) : null,
+        position_only: !hasPlayedMove,
         current_line: lines?.[0] || null,
         previous_best_line: previousBestLine,
         deviated: Boolean(playedMove && previousBestMove && playedMove !== previousBestMove),
@@ -2290,6 +2299,7 @@
       const commentPayload = buildCoachCommentPayload(lines);
       const cacheKey = JSON.stringify({
         fen: commentPayload.fen,
+        position_only: Boolean(commentPayload.position_only),
         move: commentPayload.played_move,
         best: commentPayload.current_line?.best_move_uci || '',
         previous: commentPayload.previous_best_line?.best_move_uci || '',
@@ -2367,8 +2377,7 @@
 
       const targetNode = targetNodeId ? historyNodes.get(targetNodeId) : null;
       const existingLines = targetNode?.lines || [];
-      const fenSide = getFenActiveColor(currentFen);
-      const normalizeForCurrent = (lines) => normalizeAnalysisLines(lines, currentFen, fenSide);
+      const normalizeForCurrent = (lines) => normalizeAnalysisLines(lines, currentFen, evaluationPerspective);
       if (existingLines.length && !force){
         const normalizedExisting = normalizeForCurrent(existingLines);
         if (targetNode) targetNode.lines = normalizedExisting;
@@ -2402,7 +2411,7 @@
           fen: currentFen,
           movetime_ms: analyzeProfile.movetimeMs,
           multipv: analyzeProfile.multipv,
-          side: 'turn'
+          side: 'white'
         };
         const fetchAnalyzeData = async (reqPayload) => {
           const analyzeUrls = getAnalyzeUrls();
@@ -2843,7 +2852,7 @@
       if (fenTextEl) fenTextEl.textContent = currentFen;
       setBoardStatus(`Ход ${activeColor === 'w' ? 'белых' : 'чёрных'}.`);
       const viewColor = evaluationPerspective || getFenActiveColor(currentFen);
-      const normalizedLines = normalizeAnalysisLines(node?.lines || [], currentFen, activeColor);
+      const normalizedLines = normalizeAnalysisLines(node?.lines || [], currentFen, evaluationPerspective);
       if (node) node.lines = normalizedLines;
       updateArrow(normalizedLines?.[0]);
       if (normalizedLines?.length) updateEvalBar(normalizedLines?.[0], viewColor);

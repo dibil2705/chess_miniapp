@@ -2375,9 +2375,12 @@ def build_coach_comment(comment_payload):
 
     current_line = compact_analysis_line(comment_payload.get("current_line"))
     previous_line = compact_analysis_line(comment_payload.get("previous_best_line"))
-    user_move = str(comment_payload.get("played_move") or "")
+    position_only = bool(comment_payload.get("position_only"))
+    user_move = "" if position_only else str(comment_payload.get("played_move") or "")
     board_snapshot = compact_board_snapshot(comment_payload.get("board_snapshot"))
-    played_move_details = compact_move_details(comment_payload.get("played_move_details"), board_snapshot)
+    played_move_details = (
+        {} if position_only else compact_move_details(comment_payload.get("played_move_details"), board_snapshot)
+    )
     deviated = bool(comment_payload.get("deviated"))
     fen = str(comment_payload.get("fen") or "")[:120]
     side = str(comment_payload.get("active_color") or "")
@@ -2404,24 +2407,25 @@ def build_coach_comment(comment_payload):
     current_mate = coach_event.get("current_forced_mate")
     current_eval = build_evaluation_context(current_line, side)
     previous_eval = build_evaluation_context(previous_line, previous_side)
-    moving_side = coach_event.get("moving_side") or previous_side
+    moving_side = None if position_only else (coach_event.get("moving_side") or previous_side)
     blunder_context = build_blunder_context(previous_eval, current_eval, moving_side, previous_line.get("move"))
     eval_change_context = build_eval_change_context(previous_eval, current_eval, moving_side)
-    if blunder_context and coach_event.get("kind") == "position":
+    if (not position_only) and blunder_context and coach_event.get("kind") == "position":
         coach_event["kind"] = "blunder"
         coach_event["blunder"] = blunder_context
     deterministic_comment = build_deterministic_coach_comment(coach_event, played_move_details, board_snapshot)
     if deterministic_comment:
         return finalize_coach_comment(deterministic_comment, played_move_details)
-    mate_defense_comment = build_mate_defense_comment(coach_event, played_move_details)
-    if mate_defense_comment:
-        return finalize_coach_comment(mate_defense_comment, played_move_details)
-    king_escape_comment = build_king_escape_from_check_comment(played_move_details, eval_change_context)
-    if king_escape_comment:
-        return finalize_coach_comment(king_escape_comment, played_move_details)
-    check_defense_comment = build_check_defense_comment(played_move_details, eval_change_context)
-    if check_defense_comment:
-        return finalize_coach_comment(check_defense_comment, played_move_details)
+    if not position_only:
+        mate_defense_comment = build_mate_defense_comment(coach_event, played_move_details)
+        if mate_defense_comment:
+            return finalize_coach_comment(mate_defense_comment, played_move_details)
+        king_escape_comment = build_king_escape_from_check_comment(played_move_details, eval_change_context)
+        if king_escape_comment:
+            return finalize_coach_comment(king_escape_comment, played_move_details)
+        check_defense_comment = build_check_defense_comment(played_move_details, eval_change_context)
+        if check_defense_comment:
+            return finalize_coach_comment(check_defense_comment, played_move_details)
     tactical_context = build_tactical_context(played_move_details, current_line)
     motif_focus = build_motif_focus_context(tactical_context, played_move_details, current_mate, eval_change_context)
     board_profile = build_board_profile(board_snapshot)
@@ -2447,6 +2451,7 @@ def build_coach_comment(comment_payload):
         "best_move_before_last_move": previous_line.get("move") or "",
         "user_deviated_from_first_line": deviated,
         "coach_event": coach_event,
+        "position_only": position_only,
         "strategy_context": strategy_context,
         "recent_comments": recent_comments,
         "evaluation": {
@@ -2458,6 +2463,12 @@ def build_coach_comment(comment_payload):
         },
     }
     instructions = load_coach_rules()
+    if position_only:
+        instructions += (
+            "\n\nРежим snapshot-позиции: это не комментарий к последнему ходу. "
+            "Оцени только текущую позицию, план и баланс сил. "
+            "Не пиши, кто сходил и что произошло после хода."
+        )
     request_body = {
         "model": OPENAI_MODEL,
         "input": f"{instructions}\n\nР”Р°РЅРЅС‹Рµ Р°РЅР°Р»РёР·Р° JSON:\n{json.dumps(prompt, ensure_ascii=False)}",
@@ -2478,18 +2489,18 @@ def build_coach_comment(comment_payload):
         comment = extract_response_text(data)
         comment = polish_coach_comment(shorten_coach_comment(comment), played_move_details, eval_change_context, current_mate)
         summary = str(played_move_details.get("summary") or "").strip().rstrip(".!?")
-        if summary and is_generic_position_comment(comment):
+        if (not position_only) and summary and is_generic_position_comment(comment):
             if eval_change_context and eval_change_context.get("kind") == "worsened" and eval_change_context.get("major_worsening"):
                 comment = f"{summary.capitalize()}, РЅРѕ С…РѕРґ РѕРєР°Р·Р°Р»СЃСЏ РЅРµС‚РѕС‡РЅС‹Рј."
             else:
                 comment = f"{summary.capitalize()}."
-        fork_signal = bool(tactical_context.get("is_fork")) or ("РІРёР»Рє" in summary.lower())
+        fork_signal = (not position_only) and (bool(tactical_context.get("is_fork")) or ("РІРёР»Рє" in summary.lower()))
         if fork_signal and eval_change_context and eval_change_context.get("kind") == "worsened":
             if "Р·РµРІ" not in comment.lower():
                 mover = normalize_score_side(moving_side)
                 comment = f"{side_label(mover)} Р·РµРІРЅСѓР»Рё РІРёР»РєСѓ, Рё РїРѕР·РёС†РёСЏ СЂРµР·РєРѕ СѓС…СѓРґС€РёР»Р°СЃСЊ."
         comment = validate_comment_against_eval(comment, current_eval, current_mate, eval_change_context)
-        if summary:
+        if (not position_only) and summary:
             comment_lower = comment.lower()
             piece_name = str(played_move_details.get("moving_piece_name") or "").lower()
             if is_generic_position_comment(comment):
@@ -2517,11 +2528,12 @@ def build_coach_comment(comment_payload):
                 )
                 if tail:
                     comment = f"{summary.capitalize()}, {tail}."
-        comment = ensure_moved_piece_mentioned(comment, played_move_details)
+        if not position_only:
+            comment = ensure_moved_piece_mentioned(comment, played_move_details)
         comment = normalize_piece_cases(comment)
         comment = avoid_recent_comment_repetition(comment, recent_comments)
         comment = shorten_coach_comment(comment, max_words=22)
-        return finalize_coach_comment(comment, played_move_details)
+        return finalize_coach_comment(comment, None if position_only else played_move_details)
     except Exception as err:
         print("OpenAI coach comment error:", err)
         return "AI-комментарий временно недоступен, но первая линия всё ещё лучший ориентир."
