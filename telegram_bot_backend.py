@@ -30,7 +30,7 @@ load_dotenv(dotenv_path=ENV_PATH, override=False)
 TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("\ufeffTELEGRAM_BOT_TOKEN") or "").strip()
 BOT_TOKEN = TOKEN or ""
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.4-nano")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.4-mini")
 COACH_RULES_PATH = os.environ.get("COACH_RULES_PATH", "ai_coach_rules.txt")
 STOCKFISH_INTERNAL_BASE = os.environ.get("STOCKFISH_INTERNAL_BASE", "http://127.0.0.1:8080").rstrip("/")
 STOCKFISH_PROXY_TIMEOUT_SECONDS = int(os.environ.get("STOCKFISH_PROXY_TIMEOUT_SECONDS", "20"))

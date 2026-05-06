@@ -1455,7 +1455,7 @@
       if (previousMatedMover && !currentMatesAgainstMover){
         return { label: 'Лучший ход', className: 'best' };
       }
-      if (previousMoverHadMate && !currentMatesForMover){
+      if (previousMoverHadMate && currentMate?.mating_side && !currentMatesForMover){
         const previousMateMoves = Number(previousMate.moves) || 99;
         return previousMateMoves <= 2
           ? { label: 'Зевок', className: 'blunder' }
@@ -1487,9 +1487,27 @@
       const bestScore = normalizeScore(bestLine, moverSide);
       const playedScore = normalizeScore(playedLine, moverSide);
       let lossCp = Math.max(0, Math.round(bestScore.cp - playedScore.cp));
-      const currentMate = getForcedMateContext(playedLine, activeColor);
-      const previousMate = getForcedMateContext(bestLine, moverSide);
+      const currentMate = getForcedMateContext(playedLine, evaluationPerspective);
+      const previousMate = getForcedMateContext(bestLine, evaluationPerspective);
       if (bestScore.mate !== null || playedScore.mate !== null){
+        if (bestScore.mate !== null && playedScore.mate !== null){
+          if (bestScore.mate > 0 && playedScore.mate > 0){
+            // Оба варианта ведут к мату для той же стороны: если мат стал ближе, это не зевок.
+            const bestDist = Math.abs(bestScore.mate);
+            const playedDist = Math.abs(playedScore.mate);
+            if (playedDist <= bestDist){
+              lossCp = Math.min(lossCp, 15);
+            }
+          }
+          if (bestScore.mate < 0 && playedScore.mate < 0){
+            // Если от проигранного мата удалось отдалиться, не считаем это грубой ошибкой.
+            const bestDist = Math.abs(bestScore.mate);
+            const playedDist = Math.abs(playedScore.mate);
+            if (playedDist >= bestDist){
+              lossCp = Math.min(lossCp, 40);
+            }
+          }
+        }
         if (playedScore.mate !== null && playedScore.mate < 0) lossCp = Math.max(lossCp, 301);
         if (bestScore.mate !== null && bestScore.mate > 0 && !(playedScore.mate !== null && playedScore.mate > 0)) lossCp = Math.max(lossCp, 151);
       }
