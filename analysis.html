@@ -2806,6 +2806,8 @@
       const opponentColor = oppositeColorCode(moverColor);
       const movedSquare = String(move.to || '').trim();
       const movedPieceLabel = normalizePieceLabel(pieceCoachName(move.movingPiece || ''));
+      const promotedTo = String(move.promotionPiece || '').trim();
+      const promotionLabel = promotedTo ? normalizePieceLabel(pieceCoachName(promotedTo)) : '';
       const movedTargetsState = buildThreatStateOnBoard(board, move, moverColor);
       const targets = movedTargetsState.targets;
       const nonKingTargets = targets.filter((item) => !item.king);
@@ -2848,17 +2850,21 @@
       let primaryUsedOwnRisk = false;
       if (move.capturedPiece){
         const capturedLabel = normalizePieceLabel(pieceCoachName(move.capturedPiece));
-        sentences.push(`${movedPieceLabel} с ${move.from} бьёт ${capturedLabel} на ${movedSquare}.`);
+        if (promotionLabel){
+          sentences.push(`Пешка с ${move.from} бьёт ${capturedLabel} на ${movedSquare} и превращается в ${promotionLabel}.`);
+        } else {
+          sentences.push(`${movedPieceLabel} с ${move.from} бьёт ${capturedLabel} на ${movedSquare}.`);
+        }
         const firstReply = pvSequence[0] || null;
         const secondReply = pvSequence[1] || null;
         const isImmediateRecapture = Boolean(firstReply?.capturedPiece && firstReply.to === movedSquare);
         if (isImmediateRecapture){
           let netForMover = getMaterialValue(move.capturedPiece);
           netForMover -= getMaterialValue(firstReply.capturedPiece);
-          let exchangeText = `По основной линии ${firstReply.movingPieceName} с ${firstReply.from} бьёт на ${firstReply.to}`;
+          let exchangeText = `В ответ ${firstReply.movingPieceName} с ${firstReply.from} бьёт на ${firstReply.to}`;
           if (secondReply?.capturedPiece){
             netForMover += getMaterialValue(secondReply.capturedPiece);
-            exchangeText += `, ${secondReply.movingPieceName} с ${secondReply.from} бьёт в ответ на ${secondReply.to}`;
+            exchangeText += `, затем ${secondReply.movingPieceName} с ${secondReply.from} бьёт на ${secondReply.to}`;
           }
           exchangeText += `: ${formatMaterialResult(netForMover)}.`;
           sentences.push(exchangeText);
@@ -2877,10 +2883,14 @@
       } else if (mainThreat.priority > 0){
         switch (mainThreat.code){
           case 'mate_in_one':
-            sentences.push(`Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт угрозу мата в один.`);
+            sentences.push(promotionLabel
+              ? `Пешка с ${move.from} идёт на ${movedSquare}, превращается в ${promotionLabel} и создаёт угрозу мата в один.`
+              : `Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт угрозу мата в один.`);
             break;
           case 'mate_threat':
-            sentences.push(`Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт матовую угрозу.`);
+            sentences.push(promotionLabel
+              ? `Пешка с ${move.from} идёт на ${movedSquare}, превращается в ${promotionLabel} и создаёт матовую угрозу.`
+              : `Ход ${movedPieceLabel} ${move.from}-${movedSquare} создаёт матовую угрозу.`);
             break;
           case 'check':
             sentences.push(`Ход ${movedPieceLabel} ${move.from}-${movedSquare} даёт шах королю соперника.`);
@@ -2924,7 +2934,9 @@
       }
       if (!sentences.length){
         const topOwnRisk = ownPressure.vulnerable[0] || ownPressure.attacked[0] || null;
-        if (move.wasInCheckBefore && move.resolvedCheck){
+        if (promotionLabel){
+          sentences.push(`Пешка с ${move.from} дошла до ${movedSquare} и превратилась в ${promotionLabel}.`);
+        } else if (move.wasInCheckBefore && move.resolvedCheck){
           sentences.push(`Ход ${movedPieceLabel} на ${movedSquare} снял шах с короля.`);
         } else if (topOwnRisk){
           const riskTag = topOwnRisk.vulnerable ? 'без достаточной защиты' : 'под атакой';
@@ -3008,10 +3020,9 @@
       }
       const initData = getTelegramInitData();
       const commentPayload = buildCoachCommentPayload(lines);
-      const cheaterMode = isCheater322Enabled();
       const formalComment = buildFormalCoachComment(commentPayload, lines);
       const cacheKey = JSON.stringify({
-        mode: cheaterMode ? 'cheater_322' : 'formal_only',
+        mode: 'rewrite_only',
         fen: commentPayload.fen,
         position_only: Boolean(commentPayload.position_only),
         move: commentPayload.played_move,
@@ -3019,7 +3030,8 @@
         previous: commentPayload.previous_best_line?.best_move_uci || '',
         event: commentPayload.coach_event?.kind || '',
         game: commentPayload.game_status?.kind || '',
-        recent: (commentPayload.recent_comments || []).join('|')
+        recent: (commentPayload.recent_comments || []).join('|'),
+        formal: formalComment
       });
       const cached = coachCommentCache.get(cacheKey);
       if (cached){
@@ -3030,16 +3042,7 @@
         rememberCoachEvent(commentPayload.coach_event);
         return;
       }
-      if (!cheaterMode){
-        coachCommentCache.set(cacheKey, formalComment);
-        coachCommentEl.textContent = formalComment;
-        if (currentHistoryNodeId && historyNodes.has(currentHistoryNodeId)){
-          historyNodes.get(currentHistoryNodeId).coachComment = formalComment;
-        }
-        rememberCoachEvent(commentPayload.coach_event);
-        return;
-      }
-      coachCommentEl.textContent = 'Формальный разбор готов; AI дополняет комментарий...';
+      coachCommentEl.textContent = 'Факты рассчитаны; AI редактирует текст...';
       coachCommentEl.classList.add('loading');
       try {
         let data = null;
@@ -3059,7 +3062,11 @@
               body: JSON.stringify({
                 initData,
                 userId: getTelegramStorageUserId(),
-                commentPayload: { ...commentPayload, strict_formal_mode: true }
+                commentPayload: {
+                  ...commentPayload,
+                  rewrite_only: true,
+                  source_comment: formalComment
+                }
               })
             });
             data = await response.json().catch(() => null);
@@ -3073,16 +3080,16 @@
           }
         }
         if (!data) throw lastError || new Error('Coach comment request failed');
-        const aiComment = String(data?.comment || '').trim() || 'Формальный AI-комментарий временно не получен.';
-        const combinedComment = `${formalComment}\nAI: ${aiComment}`;
-        coachCommentCache.set(cacheKey, combinedComment);
-        coachCommentEl.textContent = combinedComment;
+        const editedComment = String(data?.comment || '').trim() || formalComment;
+        coachCommentCache.set(cacheKey, editedComment);
+        coachCommentEl.textContent = editedComment;
         if (currentHistoryNodeId && historyNodes.has(currentHistoryNodeId)){
-          historyNodes.get(currentHistoryNodeId).coachComment = combinedComment;
+          historyNodes.get(currentHistoryNodeId).coachComment = editedComment;
         }
         rememberCoachEvent(commentPayload.coach_event);
       } catch (err){
         console.warn('AI coach comment failed', err);
+        coachCommentCache.set(cacheKey, formalComment);
         coachCommentEl.textContent = formalComment;
       } finally {
         coachCommentEl.classList.remove('loading');

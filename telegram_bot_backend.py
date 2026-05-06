@@ -1137,6 +1137,14 @@ def first_sentence(text):
     return text
 
 
+def first_two_sentences(text):
+    text = " ".join(str(text or "").split()).strip()
+    if not text:
+        return ""
+    parts = re.split(r"(?<=[.!?])\s+", text)
+    return " ".join(parts[:2]).strip()
+
+
 def shorten_coach_comment(text, max_words=16):
     text = first_sentence(text).replace("**", "").replace("`", "")
     text = " ".join(text.split()).strip()
@@ -2451,6 +2459,58 @@ def ensure_moved_piece_mentioned(comment, move_details):
 
 
 def build_coach_comment(comment_payload):
+    rewrite_only = bool(comment_payload.get("rewrite_only"))
+    source_comment = str(comment_payload.get("source_comment") or "").strip()
+    if rewrite_only:
+        if not source_comment:
+            return "Комментарий недоступен."
+        if not OPENAI_API_KEY:
+            return source_comment
+        rewrite_instructions = (
+            "Ты только редактор шахматного текста. Не анализируй позицию и не ищи ходы. "
+            "Используй только факты из исходного текста. "
+            "Перепиши коротко и по-человечески: 1-2 предложения, максимум 3. "
+            "Не пиши «основная линия». "
+            "Не пиши технический жаргон в стиле «фигура под боем», «1 атакующих», "
+            "«без достаточной защиты», если это можно выразить как размен, шах, матовую угрозу или выигрыш материала. "
+            "Всегда называй конкретные фигуры и поля, если они уже есть в исходных фактах. "
+            "Если есть взятие, начни с того, кто кого взял. "
+            "Если есть превращение пешки, обязательно упомяни во что она превратилась. "
+            "Не добавляй новых фактов и не меняй шахматный смысл."
+        )
+        rewrite_prompt = {
+            "source_comment": source_comment,
+            "position_only": bool(comment_payload.get("position_only")),
+            "played_move": str(comment_payload.get("played_move") or ""),
+            "played_move_details": comment_payload.get("played_move_details") if isinstance(comment_payload.get("played_move_details"), dict) else {},
+            "current_line": compact_analysis_line(comment_payload.get("current_line")),
+        }
+        request_body = {
+            "model": OPENAI_MODEL,
+            "input": f"{rewrite_instructions}\n\nФакты для редактуры JSON:\n{json.dumps(rewrite_prompt, ensure_ascii=False)}",
+            "max_output_tokens": 100,
+        }
+        request = urllib.request.Request(
+            "https://api.openai.com/v1/responses",
+            data=json.dumps(request_body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            edited = extract_response_text(data)
+            edited = first_two_sentences(edited)
+            if not edited:
+                return source_comment
+            return finalize_coach_comment(edited, comment_payload.get("played_move_details"))
+        except Exception as err:
+            print("OpenAI rewrite-only error:", err)
+            return source_comment
+
     if not OPENAI_API_KEY:
         return "AI-комментарий недоступен: добавь OPENAI_API_KEY в .env."
 
