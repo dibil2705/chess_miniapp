@@ -843,7 +843,45 @@ class MonitorBot:
             return " ".join(chunks).strip()
         return ""
 
-    def _generate_weekly_short_text(self, previous_text=""):
+    def _build_puzzle_prompt_context(self, puzzle):
+        if not isinstance(puzzle, dict):
+            return "Контекст задачи недоступен."
+        fen = str(puzzle.get("fen") or "").strip()
+        title = str(puzzle.get("title") or "").strip()
+        url = str(puzzle.get("url") or puzzle.get("id") or "").strip()
+        pgn = str(puzzle.get("pgn") or "").strip()
+        solution_moves, target_fen = self._extract_puzzle_solution(puzzle)
+        side_to_move = "неизвестно"
+        board_map = ""
+        if fen:
+            parts = fen.split(" ")
+            if len(parts) > 1:
+                side_to_move = "белые" if parts[1] == "w" else "черные" if parts[1] == "b" else "неизвестно"
+        if chess is not None and fen:
+            try:
+                board = chess.Board(fen)
+                piece_lines = []
+                for square, piece in board.piece_map().items():
+                    color = "белые" if piece.color == chess.WHITE else "черные"
+                    piece_lines.append(f"{piece.symbol()}:{chess.square_name(square)}:{color}")
+                piece_lines.sort()
+                board_map = ", ".join(piece_lines)
+            except Exception:
+                board_map = ""
+        lines = [
+            f"title: {title or 'n/a'}",
+            f"url: {url or 'n/a'}",
+            f"fen: {fen or 'n/a'}",
+            f"side_to_move: {side_to_move}",
+            f"pgn: {pgn or 'n/a'}",
+            f"solution_uci: {' '.join(solution_moves) if solution_moves else 'n/a'}",
+            f"solution_length_plies: {len(solution_moves)}",
+            f"target_fen: {target_fen or 'n/a'}",
+            f"piece_map: {board_map or 'n/a'}",
+        ]
+        return "\n".join(lines)
+
+    def _generate_weekly_short_text(self, previous_text="", puzzle=None):
         fallback = [
             "♟ Попробуй найти лучший ход в сегодняшней задаче.",
             "Разомнись за минуту — новая шахматная задача уже ждёт.",
@@ -851,10 +889,15 @@ class MonitorBot:
         ]
         if not OPENAI_API_KEY:
             return random.choice(fallback)
+        puzzle_context = self._build_puzzle_prompt_context(puzzle)
         prompt = (
-            "Сгенерируй ОДНО короткое предложение на русском для Telegram-рассылки шахматной задачи. "
-            "Без воскресных встреч, без длинной мотивации, без спама, без эмодзи кроме шахматного по желанию. "
-            "Максимум 90 символов. Только готовый текст, без кавычек."
+            "Ты пишешь короткую подводку к шахматной задаче для Telegram.\n"
+            "У тебя есть полный контекст задачи: позиция, расстановка фигур, решение и целевая позиция.\n"
+            "Сделай ОДНО короткое предложение на русском, чтобы заинтересовать пользователя.\n"
+            "Строго без спойлеров: не называй ходы, поля, матовые идеи, жертвы и конкретные тактические мотивы.\n"
+            "Не раскрывай решение напрямую, только интригуй.\n"
+            "Максимум 90 символов. Без кавычек и без списка.\n\n"
+            f"Контекст задачи:\n{puzzle_context}"
         )
         if previous_text:
             prompt += f"\nПредыдущий вариант (не повторяй): {previous_text}"
@@ -898,6 +941,7 @@ class MonitorBot:
                 [{"text": "✅ Подтвердить", "callback_data": "action:weekly_confirm"}],
                 [{"text": "🚀 Подтвердить и отправить сейчас (force)", "callback_data": "action:weekly_force_send"}],
                 [{"text": "🔁 Изменить текст", "callback_data": "action:weekly_regen"}],
+                [{"text": "♻️ Сменить задачу", "callback_data": "action:weekly_change_puzzle"}],
                 [{"text": "❌ Отмена", "callback_data": "action:weekly_cancel"}],
             ]
         }
@@ -977,7 +1021,7 @@ class MonitorBot:
         if custom_text:
             text = str(custom_text).strip()
         elif force_regen or not previous_text:
-            text = self._generate_weekly_short_text(previous_text=previous_text)
+            text = self._generate_weekly_short_text(previous_text=previous_text, puzzle=puzzles[0] if puzzles else None)
         else:
             text = previous_text
 
@@ -999,6 +1043,58 @@ class MonitorBot:
             status="preview_created",
             approved=0,
             details={"text": text},
+        )
+        self._send_weekly_preview(preview)
+        return preview
+
+    def _change_weekly_preview_puzzle(self):
+        weekly = self._weekly_state()
+        if not isinstance(weekly.get("preview"), dict) or not weekly.get("preview"):
+            self._prepare_weekly_preview(force_regen=False)
+            weekly = self._weekly_state()
+        preview = weekly.get("preview") if isinstance(weekly.get("preview"), dict) else {}
+        if not preview:
+            raise RuntimeError("Нет предпросмотра для смены задачи.")
+
+        puzzles = [p for p in (preview.get("puzzles") or []) if isinstance(p, dict)]
+        if not puzzles:
+            puzzles = self._build_weekly_puzzle_set(WEEKLY_BROADCAST_SET_SIZE)
+
+        old_primary_key = self._puzzle_key(puzzles[0]) if puzzles else ""
+        replacement = None
+        attempts = 0
+        max_attempts = 20
+        while attempts < max_attempts:
+            attempts += 1
+            raw = self._fetch_chesscom_random_puzzle()
+            normalized, solution_moves = self._normalize_puzzle_with_solution(raw)
+            if not normalized:
+                continue
+            if len(solution_moves) < WEEKLY_MIN_SOLUTION_PLIES:
+                continue
+            key = self._puzzle_key(normalized)
+            if key and old_primary_key and key == old_primary_key:
+                continue
+            replacement = normalized
+            break
+
+        if not replacement:
+            raise RuntimeError("Не удалось подобрать другую задачу. Попробуйте еще раз.")
+
+        puzzles[0] = replacement
+        preview["puzzles"] = puzzles[:WEEKLY_BROADCAST_SET_SIZE]
+        preview["created_at"] = now_str()
+        preview["approved"] = False
+        weekly["preview"] = preview
+        weekly["status"] = "preview_pending"
+        self._save_state()
+        self._log_weekly_broadcast(
+            week_key=weekly.get("week_key"),
+            scheduled_day=weekly.get("scheduled_day"),
+            puzzle_id=self._puzzle_key(replacement),
+            status="preview_puzzle_changed",
+            approved=0,
+            details={"text": str(preview.get("text") or "")},
         )
         self._send_weekly_preview(preview)
         return preview
@@ -1186,15 +1282,19 @@ class MonitorBot:
             failed = 0
             for row in rows:
                 tg_id = int(row["telegram_id"])
-                assigned_puzzle, assigned_index = self._select_weekly_puzzle_for_user(
-                    base_puzzle_set.get("puzzles"),
-                    week_key,
-                    tg_id,
-                    rotation_window_start,
-                )
-                if not assigned_puzzle:
+                if force:
                     assigned_puzzle = primary_puzzle
                     assigned_index = 0
+                else:
+                    assigned_puzzle, assigned_index = self._select_weekly_puzzle_for_user(
+                        base_puzzle_set.get("puzzles"),
+                        week_key,
+                        tg_id,
+                        rotation_window_start,
+                    )
+                    if not assigned_puzzle:
+                        assigned_puzzle = primary_puzzle
+                        assigned_index = 0
                 puzzle_set = dict(base_puzzle_set)
                 puzzle_set["selectedIndex"] = int(assigned_index)
                 puzzle_state, quota_state, _ = self._build_puzzle_state_payload(assigned_puzzle, puzzle_set)
@@ -1388,6 +1488,12 @@ class MonitorBot:
                 self._prepare_weekly_preview(force_regen=True)
             except Exception as err:
                 self.send_message(chat_id, f"⚠️ Ошибка генерации текста: {err}")
+        elif data == "action:weekly_change_puzzle":
+            self.answer_callback(callback_id, "Меняю задачу")
+            try:
+                self._change_weekly_preview_puzzle()
+            except Exception as err:
+                self.send_message(chat_id, f"⚠️ Не удалось сменить задачу: {err}")
         elif data.startswith("action:weekly_day:"):
             day = data.split(":", 2)[2].strip().lower()
             if day not in {"wednesday", "thursday"}:

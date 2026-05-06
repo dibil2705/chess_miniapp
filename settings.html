@@ -811,11 +811,11 @@
       if (!statusEl || !inputEl || !btnEl) return;
       const state = loadAdminAccessState();
       if (state.unlimitedTasks){
-        statusEl.textContent = 'Unlimited tasks enabled. Use code 666 to disable.';
+        statusEl.textContent = 'Безлимит задач включен.';
       } else if (state.attemptsLeft <= 0){
-        statusEl.textContent = 'No attempts left. Use code 999 to reset attempts.';
+        statusEl.textContent = 'Попытки закончились. Введите код 999 для сброса.';
       } else {
-        statusEl.textContent = `Attempts left: ${state.attemptsLeft}.`;
+        statusEl.textContent = `Осталось попыток: ${state.attemptsLeft}.`;
       }
       inputEl.disabled = false;
       btnEl.disabled = false;
@@ -828,13 +828,13 @@
       const code = String(inputEl.value || '').trim();
       let state = loadAdminAccessState();
       if (!code){
-        statusEl.textContent = 'Enter a code.';
+        statusEl.textContent = 'Введите код.';
         return;
       }
       if (code === ACCESS_CODE_RESET){
         state = saveAdminAccessState({ ...state, attemptsLeft: ACCESS_CODE_ATTEMPTS_MAX });
         saveCloudStateNow();
-        statusEl.textContent = 'Attempts reset.';
+        statusEl.textContent = 'Счетчик попыток сброшен.';
         inputEl.value = '';
         renderAccessCodeState();
         return;
@@ -842,28 +842,28 @@
       if (code === ACCESS_CODE_DISABLE){
         state = saveAdminAccessState({ ...state, unlimitedTasks: false });
         saveCloudStateNow();
-        statusEl.textContent = 'Unlimited tasks disabled.';
+        statusEl.textContent = 'Безлимит задач отключен.';
         inputEl.value = '';
         renderAccessCodeState();
         return;
       }
       if (state.attemptsLeft <= 0){
-        statusEl.textContent = 'No attempts left. Code 999 resets attempts.';
+        statusEl.textContent = 'Попытки закончились. Код 999 сбрасывает счетчик.';
         return;
       }
       if (code === ACCESS_CODE_UNLOCK){
         state = saveAdminAccessState({ ...state, unlimitedTasks: true });
         saveCloudStateNow();
-        statusEl.textContent = 'Code accepted. Unlimited tasks enabled. Code 666 disables.';
+        statusEl.textContent = 'Код принят. Безлимит задач включен.';
         inputEl.value = '';
         renderAccessCodeState();
         return;
       }
       state = saveAdminAccessState({ ...state, attemptsLeft: Math.max(0, state.attemptsLeft - 1) });
       if (state.attemptsLeft <= 0){
-        statusEl.textContent = 'Wrong code. No attempts left. Use 999 to reset.';
+        statusEl.textContent = 'Неверный код. Попытки закончились. Введите 999 для сброса.';
       } else {
-        statusEl.textContent = `Wrong code. Attempts left: ${state.attemptsLeft}.`;
+        statusEl.textContent = `Неверный код. Осталось попыток: ${state.attemptsLeft}.`;
       }
       inputEl.select();
     }
