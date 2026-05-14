@@ -1,0 +1,1266 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <title>Турнир 10.05.26</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    @font-face{
+      font-family:"LiteraturnayaMenu";
+      src:url("assets/font/TEST-literaturnaya_book.otf") format("opentype");
+      font-weight:400;
+      font-style:normal;
+      font-display:swap;
+    }
+
+    :root{
+      --bg:#111;
+      --text:#f2eee5;
+      --muted:rgba(242,238,229,.62);
+      --gold:#c19154;
+      --panel:rgba(18,20,19,.90);
+      --border:rgba(255,255,255,.105);
+      --tg-safe-area-top:0px;
+      --app-safe-top:max(env(safe-area-inset-top), var(--tg-safe-area-top));
+    }
+
+    *, *::before, *::after{ box-sizing:border-box; }
+    html{ min-height:100%; min-height:100svh; min-height:100dvh; background:var(--bg); -webkit-text-size-adjust:100%; }
+    body{
+      margin:0;
+      min-height:100%;
+      min-height:100svh;
+      min-height:100dvh;
+      padding:calc(124px + var(--app-safe-top)) 12px calc(18px + env(safe-area-inset-bottom));
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 50% 112%, rgba(118,150,86,.16), transparent 42%),
+        linear-gradient(160deg, #171817 0%, #0f100f 48%, #0a0b0a 100%);
+      overflow-x:hidden;
+      -webkit-tap-highlight-color:transparent;
+    }
+    body.no-scroll{ overflow:hidden; }
+
+    .page{
+      position:relative;
+      z-index:1;
+      width:min(100%, 760px);
+      margin:0 auto;
+      display:grid;
+      gap:18px;
+    }
+
+    .back-link{
+      --liquid-position: fixed;
+      --liquid-overflow: visible;
+      position:fixed;
+      top:calc(62px + var(--app-safe-top));
+      left:10px;
+      z-index:10;
+      min-width:46px;
+      min-height:46px;
+      padding:10px 14px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:999px;
+      color:var(--text);
+      text-decoration:none;
+      font-weight:900;
+      transition:transform .11s ease;
+    }
+    .back-link svg{
+      width:24px;
+      height:24px;
+      display:block;
+      fill:none;
+      stroke:currentColor;
+      stroke-width:2.4;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+      transform:translateX(-1px);
+    }
+    .back-link:active{ transform:scale(.965); }
+
+    .page-title{
+      margin:0;
+      font-family:"LiteraturnayaMenu", Georgia, serif;
+      font-size:clamp(42px, 11vw, 64px);
+      font-weight:400;
+      line-height:.95;
+      letter-spacing:.015em;
+      text-align:center;
+      text-shadow:0 6px 18px rgba(0,0,0,.58), 0 0 1px rgba(255,255,255,.42);
+    }
+
+    .subtitle{
+      margin:8px 0 0;
+      color:var(--muted);
+      text-align:center;
+      font-weight:800;
+    }
+
+    .category-tabs{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+
+    .category-btn{
+      padding:13px 14px;
+      border-radius:14px;
+      color:var(--text);
+      text-align:center;
+      font-size:16px;
+      font-weight:900;
+      cursor:pointer;
+      transition:transform .11s ease;
+      touch-action:manipulation;
+    }
+    .category-btn:active{ transform:scale(.985); }
+    .category-btn.active{ border-color:rgba(193,145,84,.55); color:#fff6e6; }
+
+    .panel{
+      overflow:hidden;
+      border-radius:16px;
+      color:var(--text);
+    }
+
+    .category-output{
+      display:grid;
+      gap:10px;
+    }
+
+    .panel-head{
+      padding:16px;
+      border-bottom:1px solid rgba(255,255,255,.09);
+      display:grid;
+      gap:4px;
+    }
+
+    .panel-title{
+      margin:0;
+      font-size:20px;
+      font-weight:950;
+      letter-spacing:-.02em;
+    }
+
+    .panel-note{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.35;
+    }
+
+    .elo-note{
+      margin:0;
+      padding:0 12px;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.45;
+      text-align:center;
+    }
+
+    .table-wrap{
+      width:100%;
+      overflow-x:auto;
+      overflow-y:hidden;
+      -webkit-overflow-scrolling:touch;
+      scrollbar-width:thin;
+      scrollbar-color:rgba(193,145,84,.58) rgba(255,255,255,.07);
+    }
+    .table-wrap::-webkit-scrollbar{ height:8px; }
+    .table-wrap::-webkit-scrollbar-track{
+      background:linear-gradient(90deg, rgba(255,255,255,.035), rgba(255,255,255,.075));
+      border-radius:999px;
+    }
+    .table-wrap::-webkit-scrollbar-thumb{
+      border-radius:999px;
+      background:linear-gradient(90deg, rgba(193,145,84,.88), rgba(242,218,174,.7));
+      border:2px solid rgba(15,16,15,.9);
+    }
+    .table-wrap::-webkit-scrollbar-thumb:hover{ background:linear-gradient(90deg, rgba(213,165,99,.95), rgba(255,231,187,.82)); }
+    table{ width:100%; border-collapse:collapse; min-width:720px; }
+    th,
+    td{
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.075);
+      text-align:left;
+      font-size:14px;
+      white-space:nowrap;
+    }
+    th{
+      color:rgba(242,238,229,.72);
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      background:rgba(0,0,0,.14);
+    }
+    td{ font-weight:750; }
+    tr:last-child td{ border-bottom:0; }
+    .num{ text-align:right; font-variant-numeric:tabular-nums; }
+    .place{ width:78px; color:#fff6e6; }
+
+    .player-link{
+      padding:0;
+      border:0;
+      background:none;
+      color:var(--text);
+      font:inherit;
+      font-weight:900;
+      cursor:pointer;
+      text-align:left;
+      text-decoration:underline;
+      text-decoration-color:rgba(193,145,84,.55);
+      text-underline-offset:4px;
+    }
+
+    .empty{ padding:18px; color:var(--muted); line-height:1.45; }
+
+    .profile-overlay{
+      position:fixed;
+      inset:0;
+      z-index:10000;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      background:rgba(0,0,0,.72);
+      backdrop-filter:blur(3px);
+      -webkit-backdrop-filter:blur(3px);
+    }
+    .profile-overlay.active{ display:flex; }
+
+    .profile-card{
+      width:min(680px, 100%);
+      max-height:min(86vh, 760px);
+      overflow:auto;
+      border-radius:18px;
+      color:var(--text);
+    }
+
+    .profile-head{
+      padding:18px;
+      border-bottom:1px solid rgba(255,255,255,.09);
+      display:grid;
+      gap:14px;
+    }
+
+    .profile-top{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:start;
+    }
+
+    .profile-name{
+      margin:0;
+      font-size:24px;
+      font-weight:950;
+      letter-spacing:-.03em;
+    }
+
+    .close-btn{
+      min-width:42px;
+      height:42px;
+      border-radius:999px;
+      border:0;
+      color:var(--text);
+      cursor:pointer;
+      font-size:24px;
+      line-height:1;
+    }
+
+    .profile-stats{
+      display:grid;
+      grid-template-columns:repeat(4, minmax(0, 1fr));
+      gap:8px;
+    }
+
+    .stat{
+      padding:10px;
+      border-radius:12px;
+      background:rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.08);
+    }
+    .stat-label{ color:var(--muted); font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:.05em; }
+    .stat-value{ margin-top:4px; font-size:18px; font-weight:950; }
+
+    .profile-body{ padding:16px; display:grid; gap:12px; }
+    .profile-section-title{ margin:0; font-size:17px; font-weight:950; }
+    .games-table{ min-width:0; }
+
+    @media (max-width:560px){
+      .profile-stats{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
+      .profile-card{ max-height:88vh; }
+      th,
+      td{ padding:11px 12px; }
+    }
+  </style>
+  <link rel="stylesheet" href="assets/liquid-glass.css">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute;pointer-events:none" aria-hidden="true" focusable="false">
+    <filter id="liquid-glass-filter" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.018" numOctaves="2" seed="8" result="noise"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="10" xChannelSelector="R" yChannelSelector="G" result="displaced"></feDisplacementMap>
+      <feGaussianBlur in="displaced" stdDeviation="0.2" result="softened"></feGaussianBlur>
+      <feComposite in="softened" in2="SourceGraphic" operator="over"></feComposite>
+    </filter>
+  </svg>
+
+  <a class="back-link liquid-glass-pill" href="tournament-results.html" aria-label="Вернуться к списку турниров">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M15 6 9 12l6 6"></path>
+    </svg>
+  </a>
+
+  <main class="page">
+    <header>
+      <h1 class="page-title">Турнир 10.05.26</h1>
+      <p class="subtitle">Турниры Красная Поляна</p>
+    </header>
+
+    <div class="category-tabs" aria-label="Категории турнира">
+      <button class="category-btn liquid-glass active" type="button" data-category="kids">Дети</button>
+      <button class="category-btn liquid-glass" type="button" data-category="adults">Взрослые</button>
+    </div>
+
+    <section id="categoryContent" class="category-output"></section>
+  </main>
+
+  <div id="profileOverlay" class="profile-overlay" role="dialog" aria-modal="true" aria-labelledby="profileName">
+    <article class="profile-card liquid-glass-panel">
+      <div class="profile-head">
+        <div class="profile-top">
+          <h2 id="profileName" class="profile-name"></h2>
+          <button id="closeProfile" class="close-btn liquid-glass-pill" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <div id="profileStats" class="profile-stats"></div>
+      </div>
+      <div class="profile-body">
+        <h3 class="profile-section-title">Партии по турам</h3>
+        <div id="profileGames" class="table-wrap"></div>
+      </div>
+    </article>
+  </div>
+
+  <script>
+    const tournamentData = {
+      "kids": {
+            "title": "\u0414\u0435\u0442\u0438",
+            "note": "",
+            "standings": [
+                  [
+                        "1",
+                        "\u0413\u0440\u0438\u0448\u0438\u043d \u041b\u0435\u0432",
+                        "5",
+                        "16"
+                  ],
+                  [
+                        "2",
+                        "\u041a\u043e\u0437\u043b\u043e\u0432 \u041c\u0430\u043a\u0441\u0438\u043c",
+                        "4",
+                        "14"
+                  ],
+                  [
+                        "3",
+                        "\u0410\u043b\u0435\u043a\u0441 \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                        "4",
+                        "14"
+                  ],
+                  [
+                        "4",
+                        "\u0420\u0430\u0434\u0438\u043e\u043d \u0427\u0438\u043a\u043c\u0430\u0440\u0435\u0432",
+                        "4",
+                        "12"
+                  ],
+                  [
+                        "5",
+                        "\u0418\u0433\u043e\u0440\u044c \u0410\u043d\u0444\u0440\u0438\u043a\u043e\u0432",
+                        "4",
+                        "12"
+                  ],
+                  [
+                        "6",
+                        "\u0414\u0430\u0432\u0438\u0434 \u0413\u0435\u0437\u0430\u043b\u044f\u043d",
+                        "3",
+                        "17"
+                  ],
+                  [
+                        "7",
+                        "\u041c\u0438\u0445\u0430\u0438\u043b \u0410\u043a\u043e\u043f\u044f\u043d",
+                        "3",
+                        "17"
+                  ],
+                  [
+                        "8",
+                        "\u041d\u0435\u0432\u0437\u043e\u0440\u043e\u0432 \u042f\u0440\u043e\u0441\u043b\u0430\u0432",
+                        "3",
+                        "14"
+                  ],
+                  [
+                        "9",
+                        "\u041e\u0441\u0438\u043f\u043e\u0432 \u0412\u0438\u043a\u0442\u043e\u0440",
+                        "3",
+                        "13"
+                  ],
+                  [
+                        "10",
+                        "\u0420\u0443\u0441\u043b\u0430\u043d \u041f\u043e\u0441\u0442\u043d\u0438\u043a\u043e\u0432",
+                        "3",
+                        "12.5"
+                  ],
+                  [
+                        "11",
+                        "\u0410\u0440\u0442\u0435\u043c \u041c\u0430\u0441\u0435\u043d\u043a\u043e",
+                        "3",
+                        "11.5"
+                  ],
+                  [
+                        "12",
+                        "\u041e\u043b\u0435\u0433 \u0410\u043d\u0444\u0440\u0438\u043a\u043e\u0432",
+                        "2",
+                        "15.5"
+                  ],
+                  [
+                        "13",
+                        "\u0410\u0440\u0435\u0441\u0442\u0430\u043a\u0438\u0441\u044f\u043d \u0413\u0435\u043e\u0440\u0433\u0438\u0439",
+                        "2",
+                        "14"
+                  ],
+                  [
+                        "14",
+                        "\u0422\u0438\u0433\u0440\u0430\u043d \u0413\u0435\u0437\u0430\u043b\u044f\u043d",
+                        "2",
+                        "13"
+                  ],
+                  [
+                        "15",
+                        "\u0422\u0440\u0438\u0430\u043d\u0434\u043e\u0444\u0438\u043b",
+                        "2",
+                        "13"
+                  ],
+                  [
+                        "16",
+                        "\u0421\u0430\u0448\u0430 \u0411\u0435\u043b\u043e\u0443\u0441\u043e\u0432",
+                        "2",
+                        "12"
+                  ],
+                  [
+                        "17",
+                        "\u041b\u0435\u0432 \u0427\u0443\u043b\u043a\u0438\u043d",
+                        "2",
+                        "11.5"
+                  ],
+                  [
+                        "18",
+                        "\u041a\u043e\u043b\u044f \u0411\u0435\u043b\u043e\u0443\u0441\u043e\u0432",
+                        "2",
+                        "11"
+                  ],
+                  [
+                        "19",
+                        "\u042d\u043b\u044c\u043d\u0430\u0440 \u0428\u0430\u0440\u0438\u043f\u043e\u0432",
+                        "2",
+                        "8"
+                  ],
+                  [
+                        "20",
+                        "\u041c\u0438\u0445\u0430\u0438\u043b \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                        "1.5",
+                        "8.5"
+                  ],
+                  [
+                        "21",
+                        "\u0412\u043b\u0430\u0434\u0438\u043c\u0438\u0440 \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                        "1.5",
+                        "6.5"
+                  ],
+                  [
+                        "22\u201323",
+                        "\u0412\u0430\u043d\u044f \u041a\u043e\u043c\u043e\u0433\u043e\u0440\u0446\u0435\u0432",
+                        "1",
+                        "11.5"
+                  ],
+                  [
+                        "22\u201323",
+                        "\u0421\u043c\u0438\u0440\u043d\u043e\u0432\u0430 \u041e\u043b\u0438\u0432\u0438\u044f",
+                        "1",
+                        "11.5"
+                  ]
+            ],
+            "rounds": [
+                  [
+                        [
+                              "\u0410\u043b\u0435\u043a\u0441 \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              "\u041c\u0438\u0445\u0430\u0438\u043b \u0410\u043a\u043e\u043f\u044f\u043d",
+                              "0:1"
+                        ],
+                        [
+                              "\u041c\u0438\u0445\u0430\u0438\u043b \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              "\u041e\u043b\u0435\u0433 \u0410\u043d\u0444\u0440\u0438\u043a\u043e\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0410\u0440\u0435\u0441\u0442\u0430\u043a\u0438\u0441\u044f\u043d \u0413\u0435\u043e\u0440\u0433\u0438\u0439",
+                              "\u041d\u0435\u0432\u0437\u043e\u0440\u043e\u0432 \u042f\u0440\u043e\u0441\u043b\u0430\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u041e\u0441\u0438\u043f\u043e\u0432 \u0412\u0438\u043a\u0442\u043e\u0440",
+                              "\u0410\u0440\u0442\u0435\u043c \u041c\u0430\u0441\u0435\u043d\u043a\u043e",
+                              "1:0"
+                        ],
+                        [
+                              "\u0412\u0430\u043d\u044f \u041a\u043e\u043c\u043e\u0433\u043e\u0440\u0446\u0435\u0432",
+                              "\u0420\u0430\u0434\u0438\u043e\u043d \u0427\u0438\u043a\u043c\u0430\u0440\u0435\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0420\u0443\u0441\u043b\u0430\u043d \u041f\u043e\u0441\u0442\u043d\u0438\u043a\u043e\u0432",
+                              "\u0412\u043b\u0430\u0434\u0438\u043c\u0438\u0440 \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              "1:0"
+                        ],
+                        [
+                              "\u0413\u0440\u0438\u0448\u0438\u043d \u041b\u0435\u0432",
+                              "\u0421\u0430\u0448\u0430 \u0411\u0435\u043b\u043e\u0443\u0441\u043e\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u0421\u043c\u0438\u0440\u043d\u043e\u0432\u0430 \u041e\u043b\u0438\u0432\u0438\u044f",
+                              "\u0414\u0430\u0432\u0438\u0434 \u0413\u0435\u0437\u0430\u043b\u044f\u043d",
+                              "0:1"
+                        ],
+                        [
+                              "\u041a\u043e\u0437\u043b\u043e\u0432 \u041c\u0430\u043a\u0441\u0438\u043c",
+                              "\u0422\u0438\u0433\u0440\u0430\u043d \u0413\u0435\u0437\u0430\u043b\u044f\u043d",
+                              "1:0"
+                        ],
+                        [
+                              "\u0422\u0440\u0438\u0430\u043d\u0434\u043e\u0444\u0438\u043b",
+                              "\u041a\u043e\u043b\u044f \u0411\u0435\u043b\u043e\u0443\u0441\u043e\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u041b\u0435\u0432 \u0427\u0443\u043b\u043a\u0438\u043d",
+                              "\u042d\u043b\u044c\u043d\u0430\u0440 \u0428\u0430\u0440\u0438\u043f\u043e\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u0418\u0433\u043e\u0440\u044c \u0410\u043d\u0444\u0440\u0438\u043a\u043e\u0432",
+                              null,
+                              "Bye"
+                        ]
+                  ],
+                  [
+                        [
+                              "\u041e\u043b\u0435\u0433 \u0410\u043d\u0444\u0440\u0438\u043a\u043e\u0432",
+                              "\u041e\u0441\u0438\u043f\u043e\u0432 \u0412\u0438\u043a\u0442\u043e\u0440",
+                              "1:0"
+                        ],
+                        [
+                              "\u041c\u0438\u0445\u0430\u0438\u043b \u0410\u043a\u043e\u043f\u044f\u043d",
+                              "\u0413\u0440\u0438\u0448\u0438\u043d \u041b\u0435\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0414\u0430\u0432\u0438\u0434 \u0413\u0435\u0437\u0430\u043b\u044f\u043d",
+                              "\u0420\u0443\u0441\u043b\u0430\u043d \u041f\u043e\u0441\u0442\u043d\u0438\u043a\u043e\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u0418\u0433\u043e\u0440\u044c \u0410\u043d\u0444\u0440\u0438\u043a\u043e\u0432",
+                              "\u0422\u0440\u0438\u0430\u043d\u0434\u043e\u0444\u0438\u043b",
+                              "1:0"
+                        ],
+                        [
+                              "\u041d\u0435\u0432\u0437\u043e\u0440\u043e\u0432 \u042f\u0440\u043e\u0441\u043b\u0430\u0432",
+                              "\u041a\u043e\u0437\u043b\u043e\u0432 \u041c\u0430\u043a\u0441\u0438\u043c",
+                              "0:1"
+                        ],
+                        [
+                              "\u0420\u0430\u0434\u0438\u043e\u043d \u0427\u0438\u043a\u043c\u0430\u0440\u0435\u0432",
+                              "\u041b\u0435\u0432 \u0427\u0443\u043b\u043a\u0438\u043d",
+                              "1:0"
+                        ],
+                        [
+                              "\u041a\u043e\u043b\u044f \u0411\u0435\u043b\u043e\u0443\u0441\u043e\u0432",
+                              "\u0410\u043b\u0435\u043a\u0441 \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              "0:1"
+                        ],
+                        [
+                              "\u0421\u0430\u0448\u0430 \u0411\u0435\u043b\u043e\u0443\u0441\u043e\u0432",
+                              "\u0410\u0440\u0435\u0441\u0442\u0430\u043a\u0438\u0441\u044f\u043d \u0413\u0435\u043e\u0440\u0433\u0438\u0439",
+                              "0:1"
+                        ],
+                        [
+                              "\u0410\u0440\u0442\u0435\u043c \u041c\u0430\u0441\u0435\u043d\u043a\u043e",
+                              "\u041c\u0438\u0445\u0430\u0438\u043b \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              "1:0"
+                        ],
+                        [
+                              "\u0422\u0438\u0433\u0440\u0430\u043d \u0413\u0435\u0437\u0430\u043b\u044f\u043d",
+                              "\u0412\u0430\u043d\u044f \u041a\u043e\u043c\u043e\u0433\u043e\u0440\u0446\u0435\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u0412\u043b\u0430\u0434\u0438\u043c\u0438\u0440 \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              "\u0421\u043c\u0438\u0440\u043d\u043e\u0432\u0430 \u041e\u043b\u0438\u0432\u0438\u044f",
+                              "0:1"
+                        ],
+                        [
+                              "\u042d\u043b\u044c\u043d\u0430\u0440 \u0428\u0430\u0440\u0438\u043f\u043e\u0432",
+                              null,
+                              "Bye"
+                        ]
+                  ],
+                  [
+                        [
+                              "\u041e\u043b\u0435\u0433 \u0410\u043d\u0444\u0440\u0438\u043a\u043e\u0432",
+                              "\u0418\u0433\u043e\u0440\u044c \u0410\u043d\u0444\u0440\u0438\u043a\u043e\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0413\u0440\u0438\u0448\u0438\u043d \u041b\u0435\u0432",
+                              "\u0420\u0430\u0434\u0438\u043e\u043d \u0427\u0438\u043a\u043c\u0430\u0440\u0435\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u041a\u043e\u0437\u043b\u043e\u0432 \u041c\u0430\u043a\u0441\u0438\u043c",
+                              "\u0414\u0430\u0432\u0438\u0434 \u0413\u0435\u0437\u0430\u043b\u044f\u043d",
+                              "0:1"
+                        ],
+                        [
+                              "\u0410\u043b\u0435\u043a\u0441 \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              "\u041e\u0441\u0438\u043f\u043e\u0432 \u0412\u0438\u043a\u0442\u043e\u0440",
+                              "1:0"
+                        ],
+                        [
+                              "\u0410\u0440\u0435\u0441\u0442\u0430\u043a\u0438\u0441\u044f\u043d \u0413\u0435\u043e\u0440\u0433\u0438\u0439",
+                              "\u0420\u0443\u0441\u043b\u0430\u043d \u041f\u043e\u0441\u0442\u043d\u0438\u043a\u043e\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0421\u043c\u0438\u0440\u043d\u043e\u0432\u0430 \u041e\u043b\u0438\u0432\u0438\u044f",
+                              "\u0410\u0440\u0442\u0435\u043c \u041c\u0430\u0441\u0435\u043d\u043a\u043e",
+                              "0:1"
+                        ],
+                        [
+                              "\u041b\u0435\u0432 \u0427\u0443\u043b\u043a\u0438\u043d",
+                              "\u0422\u0438\u0433\u0440\u0430\u043d \u0413\u0435\u0437\u0430\u043b\u044f\u043d",
+                              "0:1"
+                        ],
+                        [
+                              "\u0422\u0440\u0438\u0430\u043d\u0434\u043e\u0444\u0438\u043b",
+                              "\u041c\u0438\u0445\u0430\u0438\u043b \u0410\u043a\u043e\u043f\u044f\u043d",
+                              "0:1"
+                        ],
+                        [
+                              "\u042d\u043b\u044c\u043d\u0430\u0440 \u0428\u0430\u0440\u0438\u043f\u043e\u0432",
+                              "\u041d\u0435\u0432\u0437\u043e\u0440\u043e\u0432 \u042f\u0440\u043e\u0441\u043b\u0430\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0412\u0430\u043d\u044f \u041a\u043e\u043c\u043e\u0433\u043e\u0440\u0446\u0435\u0432",
+                              "\u041a\u043e\u043b\u044f \u0411\u0435\u043b\u043e\u0443\u0441\u043e\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u041c\u0438\u0445\u0430\u0438\u043b \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              "\u0412\u043b\u0430\u0434\u0438\u043c\u0438\u0440 \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              "\u00bd:\u00bd"
+                        ],
+                        [
+                              "\u0421\u0430\u0448\u0430 \u0411\u0435\u043b\u043e\u0443\u0441\u043e\u0432",
+                              null,
+                              "Bye"
+                        ]
+                  ],
+                  [
+                        [
+                              "\u0414\u0430\u0432\u0438\u0434 \u0413\u0435\u0437\u0430\u043b\u044f\u043d",
+                              "\u0413\u0440\u0438\u0448\u0438\u043d \u041b\u0435\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0410\u0440\u0442\u0435\u043c \u041c\u0430\u0441\u0435\u043d\u043a\u043e",
+                              "\u0418\u0433\u043e\u0440\u044c \u0410\u043d\u0444\u0440\u0438\u043a\u043e\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u041d\u0435\u0432\u0437\u043e\u0440\u043e\u0432 \u042f\u0440\u043e\u0441\u043b\u0430\u0432",
+                              "\u0410\u043b\u0435\u043a\u0441 \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              "0:1"
+                        ],
+                        [
+                              "\u0420\u0430\u0434\u0438\u043e\u043d \u0427\u0438\u043a\u043c\u0430\u0440\u0435\u0432",
+                              "\u041e\u043b\u0435\u0433 \u0410\u043d\u0444\u0440\u0438\u043a\u043e\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u0420\u0443\u0441\u043b\u0430\u043d \u041f\u043e\u0441\u0442\u043d\u0438\u043a\u043e\u0432",
+                              "\u041a\u043e\u0437\u043b\u043e\u0432 \u041c\u0430\u043a\u0441\u0438\u043c",
+                              "0:1"
+                        ],
+                        [
+                              "\u041c\u0438\u0445\u0430\u0438\u043b \u0410\u043a\u043e\u043f\u044f\u043d",
+                              "\u0422\u0438\u0433\u0440\u0430\u043d \u0413\u0435\u0437\u0430\u043b\u044f\u043d",
+                              "1:0"
+                        ],
+                        [
+                              "\u042d\u043b\u044c\u043d\u0430\u0440 \u0428\u0430\u0440\u0438\u043f\u043e\u0432",
+                              "\u0410\u0440\u0435\u0441\u0442\u0430\u043a\u0438\u0441\u044f\u043d \u0413\u0435\u043e\u0440\u0433\u0438\u0439",
+                              "0:1"
+                        ],
+                        [
+                              "\u041a\u043e\u043b\u044f \u0411\u0435\u043b\u043e\u0443\u0441\u043e\u0432",
+                              "\u0421\u043c\u0438\u0440\u043d\u043e\u0432\u0430 \u041e\u043b\u0438\u0432\u0438\u044f",
+                              "1:0"
+                        ],
+                        [
+                              "\u0421\u0430\u0448\u0430 \u0411\u0435\u043b\u043e\u0443\u0441\u043e\u0432",
+                              "\u041b\u0435\u0432 \u0427\u0443\u043b\u043a\u0438\u043d",
+                              "1:0"
+                        ],
+                        [
+                              "\u041e\u0441\u0438\u043f\u043e\u0432 \u0412\u0438\u043a\u0442\u043e\u0440",
+                              "\u0422\u0440\u0438\u0430\u043d\u0434\u043e\u0444\u0438\u043b",
+                              "1:0"
+                        ],
+                        [
+                              "\u0412\u043b\u0430\u0434\u0438\u043c\u0438\u0440 \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              "\u0412\u0430\u043d\u044f \u041a\u043e\u043c\u043e\u0433\u043e\u0440\u0446\u0435\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u041c\u0438\u0445\u0430\u0438\u043b \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              null,
+                              "Bye"
+                        ]
+                  ],
+                  [
+                        [
+                              "\u0418\u0433\u043e\u0440\u044c \u0410\u043d\u0444\u0440\u0438\u043a\u043e\u0432",
+                              "\u0413\u0440\u0438\u0448\u0438\u043d \u041b\u0435\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0410\u043b\u0435\u043a\u0441 \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              "\u0414\u0430\u0432\u0438\u0434 \u0413\u0435\u0437\u0430\u043b\u044f\u043d",
+                              "1:0"
+                        ],
+                        [
+                              "\u041a\u043e\u0437\u043b\u043e\u0432 \u041c\u0430\u043a\u0441\u0438\u043c",
+                              "\u041c\u0438\u0445\u0430\u0438\u043b \u0410\u043a\u043e\u043f\u044f\u043d",
+                              "1:0"
+                        ],
+                        [
+                              "\u0410\u0440\u0435\u0441\u0442\u0430\u043a\u0438\u0441\u044f\u043d \u0413\u0435\u043e\u0440\u0433\u0438\u0439",
+                              "\u0420\u0430\u0434\u0438\u043e\u043d \u0427\u0438\u043a\u043c\u0430\u0440\u0435\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u041e\u043b\u0435\u0433 \u0410\u043d\u0444\u0440\u0438\u043a\u043e\u0432",
+                              "\u0420\u0443\u0441\u043b\u0430\u043d \u041f\u043e\u0441\u0442\u043d\u0438\u043a\u043e\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0410\u0440\u0442\u0435\u043c \u041c\u0430\u0441\u0435\u043d\u043a\u043e",
+                              "\u0421\u0430\u0448\u0430 \u0411\u0435\u043b\u043e\u0443\u0441\u043e\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u041e\u0441\u0438\u043f\u043e\u0432 \u0412\u0438\u043a\u0442\u043e\u0440",
+                              "\u041a\u043e\u043b\u044f \u0411\u0435\u043b\u043e\u0443\u0441\u043e\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u0422\u0438\u0433\u0440\u0430\u043d \u0413\u0435\u0437\u0430\u043b\u044f\u043d",
+                              "\u041d\u0435\u0432\u0437\u043e\u0440\u043e\u0432 \u042f\u0440\u043e\u0441\u043b\u0430\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u041b\u0435\u0432 \u0427\u0443\u043b\u043a\u0438\u043d",
+                              "\u041c\u0438\u0445\u0430\u0438\u043b \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              "1:0"
+                        ],
+                        [
+                              "\u0412\u0430\u043d\u044f \u041a\u043e\u043c\u043e\u0433\u043e\u0440\u0446\u0435\u0432",
+                              "\u0422\u0440\u0438\u0430\u043d\u0434\u043e\u0444\u0438\u043b",
+                              "0:1"
+                        ],
+                        [
+                              "\u0421\u043c\u0438\u0440\u043d\u043e\u0432\u0430 \u041e\u043b\u0438\u0432\u0438\u044f",
+                              "\u042d\u043b\u044c\u043d\u0430\u0440 \u0428\u0430\u0440\u0438\u043f\u043e\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0412\u043b\u0430\u0434\u0438\u043c\u0438\u0440 \u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435",
+                              null,
+                              "Bye"
+                        ]
+                  ]
+            ]
+      },
+      "adults": {
+            "title": "\u0412\u0437\u0440\u043e\u0441\u043b\u044b\u0435",
+            "note": "",
+            "standings": [
+                  [
+                        "1",
+                        "\u0414\u044f\u0434\u044f \u0421\u0430\u0448\u0430",
+                        "4",
+                        "16"
+                  ],
+                  [
+                        "2",
+                        "\u0421\u0432\u0438\u0440\u0438\u0434\u043e\u0432 \u041f\u0430\u0432\u0435\u043b",
+                        "4",
+                        "13.5"
+                  ],
+                  [
+                        "3",
+                        "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u0410\u043d\u0434\u0440\u0435\u0435\u0432\u0438\u0447",
+                        "4",
+                        "11"
+                  ],
+                  [
+                        "4",
+                        "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430",
+                        "3",
+                        "13.5"
+                  ],
+                  [
+                        "5",
+                        "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439 \u0412\u0438\u043a\u0442\u043e\u0440\u043e\u0432\u0438\u0447",
+                        "3",
+                        "13.5"
+                  ],
+                  [
+                        "6",
+                        "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439",
+                        "3",
+                        "10.5"
+                  ],
+                  [
+                        "7",
+                        "\u0422\u0438\u043c\u0443\u0440 \u0418\u0432\u0430\u043d\u043e\u0432\u0441\u043a\u0438\u0439",
+                        "2",
+                        "12"
+                  ],
+                  [
+                        "8",
+                        "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434",
+                        "2",
+                        "11"
+                  ],
+                  [
+                        "9",
+                        "\u0410\u0434\u0430\u043c",
+                        "0.5",
+                        "11.5"
+                  ],
+                  [
+                        "10",
+                        "\u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u0412\u043e\u043b\u0433\u0438\u043d",
+                        "0.5",
+                        "10.5"
+                  ]
+            ],
+            "rounds": [
+                  [
+                        [
+                              "\u0410\u0434\u0430\u043c",
+                              "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434",
+                              "0:1"
+                        ],
+                        [
+                              "\u0422\u0438\u043c\u0443\u0440 \u0418\u0432\u0430\u043d\u043e\u0432\u0441\u043a\u0438\u0439",
+                              "\u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u0412\u043e\u043b\u0433\u0438\u043d",
+                              "1:0"
+                        ],
+                        [
+                              "\u0410\u043d\u043d\u0430 \u0414\u0440\u043e\u0436\u0436\u0438\u043d\u0430",
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u0410\u043d\u0434\u0440\u0435\u0435\u0432\u0438\u0447",
+                              "0:1"
+                        ],
+                        [
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439 \u0412\u0438\u043a\u0442\u043e\u0440\u043e\u0432\u0438\u0447",
+                              "\u0414\u044f\u0434\u044f \u0421\u0430\u0448\u0430",
+                              "0:1"
+                        ],
+                        [
+                              "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439",
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439 \u0412\u0438\u043a\u0442\u043e\u0440\u043e\u0432\u0438\u0447 \u0443\u0434\u0430\u043b\u0438\u0442\u044c",
+                              "1:0"
+                        ],
+                        [
+                              "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430",
+                              "\u0421\u0432\u0438\u0440\u0438\u0434\u043e\u0432 \u041f\u0430\u0432\u0435\u043b",
+                              "1:0"
+                        ]
+                  ],
+                  [
+                        [
+                              "\u0414\u044f\u0434\u044f \u0421\u0430\u0448\u0430",
+                              "\u0422\u0438\u043c\u0443\u0440 \u0418\u0432\u0430\u043d\u043e\u0432\u0441\u043a\u0438\u0439",
+                              "1:0"
+                        ],
+                        [
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u0410\u043d\u0434\u0440\u0435\u0435\u0432\u0438\u0447",
+                              "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439",
+                              "1:0"
+                        ],
+                        [
+                              "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434",
+                              "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430",
+                              "0:1"
+                        ],
+                        [
+                              "\u0421\u0432\u0438\u0440\u0438\u0434\u043e\u0432 \u041f\u0430\u0432\u0435\u043b",
+                              "\u0410\u0434\u0430\u043c",
+                              "1:0"
+                        ],
+                        [
+                              "\u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u0412\u043e\u043b\u0433\u0438\u043d",
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439 \u0412\u0438\u043a\u0442\u043e\u0440\u043e\u0432\u0438\u0447",
+                              "0:1"
+                        ]
+                  ],
+                  [
+                        [
+                              "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430",
+                              "\u0414\u044f\u0434\u044f \u0421\u0430\u0448\u0430",
+                              "0:1"
+                        ],
+                        [
+                              "\u0422\u0438\u043c\u0443\u0440 \u0418\u0432\u0430\u043d\u043e\u0432\u0441\u043a\u0438\u0439",
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u0410\u043d\u0434\u0440\u0435\u0435\u0432\u0438\u0447",
+                              "0:1"
+                        ],
+                        [
+                              "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439",
+                              "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434",
+                              "1:0"
+                        ],
+                        [
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439 \u0412\u0438\u043a\u0442\u043e\u0440\u043e\u0432\u0438\u0447",
+                              "\u0421\u0432\u0438\u0440\u0438\u0434\u043e\u0432 \u041f\u0430\u0432\u0435\u043b",
+                              "0:1"
+                        ],
+                        [
+                              "\u0410\u0434\u0430\u043c",
+                              "\u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u0412\u043e\u043b\u0433\u0438\u043d",
+                              "\u00bd:\u00bd"
+                        ]
+                  ],
+                  [
+                        [
+                              "\u0414\u044f\u0434\u044f \u0421\u0430\u0448\u0430",
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u0410\u043d\u0434\u0440\u0435\u0435\u0432\u0438\u0447",
+                              "1:0"
+                        ],
+                        [
+                              "\u0421\u0432\u0438\u0440\u0438\u0434\u043e\u0432 \u041f\u0430\u0432\u0435\u043b",
+                              "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439",
+                              "1:0"
+                        ],
+                        [
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439 \u0412\u0438\u043a\u0442\u043e\u0440\u043e\u0432\u0438\u0447",
+                              "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430",
+                              "1:0"
+                        ],
+                        [
+                              "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434",
+                              "\u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u0412\u043e\u043b\u0433\u0438\u043d",
+                              "1:0"
+                        ],
+                        [
+                              "\u0410\u0434\u0430\u043c",
+                              "\u0422\u0438\u043c\u0443\u0440 \u0418\u0432\u0430\u043d\u043e\u0432\u0441\u043a\u0438\u0439",
+                              "0:1"
+                        ]
+                  ],
+                  [
+                        [
+                              "\u0421\u0432\u0438\u0440\u0438\u0434\u043e\u0432 \u041f\u0430\u0432\u0435\u043b",
+                              "\u0414\u044f\u0434\u044f \u0421\u0430\u0448\u0430",
+                              "1:0"
+                        ],
+                        [
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u0410\u043d\u0434\u0440\u0435\u0435\u0432\u0438\u0447",
+                              "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434",
+                              "1:0"
+                        ],
+                        [
+                              "\u0422\u0438\u043c\u0443\u0440 \u0418\u0432\u0430\u043d\u043e\u0432\u0441\u043a\u0438\u0439",
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439 \u0412\u0438\u043a\u0442\u043e\u0440\u043e\u0432\u0438\u0447",
+                              "0:1"
+                        ],
+                        [
+                              "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439",
+                              "\u0410\u0434\u0430\u043c",
+                              "1:0"
+                        ],
+                        [
+                              "\u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u0412\u043e\u043b\u0433\u0438\u043d",
+                              "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430",
+                              "0:1"
+                        ]
+                  ]
+            ]
+      }
+};
+    let activeCategory = 'kids';
+
+    function escapeHtml(value){
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        '&':'&amp;',
+        '<':'&lt;',
+        '>':'&gt;',
+        '"':'&quot;',
+        "'":'&#039;'
+      }[char]));
+    }
+
+    function resultFor(score, color){
+      if (score === '\u00bd:\u00bd') return '\u041d\u0438\u0447\u044c\u044f';
+      if (score === '1:0') return color === '\u0411\u0435\u043b\u044b\u0435' ? '\u041f\u043e\u0431\u0435\u0434\u0430' : '\u041f\u043e\u0440\u0430\u0436\u0435\u043d\u0438\u0435';
+      if (score === '0:1') return color === '\u0427\u0435\u0440\u043d\u044b\u0435' ? '\u041f\u043e\u0431\u0435\u0434\u0430' : '\u041f\u043e\u0440\u0430\u0436\u0435\u043d\u0438\u0435';
+      return 'Bye';
+    }
+
+    function gameScoreFor(score, color){
+      if (score === '\u00bd:\u00bd') return 0.5;
+      if (score === '1:0') return color === '\u0411\u0435\u043b\u044b\u0435' ? 1 : 0;
+      if (score === '0:1') return color === '\u0427\u0435\u0440\u043d\u044b\u0435' ? 1 : 0;
+      return null;
+    }
+
+    function expectedScore(playerRating, opponentRating){
+      return 1 / (1 + 10 ** ((opponentRating - playerRating) / 400));
+    }
+
+    function calculateElo(category){
+      const ratings = new Map();
+      const profiles = new Map();
+      const ensurePlayer = (name) => {
+        if (!name) return;
+        if (!ratings.has(name)) ratings.set(name, 1500);
+        if (!profiles.has(name)) profiles.set(name, { before: 1500, after: 1500, delta: 0, games: new Map() });
+      };
+
+      category.standings.forEach(([, name]) => ensurePlayer(name));
+      category.rounds.forEach((games) => {
+        games.forEach(([white, black]) => {
+          ensurePlayer(white);
+          ensurePlayer(black);
+        });
+      });
+
+      category.rounds.forEach((games, roundIndex) => {
+        const pending = [];
+        games.forEach(([white, black, score]) => {
+          if (!black || !ratings.has(white) || !ratings.has(black)) return;
+          const whiteRating = ratings.get(white);
+          const blackRating = ratings.get(black);
+          const whiteScore = gameScoreFor(score, '\u0411\u0435\u043b\u044b\u0435');
+          const blackScore = gameScoreFor(score, '\u0427\u0435\u0440\u043d\u044b\u0435');
+          if (whiteScore === null || blackScore === null) return;
+          const whiteDelta = 32 * (whiteScore - expectedScore(whiteRating, blackRating));
+          const blackDelta = 32 * (blackScore - expectedScore(blackRating, whiteRating));
+          pending.push({ name:white, oldRating:whiteRating, delta:whiteDelta, round:roundIndex + 1 });
+          pending.push({ name:black, oldRating:blackRating, delta:blackDelta, round:roundIndex + 1 });
+        });
+        pending.forEach(({ name, oldRating, delta, round }) => {
+          const nextRating = oldRating + delta;
+          ratings.set(name, nextRating);
+          const profile = profiles.get(name);
+          profile.games.set(round, {
+            before: Math.round(oldRating),
+            delta: Math.round(delta),
+            after: Math.round(nextRating)
+          });
+        });
+      });
+
+      profiles.forEach((profile, name) => {
+        profile.after = Math.round(ratings.get(name) ?? profile.before);
+        profile.delta = profile.after - profile.before;
+      });
+      return profiles;
+    }
+
+    function formatSigned(value){
+      const number = Number(value) || 0;
+      return number > 0 ? `+${number}` : String(number);
+    }
+
+    function buildProfiles(category){
+      const map = new Map();
+      const eloMap = calculateElo(category);
+      category.standings.forEach(([place, name, points, buchholz]) => {
+        const elo = eloMap.get(name) || null;
+        map.set(name, { place, name, points, buchholz, elo, games: [], wins:0, draws:0, losses:0 });
+      });
+
+      category.rounds.forEach((games, roundIndex) => {
+        const round = roundIndex + 1;
+        games.forEach(([white, black, score]) => {
+          if (!black){
+            const profile = map.get(white);
+            if (!profile) return;
+            profile.games.push({ round, color:'\u2014', opponent:'\u041d\u0435\u0442 \u043f\u0440\u043e\u0442\u0438\u0432\u043d\u0438\u043a\u0430', result:'Bye', elo:null });
+            return;
+          }
+          [
+            { name:white, color:'\u0411\u0435\u043b\u044b\u0435', opponent:black },
+            { name:black, color:'\u0427\u0435\u0440\u043d\u044b\u0435', opponent:white }
+          ].forEach((entry) => {
+            const profile = map.get(entry.name);
+            if (!profile) return;
+            const result = resultFor(score, entry.color);
+            const elo = profile.elo?.games.get(round) || null;
+            profile.games.push({ round, color:entry.color, opponent:entry.opponent, result, elo });
+            if (result === '\u041f\u043e\u0431\u0435\u0434\u0430') profile.wins += 1;
+            if (result === '\u041d\u0438\u0447\u044c\u044f') profile.draws += 1;
+            if (result === '\u041f\u043e\u0440\u0430\u0436\u0435\u043d\u0438\u0435') profile.losses += 1;
+          });
+        });
+      });
+
+      return map;
+    }
+
+    function getActiveData(){
+      return tournamentData[activeCategory] || tournamentData.kids;
+    }
+
+    function renderCategory(){
+      const content = document.getElementById('categoryContent');
+      const category = getActiveData();
+      const hasElo = true;
+      const eloMap = calculateElo(category);
+      const rows = category.standings.map(([place, player, points, buchholz]) => {
+        const elo = eloMap.get(player);
+        return `
+          <tr>
+            <td class="place">${escapeHtml(place)}</td>
+            <td><button class="player-link" type="button" data-player="${escapeHtml(player)}">${escapeHtml(player)}</button></td>
+            <td class="num">${escapeHtml(points)}</td>
+            <td class="num">${escapeHtml(buchholz)}</td>
+            ${hasElo ? `<td class="num">${elo?.before ?? 1500}</td><td class="num">${formatSigned(elo?.delta ?? 0)}</td><td class="num">${elo?.after ?? 1500}</td>` : ''}
+          </tr>
+        `;
+      }).join('');
+
+      content.innerHTML = `
+        <div class="panel liquid-glass-panel">
+          <div class="panel-head">
+            <h3 class="panel-title">\u0418\u0442\u043e\u0433\u043e\u0432\u0430\u044f \u0442\u0430\u0431\u043b\u0438\u0446\u0430 \u00b7 ${escapeHtml(category.title)}</h3>
+            ${category.note ? `<p class="panel-note">${escapeHtml(category.note)}</p>` : ''}
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>\u041c\u0435\u0441\u0442\u043e</th>
+                  <th>\u0418\u0433\u0440\u043e\u043a</th>
+                  <th class="num">\u041e\u0447\u043a\u0438</th>
+                  <th class="num">\u0411\u0443\u0445\u0433\u043e\u043b\u044c\u0446</th>
+                  ${hasElo ? '<th class="num">Elo \u0434\u043e</th><th class="num">\u0418\u0437\u043c. Elo</th><th class="num">Elo \u043f\u043e\u0441\u043b\u0435</th>' : ''}
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>
+        ${hasElo ? '<p class="elo-note">\u0045lo \u0441\u0447\u0438\u0442\u0430\u0435\u0442\u0441\u044f \u0442\u043e\u043b\u044c\u043a\u043e \u043f\u043e \u0441\u044b\u0433\u0440\u0430\u043d\u043d\u044b\u043c \u043f\u0430\u0440\u0442\u0438\u044f\u043c. Bye \u043d\u0435 \u0432\u043b\u0438\u044f\u0435\u0442 \u043d\u0430 \u0440\u0435\u0439\u0442\u0438\u043d\u0433.</p>' : ''}
+      `;
+    }
+
+    function openProfile(name){
+      const profiles = buildProfiles(getActiveData());
+      const profile = profiles.get(name);
+      const hasElo = true;
+      if (!profile) return;
+      document.getElementById('profileName').textContent = profile.name;
+      document.getElementById('profileStats').innerHTML = `
+        <div class="stat"><div class="stat-label">\u041c\u0435\u0441\u0442\u043e</div><div class="stat-value">${escapeHtml(profile.place)}</div></div>
+        <div class="stat"><div class="stat-label">\u041e\u0447\u043a\u0438</div><div class="stat-value">${escapeHtml(profile.points)}</div></div>
+        <div class="stat"><div class="stat-label">\u0411\u0443\u0445\u0433\u043e\u043b\u044c\u0446</div><div class="stat-value">${escapeHtml(profile.buchholz)}</div></div>
+        <div class="stat"><div class="stat-label">\u0412 / \u041d / \u041f</div><div class="stat-value">${profile.wins} / ${profile.draws} / ${profile.losses}</div></div>
+        ${hasElo ? `<div class="stat"><div class="stat-label">Elo \u0434\u043e</div><div class="stat-value">${profile.elo?.before ?? 1500}</div></div><div class="stat"><div class="stat-label">\u0418\u0437\u043c. Elo</div><div class="stat-value">${formatSigned(profile.elo?.delta ?? 0)}</div></div><div class="stat"><div class="stat-label">Elo \u043f\u043e\u0441\u043b\u0435</div><div class="stat-value">${profile.elo?.after ?? 1500}</div></div>` : ''}
+      `;
+      const rows = profile.games.map((game) => `
+        <tr>
+          <td class="num">${game.round}</td>
+          <td>${escapeHtml(game.color)}</td>
+          <td>${escapeHtml(game.opponent)}</td>
+          <td>${escapeHtml(game.result)}</td>
+          ${hasElo ? `<td class="num">${game.elo ? formatSigned(game.elo.delta) : '\u2014'}</td>` : ''}
+        </tr>
+      `).join('');
+      document.getElementById('profileGames').innerHTML = `
+        <table class="games-table">
+          <thead>
+            <tr>
+              <th class="num">\u0422\u0443\u0440</th>
+              <th>\u0426\u0432\u0435\u0442</th>
+              <th>\u0421\u043e\u043f\u0435\u0440\u043d\u0438\u043a</th>
+              <th>\u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442</th>
+              ${hasElo ? '<th class="num">\u0418\u0437\u043c. Elo</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+      document.getElementById('profileOverlay').classList.add('active');
+      document.body.classList.add('no-scroll');
+    }
+
+    function closeProfile(){
+      document.getElementById('profileOverlay').classList.remove('active');
+      document.body.classList.remove('no-scroll');
+    }
+
+    document.querySelectorAll('.category-btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        activeCategory = button.dataset.category;
+        document.querySelectorAll('.category-btn').forEach((item) => {
+          item.classList.toggle('active', item === button);
+        });
+        renderCategory();
+      });
+    });
+
+    document.getElementById('categoryContent').addEventListener('click', (event) => {
+      const button = event.target.closest('.player-link');
+      if (button) openProfile(button.dataset.player);
+    });
+
+    document.getElementById('closeProfile').addEventListener('click', closeProfile);
+    document.getElementById('profileOverlay').addEventListener('click', (event) => {
+      if (event.target.id === 'profileOverlay') closeProfile();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeProfile();
+    });
+
+    const tg = window.Telegram?.WebApp;
+    if (tg){
+      tg.ready();
+      tg.expand?.();
+      document.documentElement.style.setProperty('--tg-safe-area-top', `${tg.safeAreaInset?.top || 0}px`);
+    }
+
+    renderCategory();
+  </script>
+
+
+</body>
+</html>
