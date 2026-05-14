@@ -49,6 +49,11 @@
       width:min(100%, 430px);
       margin:0 auto;
       display:grid;
+      gap:14px;
+    }
+
+    .page > header{
+      display:grid;
       gap:8px;
     }
 
@@ -97,7 +102,7 @@
 
     .title-divider{
       width:min(170px, 45vw);
-      margin:6px auto 0;
+      margin:0 auto;
       display:grid;
       grid-template-columns:1fr auto 1fr;
       align-items:center;
@@ -105,14 +110,14 @@
       color:var(--gold);
     }
 
-    .page > section{ margin-top:10px; }
+    .page > section{ margin-top:4px; }
     .title-divider::before,
     .title-divider::after{ content:""; height:1px; background:linear-gradient(90deg, transparent, rgba(193,145,84,.45)); }
     .title-divider::after{ background:linear-gradient(90deg, rgba(193,145,84,.45), transparent); }
     .title-divider span{ width:8px; height:8px; display:block; border-radius:2px; background:var(--gold); transform:rotate(45deg); }
 
     .section-title{
-      margin:0 0 12px;
+      margin:0 0 10px;
       font-size:20px;
       font-family:"Roboto Condensed","Arial Narrow","Segoe UI",Arial,sans-serif;
       font-weight:400;
