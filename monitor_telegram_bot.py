@@ -1327,19 +1327,10 @@ class MonitorBot:
             failed = 0
             for row in rows:
                 tg_id = int(row["telegram_id"])
-                if force:
-                    assigned_puzzle = primary_puzzle
-                    assigned_index = 0
-                else:
-                    assigned_puzzle, assigned_index = self._select_weekly_puzzle_for_user(
-                        base_puzzle_set.get("puzzles"),
-                        week_key,
-                        tg_id,
-                        rotation_window_start,
-                    )
-                    if not assigned_puzzle:
-                        assigned_puzzle = primary_puzzle
-                        assigned_index = 0
+                # Always send and persist the same primary puzzle to avoid mismatch
+                # between broadcast text and what user opens in Mini App.
+                assigned_puzzle = primary_puzzle
+                assigned_index = 0
                 puzzle_set = dict(base_puzzle_set)
                 puzzle_set["selectedIndex"] = int(assigned_index)
                 puzzle_state, quota_state, _ = self._build_puzzle_state_payload(assigned_puzzle, puzzle_set)
@@ -1415,15 +1406,14 @@ class MonitorBot:
             return
         try:
             self._prepare_weekly_preview(force_regen=True)
-            sent, failed = self._execute_weekly_broadcast(force=True)
-            print(f"[weekly] auto force broadcast sent={sent} failed={failed}")
+            print("[weekly] preview is prepared automatically; waiting for manual confirmation")
         except Exception as err:
-            print(f"[weekly] preview/send failed: {err}")
+            print(f"[weekly] preview prepare failed: {err}")
             self._log_weekly_broadcast(
                 week_key=weekly.get("week_key"),
                 scheduled_day=weekly.get("scheduled_day"),
                 puzzle_id="",
-                status="auto_send_failed",
+                status="auto_preview_failed",
                 approved=0,
                 details={"error": str(err)},
             )

@@ -121,6 +121,8 @@ let isApplyingCloudState = false;
 let cloudSyncTimerId = null;
 let cloudSyncInFlight = false;
 let appBootstrapComplete = false;
+let latestLocalStateSavedAt = 0;
+let lastAppliedCloudStateSavedAt = 0;
 let quotaStateCache = null;
 let adminAccessStateCache = null;
 let cloudQuotaResetAt = 0;
@@ -969,6 +971,20 @@ function collectCloudState(){
   return state;
 }
 
+function getCloudStateSavedAt(appState){
+  const state = appState?.state || appState;
+  const savedAt = Number(state?.savedAt) || 0;
+  return savedAt > 0 ? savedAt : 0;
+}
+
+function shouldAcceptCloudState(appState){
+  const cloudSavedAt = getCloudStateSavedAt(appState);
+  if (!cloudSavedAt) return true;
+  const localBaseline = Math.max(latestLocalStateSavedAt, lastAppliedCloudStateSavedAt);
+  if (!localBaseline) return true;
+  return cloudSavedAt >= localBaseline;
+}
+
 function applyCloudState(appState){
   const state = appState?.state || appState;
   if (!state || typeof state !== 'object') return false;
@@ -1030,6 +1046,10 @@ function applyCloudState(appState){
   } finally {
     isApplyingCloudState = false;
   }
+  const cloudSavedAt = getCloudStateSavedAt(appState);
+  if (cloudSavedAt){
+    lastAppliedCloudStateSavedAt = Math.max(lastAppliedCloudStateSavedAt, cloudSavedAt);
+  }
   return true;
 }
 
@@ -1048,7 +1068,9 @@ function saveCloudStateNow(options = {}){
     clearTimeout(cloudStateSaveTimerId);
     cloudStateSaveTimerId = null;
   }
-  return sendAnalytics('/api/state/save', { state: collectCloudState() }, options);
+  const state = collectCloudState();
+  latestLocalStateSavedAt = Math.max(latestLocalStateSavedAt, Number(state.savedAt) || 0);
+  return sendAnalytics('/api/state/save', { state }, options);
 }
 
 function waitForPromise(promise, timeoutMs){
@@ -1093,6 +1115,7 @@ async function refreshCloudStateFromServer(){
     const response = await sendAnalytics('/api/state/load');
     const data = response?.ok ? await response.json() : null;
     if (!data?.app_state) return data;
+    if (!shouldAcceptCloudState(data.app_state)) return data;
     const cloudPuzzle = getCloudPuzzleFromState(data.app_state);
     const shouldHydrateCloudPuzzle = shouldHydratePuzzleFromCloud(cloudPuzzle);
     applyCloudState(data.app_state);
@@ -1131,6 +1154,9 @@ function recordMiniAppOpen(){
     .then(data => {
       analyticsSessionId = data?.session_id || null;
       if (data?.app_state){
+        if (!shouldAcceptCloudState(data.app_state)){
+          return data;
+        }
         const cloudPuzzle = getCloudPuzzleFromState(data.app_state);
         const shouldHydrateCloudPuzzle = shouldHydratePuzzleFromCloud(cloudPuzzle);
         applyCloudState(data.app_state);

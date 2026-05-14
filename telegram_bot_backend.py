@@ -193,12 +193,10 @@ def _build_global_weekly_state(preview, telegram_id):
         return None
     week_key = str(preview.get("week_key") or "")
     rotation_window_start = current_window_start_ms()
-    primary, primary_index = _select_weekly_puzzle_for_user(
-        puzzles,
-        week_key,
-        telegram_id,
-        rotation_window_start,
-    )
+    # Keep weekly seed consistent with broadcast payload:
+    # use the same primary puzzle for every user.
+    primary = puzzles[0]
+    primary_index = 0
     if not primary:
         return None
     primary = _normalize_puzzle_with_solution(primary)
