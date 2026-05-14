@@ -1055,6 +1055,7 @@ function applyCloudState(appState){
 
 function scheduleCloudStateSave(){
   if (isApplyingCloudState || !getTelegramInitData()) return;
+  latestLocalStateSavedAt = Math.max(latestLocalStateSavedAt, Date.now());
   if (cloudStateSaveTimerId) clearTimeout(cloudStateSaveTimerId);
   cloudStateSaveTimerId = setTimeout(() => {
     cloudStateSaveTimerId = null;
