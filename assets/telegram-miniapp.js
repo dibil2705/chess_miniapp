@@ -6,6 +6,7 @@
   const root = document.documentElement;
   let scrollRoot = null;
   let touchStartY = 0;
+  let touchStartX = 0;
 
   window.CHESS_MINIAPP_VERSION = APP_VERSION;
 
@@ -192,12 +193,19 @@
     if (!scrollRoot) return;
     scrollRoot.addEventListener('touchstart', (event) => {
       touchStartY = event.touches?.[0]?.clientY || 0;
+      touchStartX = event.touches?.[0]?.clientX || 0;
     }, { passive: true });
 
     scrollRoot.addEventListener('touchmove', (event) => {
       if (event.target?.closest?.('.board, .analysis-frame')) return;
       const currentY = event.touches?.[0]?.clientY || touchStartY;
+      const currentX = event.touches?.[0]?.clientX || touchStartX;
       const deltaY = currentY - touchStartY;
+      const deltaX = currentX - touchStartX;
+
+      // Keep horizontal swipe/scroll available for tables and carousels.
+      if (Math.abs(deltaX) > Math.abs(deltaY)) return;
+
       const scroller = getScrollableElement(event.target);
       if (!scroller) return;
 
