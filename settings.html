@@ -21,6 +21,7 @@
     window.CHESS_ANALYTICS_API_BASE = window.CHESS_ANALYTICS_API_BASE || '';
   </script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="assets/telegram-miniapp.js?v=20260514-1"></script>
   <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
   <style>
     :root{
@@ -370,7 +371,7 @@
   <div class="page">
     <header>
       <h1 class="title">Настройки</h1>
-      <a class="back-btn liquid-glass-pill" href="index.html">
+      <a class="back-btn liquid-glass-pill" href="tasks.html">
         <span class="iconify" data-icon="mdi:chevron-left" aria-hidden="true"></span>
         Назад
       </a>
@@ -584,6 +585,7 @@
       updateAppSafeArea();
       tg.ready();
       tg.expand();
+      tg.disableVerticalSwipes?.();
       applyTelegramTheme();
       bindTelegramEvent('themeChanged', applyTelegramTheme);
       bindTelegramEvent('viewportChanged', updateAppSafeArea);

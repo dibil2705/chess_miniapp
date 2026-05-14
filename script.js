@@ -1163,6 +1163,7 @@ function initTelegram(){
   updateAppSafeArea();
   tg.ready();
   tg.expand();
+  tg.disableVerticalSwipes?.();
   applyTelegramTheme();
   bindTelegramEvent('themeChanged', applyTelegramTheme);
   bindTelegramEvent('viewportChanged', updateAppSafeArea);
@@ -3177,7 +3178,8 @@ async function fetchRandomPuzzle(options = {}){
 
 function openAnalysisPage(){
   const fen = boardToFen(boardState);
-  const url = `analysis.html?fen=${encodeURIComponent(fen)}`;
+  const version = window.CHESS_MINIAPP_VERSION || '20260514-1';
+  const url = `analysis.html?v=${encodeURIComponent(version)}&fen=${encodeURIComponent(fen)}`;
   trackMiniAppEvent('analysis_opened', { fen }, { beacon: true });
   persistPuzzleState();
   window.location.href = url;
@@ -3201,7 +3203,8 @@ function refreshEmbeddedSettings(){
 function openSettingsPage(){
   persistPuzzleState();
   if (!settingsPageOverlayEl || !settingsPageFrameEl){
-    window.location.href = 'settings.html';
+    const version = window.CHESS_MINIAPP_VERSION || '20260514-1';
+    window.location.href = `settings.html?v=${encodeURIComponent(version)}`;
     return;
   }
   refreshEmbeddedSettings();
