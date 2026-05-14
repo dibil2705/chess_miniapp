@@ -927,7 +927,7 @@
   </svg>
   <div class="wrap">
     <div class="top-bar">
-      <a class="back-btn liquid-glass-pill" href="index.html">
+      <a id="backToTasksBtn" class="back-btn liquid-glass-pill" href="tasks.html">
         <span class="iconify" data-icon="mdi:chevron-left" aria-hidden="true"></span>
         Назад
       </a>
@@ -4487,6 +4487,14 @@
       promotionButtons.forEach((btn) => {
         btn.addEventListener('click', () => handlePromotionChoice(btn.dataset.piece));
       });
+
+      const backToTasksBtn = document.getElementById('backToTasksBtn');
+      if (backToTasksBtn){
+        backToTasksBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          window.location.href = 'tasks.html';
+        });
+      }
     }
 
     init();
