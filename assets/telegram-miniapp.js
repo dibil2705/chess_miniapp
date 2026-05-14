@@ -5,8 +5,6 @@
   const tg = window.Telegram?.WebApp;
   const root = document.documentElement;
   let scrollRoot = null;
-  let touchStartY = 0;
-  let touchStartX = 0;
 
   window.CHESS_MINIAPP_VERSION = APP_VERSION;
 
@@ -71,13 +69,6 @@
     callTelegram('expand');
     callTelegram('disableVerticalSwipes');
     try {
-      tg.setHeaderColor?.('#111111');
-      tg.setBackgroundColor?.('#111111');
-      tg.setBottomBarColor?.('#111111');
-    } catch (err) {
-      console.warn('Telegram color setup failed', err);
-    }
-    try {
       tg.onEvent?.('viewportChanged', updateViewportVars);
       tg.onEvent?.('safeAreaChanged', updateViewportVars);
       tg.onEvent?.('contentSafeAreaChanged', updateViewportVars);
@@ -93,18 +84,13 @@
     style.textContent = `
       html.tg-miniapp-ready,
       html.tg-miniapp-ready body{
-        height:var(--tg-viewport-stable-height-js, 100dvh);
         min-height:var(--tg-viewport-stable-height-js, 100dvh);
-        overflow:hidden;
       }
       html.tg-miniapp-ready body{
-        position:fixed;
-        inset:0;
-        width:100%;
+        position:relative;
       }
       html.tg-miniapp-ready .miniapp-scroll-root{
-        height:var(--miniapp-scroll-root-height, auto);
-        max-height:var(--miniapp-scroll-root-height, none);
+        min-height:0;
         overflow-x:hidden;
         overflow-y:auto;
         overscroll-behavior-y:contain;
@@ -176,47 +162,9 @@
     observer.observe(document.documentElement, { childList: true, subtree: true });
   }
 
-  function getScrollableElement(target){
-    let node = target;
-    while (node && node !== document.body && node !== document.documentElement){
-      if (node instanceof HTMLElement){
-        const style = window.getComputedStyle(node);
-        const canScrollY = /(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 1;
-        if (canScrollY) return node;
-      }
-      node = node.parentElement;
-    }
-    return scrollRoot;
-  }
-
   function installTouchGuard(){
-    if (!scrollRoot) return;
-    scrollRoot.addEventListener('touchstart', (event) => {
-      touchStartY = event.touches?.[0]?.clientY || 0;
-      touchStartX = event.touches?.[0]?.clientX || 0;
-    }, { passive: true });
-
-    scrollRoot.addEventListener('touchmove', (event) => {
-      if (event.target?.closest?.('.board, .analysis-frame')) return;
-      const currentY = event.touches?.[0]?.clientY || touchStartY;
-      const currentX = event.touches?.[0]?.clientX || touchStartX;
-      const deltaY = currentY - touchStartY;
-      const deltaX = currentX - touchStartX;
-
-      // Keep horizontal swipe/scroll available for tables and carousels.
-      if (Math.abs(deltaX) > Math.abs(deltaY)) return;
-
-      const scroller = getScrollableElement(event.target);
-      if (!scroller) return;
-
-      const atTop = scroller.scrollTop <= 0;
-      const atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
-      const cannotScroll = scroller.scrollHeight <= scroller.clientHeight + 1;
-
-      if (cannotScroll || (atTop && deltaY > 0) || (atBottom && deltaY < 0)){
-        event.preventDefault();
-      }
-    }, { passive: false });
+    // Rely on Telegram.WebApp.disableVerticalSwipes() to avoid gesture conflicts.
+    // Extra touchmove preventDefault handlers caused scroll regressions on some pages.
   }
 
   function boot(){
