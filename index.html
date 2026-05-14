@@ -99,8 +99,12 @@
       display:flex;
       flex-direction:column;
       justify-content:center;
-      transform:translateY(-16px);
+      transform:translateY(18px);
       gap:32px;
+    }
+
+    .menu-shell.miniapp-scroll-root{
+      min-height:calc(100dvh - 36px - var(--app-safe-top) - env(safe-area-inset-bottom));
     }
 
     .menu-head{
