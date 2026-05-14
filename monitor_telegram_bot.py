@@ -55,6 +55,8 @@ MONITOR_ALERT_COOLDOWN_SECONDS = max(30, int(os.environ.get("MONITOR_ALERT_COOLD
 MONITOR_MIN_FREE_GB = float(os.environ.get("MONITOR_MIN_FREE_GB", "1.0") or "1.0")
 MONITOR_MAX_LOG_SCAN_BYTES = max(32768, int(os.environ.get("MONITOR_MAX_LOG_SCAN_BYTES", "262144") or "262144"))
 MONITOR_LOG_FILES = [x.strip() for x in os.environ.get("MONITOR_LOG_FILES", "backend_8000.err.log,backend_8000.log,backend_direct.err.log,backend_direct.out.log,backend_main_combined.log").split(",") if x.strip()]
+MONITOR_PUBLIC_URLS = [x.strip() for x in os.environ.get("MONITOR_PUBLIC_URLS", "").split(",") if x.strip()]
+MONITOR_PUBLIC_TIMEOUT_SECONDS = max(3, int(os.environ.get("MONITOR_PUBLIC_TIMEOUT_SECONDS", "8") or "8"))
 MAIN_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
 MAIN_BOT_API_BASE = f"https://api.telegram.org/bot{MAIN_BOT_TOKEN}" if MAIN_BOT_TOKEN else ""
 MAIN_BOT_REQUEST_TIMEOUT = max(8, int(os.environ.get("MAIN_BOT_REQUEST_TIMEOUT", "20") or "20"))
@@ -1639,6 +1641,106 @@ class MonitorBot:
                 # ?? ?????? ??????????, ???? Telegram ???????? ??????????.
                 pass
 
+    def _is_public_monitor_url(self, raw_url):
+        try:
+            parsed = urllib.parse.urlparse(str(raw_url or "").strip())
+            host = str(parsed.hostname or "").lower().strip()
+        except Exception:
+            return False
+        if not parsed.scheme or not parsed.netloc or not host:
+            return False
+        if host in {"localhost", "0.0.0.0", "127.0.0.1", "::1", "t.me", "telegram.me", "telegram.dog"}:
+            return False
+        if host.startswith("127.") or host.startswith("10.") or host.startswith("192.168."):
+            return False
+        if host.endswith(".local"):
+            return False
+        if host.startswith("172."):
+            parts = host.split(".")
+            if len(parts) > 1:
+                try:
+                    second_octet = int(parts[1])
+                    if 16 <= second_octet <= 31:
+                        return False
+                except ValueError:
+                    pass
+        return parsed.scheme in {"http", "https"}
+
+    def _normalize_public_url(self, raw_url, append_health=False):
+        url = str(raw_url or "").strip()
+        if not url:
+            return ""
+        if "://" not in url:
+            url = "https://" + url
+        parsed = urllib.parse.urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            return ""
+        if append_health:
+            path = parsed.path.rstrip("/")
+            if not path:
+                path = "/health"
+            elif not path.endswith("/health"):
+                path = f"{path}/health"
+            parsed = parsed._replace(path=path)
+        return urllib.parse.urlunparse(parsed)
+
+    def _add_public_check_url(self, urls, raw_url, source, append_health=False):
+        url = self._normalize_public_url(raw_url, append_health=append_health)
+        if not self._is_public_monitor_url(url):
+            return
+        key = url.lower()
+        if key not in urls:
+            urls[key] = (url, source)
+
+    def _collect_public_check_urls(self):
+        urls = {}
+        for url in MONITOR_PUBLIC_URLS:
+            self._add_public_check_url(urls, url, "MONITOR_PUBLIC_URLS")
+        for env_name in ("MONITOR_PUBLIC_URL", "PUBLIC_SITE_URL", "NGROK_PUBLIC_URL", "MINI_APP_WEB_URL"):
+            for url in os.environ.get(env_name, "").split(","):
+                self._add_public_check_url(urls, url, env_name)
+
+        self._add_public_check_url(urls, MINI_APP_URL, "MINI_APP_URL")
+        self._add_public_check_url(urls, MONITOR_HEALTH_URL, "MONITOR_HEALTH_URL")
+
+        for cfg in (self.state.get("connections") or {}).values():
+            if not isinstance(cfg, dict):
+                continue
+            self._add_public_check_url(urls, cfg.get("health_url"), "saved health_url")
+            self._add_public_check_url(urls, cfg.get("public_url"), "saved public_url")
+            self._add_public_check_url(urls, cfg.get("site_url"), "saved site_url")
+            self._add_public_check_url(urls, cfg.get("ngrok_url"), "saved ngrok_url")
+            self._add_public_check_url(urls, cfg.get("api_base"), "saved api_base", append_health=True)
+
+        for path in ("script.js", "analysis.html", "settings.html", "tasks.html", "index.html"):
+            if not os.path.exists(path):
+                continue
+            try:
+                if os.path.getsize(path) > 3 * 1024 * 1024:
+                    continue
+                with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                    text = f.read()
+                for match in re.finditer(r"\bAPI_BASE\s*=\s*['\"](https?://[^'\"]+)['\"]", text):
+                    self._add_public_check_url(urls, match.group(1), f"{path} API_BASE", append_health=True)
+                for match in re.finditer(r"https?://[a-z0-9.-]*ngrok[-a-z0-9.]*", text, re.IGNORECASE):
+                    self._add_public_check_url(urls, match.group(0), f"{path} ngrok")
+            except Exception:
+                continue
+        return list(urls.values())
+
+    def _http_get_text(self, url, timeout=8):
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "chess-miniapp-monitor/1.0",
+                "ngrok-skip-browser-warning": "1",
+            },
+            method="GET",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read(4096).decode("utf-8", errors="ignore")
+            return int(getattr(resp, "status", 200) or 200), body
+
     def check_backend_health(self):
         started = time.time()
         try:
@@ -1654,6 +1756,71 @@ class MonitorBot:
                 return [("health_slow", f"Медленный health-check: {elapsed} мс", "warning")] if elapsed > 2000 else []
         except Exception as err:
             return [("health_unreachable", f"Сервис недоступен: {err}", "critical")]
+
+    def check_public_endpoints(self):
+        alerts = []
+        for url, source in self._collect_public_check_urls():
+            started = time.time()
+            key_hash = hashlib.sha1(url.encode("utf-8")).hexdigest()[:10]
+            try:
+                status, body = self._http_get_text(url, timeout=MONITOR_PUBLIC_TIMEOUT_SECONDS)
+                elapsed = int((time.time() - started) * 1000)
+                if status < 200 or status >= 400:
+                    alerts.append((
+                        f"public_endpoint_status_{key_hash}",
+                        f"Внешний адрес Mini App/API недоступен: {url}\nИсточник: {source}\nHTTP {status}. Локально Stockfish/backend могут работать, но сайт снаружи не подключится.",
+                        "critical",
+                    ))
+                    continue
+                if urllib.parse.urlparse(url).path.rstrip("/").endswith("/health"):
+                    try:
+                        data = json.loads(body or "{}")
+                        if data.get("ok") is False:
+                            alerts.append((
+                                f"public_endpoint_health_{key_hash}",
+                                f"Внешний health-check вернул ok=false: {url}\nИсточник: {source}",
+                                "critical",
+                            ))
+                    except Exception:
+                        pass
+                if elapsed > 5000:
+                    alerts.append((
+                        f"public_endpoint_slow_{key_hash}",
+                        f"Внешний адрес отвечает слишком долго: {url}\nИсточник: {source}\nВремя ответа: {elapsed} мс",
+                        "warning",
+                    ))
+            except Exception as err:
+                alerts.append((
+                    f"public_endpoint_down_{key_hash}",
+                    f"Внешний адрес Mini App/API недоступен: {url}\nИсточник: {source}\nОшибка: {err}\nЛокально Stockfish/backend могут работать, но сайт снаружи не подключится.",
+                    "critical",
+                ))
+        return alerts
+
+    def check_stockfish_runtime(self):
+        api_base = self._guess_api_base()
+        analyze_url = f"{api_base}/analyze"
+        payload = {
+            "fen": STOCKFISH_TEST_FEN,
+            "movetime_ms": 250,
+            "multipv": 1,
+            "side": "turn",
+        }
+        try:
+            status, data = self._post_json(analyze_url, payload, timeout=8)
+            lines = data.get("lines") if isinstance(data, dict) else None
+            best_line = lines[0] if isinstance(lines, list) and lines and isinstance(lines[0], dict) else {}
+            best_move = str(best_line.get("best_move_uci") or "")
+            has_eval = best_line.get("score_cp") is not None or best_line.get("mate") is not None
+            if status != 200 or not best_move or not has_eval:
+                return [(
+                    "stockfish_runtime_bad_response",
+                    f"Stockfish отвечает некорректно через backend: HTTP {status}, best_move={best_move or 'n/a'}",
+                    "critical",
+                )]
+            return []
+        except Exception as err:
+            return [("stockfish_runtime_unreachable", f"Stockfish/API анализа недоступен: {err}", "critical")]
 
     def _guess_api_base(self):
         parsed = urllib.parse.urlparse(MONITOR_HEALTH_URL)
@@ -1883,6 +2050,8 @@ class MonitorBot:
     def run_checks_and_alerts(self, force=False, chat_id=None):
         alerts = []
         alerts.extend(self.check_backend_health())
+        alerts.extend(self.check_stockfish_runtime())
+        alerts.extend(self.check_public_endpoints())
         alerts.extend(self.check_database())
         alerts.extend(self.check_disk())
         alerts.extend(self.check_analysis_error_events())
