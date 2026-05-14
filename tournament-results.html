@@ -108,7 +108,7 @@
     .section-title{
       margin:0 0 12px;
       font-size:20px;
-      font-weight:900;
+      font-weight:600;
       letter-spacing:-.02em;
     }
 
@@ -126,7 +126,7 @@
       text-align:left;
       text-decoration:none;
       font-size:24px;
-      font-weight:900;
+      font-weight:600;
       transition:transform .11s ease;
       touch-action:manipulation;
     }
@@ -181,6 +181,35 @@
       tg.expand?.();
       document.documentElement.style.setProperty('--tg-safe-area-top', `${tg.safeAreaInset?.top || 0}px`);
     }
+
+    // Preload tournament subpages immediately after opening results page.
+    (function preloadTournamentSubpages(){
+      const links = Array.from(document.querySelectorAll('.tournament-list a[href]'))
+        .map((a) => a.getAttribute('href'))
+        .filter((href) => href && href.endsWith('.html') && href !== 'tournament-results.html');
+
+      if (!links.length) return;
+
+      const preloadHost = document.createElement('div');
+      preloadHost.style.display = 'none';
+      preloadHost.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(preloadHost);
+
+      links.forEach((href) => {
+        const prefetch = document.createElement('link');
+        prefetch.rel = 'prefetch';
+        prefetch.as = 'document';
+        prefetch.href = href;
+        document.head.appendChild(prefetch);
+
+        const frame = document.createElement('iframe');
+        frame.src = href;
+        frame.loading = 'eager';
+        frame.tabIndex = -1;
+        frame.setAttribute('aria-hidden', 'true');
+        preloadHost.appendChild(frame);
+      });
+    })();
   </script>
 </body>
 </html>
