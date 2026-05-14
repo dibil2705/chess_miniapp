@@ -123,6 +123,7 @@ let cloudSyncInFlight = false;
 let appBootstrapComplete = false;
 let latestLocalStateSavedAt = 0;
 let lastAppliedCloudStateSavedAt = 0;
+let cloudStateIgnoreUntil = 0;
 let quotaStateCache = null;
 let adminAccessStateCache = null;
 let cloudQuotaResetAt = 0;
@@ -978,11 +979,29 @@ function getCloudStateSavedAt(appState){
 }
 
 function shouldAcceptCloudState(appState){
+  if (appBootstrapComplete && Date.now() < cloudStateIgnoreUntil) return false;
   const cloudSavedAt = getCloudStateSavedAt(appState);
   if (!cloudSavedAt) return true;
   const localBaseline = Math.max(latestLocalStateSavedAt, lastAppliedCloudStateSavedAt);
   if (!localBaseline) return true;
-  return cloudSavedAt >= localBaseline;
+  if (cloudSavedAt < localBaseline) return false;
+
+  const cloudPuzzle = getCloudPuzzleFromState(appState);
+  const localPuzzle = buildCurrentPuzzleState() || getStoredPuzzleState();
+  const cloudPuzzleKey = getPuzzleKey(cloudPuzzle?.puzzleData || null);
+  const localPuzzleKey = getPuzzleKey(localPuzzle?.puzzleData || null);
+  if (cloudPuzzleKey && localPuzzleKey && cloudPuzzleKey === localPuzzleKey){
+    const cloudProgress = Math.max(
+      Number(cloudPuzzle?.puzzleMoveIndex) || 0,
+      Array.isArray(cloudPuzzle?.moveHistory) ? cloudPuzzle.moveHistory.length : 0
+    );
+    const localProgress = Math.max(
+      Number(localPuzzle?.puzzleMoveIndex) || 0,
+      Array.isArray(localPuzzle?.moveHistory) ? localPuzzle.moveHistory.length : 0
+    );
+    if (cloudProgress < localProgress) return false;
+  }
+  return true;
 }
 
 function applyCloudState(appState){
@@ -1055,7 +1074,9 @@ function applyCloudState(appState){
 
 function scheduleCloudStateSave(){
   if (isApplyingCloudState || !getTelegramInitData()) return;
-  latestLocalStateSavedAt = Math.max(latestLocalStateSavedAt, Date.now());
+  const now = Date.now();
+  latestLocalStateSavedAt = Math.max(latestLocalStateSavedAt, now);
+  cloudStateIgnoreUntil = Math.max(cloudStateIgnoreUntil, now + 2500);
   if (cloudStateSaveTimerId) clearTimeout(cloudStateSaveTimerId);
   cloudStateSaveTimerId = setTimeout(() => {
     cloudStateSaveTimerId = null;
@@ -1071,6 +1092,7 @@ function saveCloudStateNow(options = {}){
   }
   const state = collectCloudState();
   latestLocalStateSavedAt = Math.max(latestLocalStateSavedAt, Number(state.savedAt) || 0);
+  cloudStateIgnoreUntil = Math.max(cloudStateIgnoreUntil, Date.now() + 1000);
   return sendAnalytics('/api/state/save', { state }, options);
 }
 
