@@ -103,6 +103,107 @@
       font-weight:600;
     }
 
+    .partners{
+      width:min(100%, 760px);
+      margin:16px auto 0;
+      display:grid;
+      gap:14px;
+    }
+
+    .partners-title{
+      margin:0;
+      display:grid;
+      grid-template-columns:1fr auto 1fr;
+      align-items:center;
+      gap:12px;
+      color:var(--gold);
+      text-align:center;
+      font-size:18px;
+      font-weight:600;
+      letter-spacing:.02em;
+    }
+
+    .partners-title::before,
+    .partners-title::after{
+      content:"";
+      height:1px;
+      background:linear-gradient(90deg, transparent, rgba(193,145,84,.68));
+      box-shadow:0 0 10px rgba(193,145,84,.18);
+    }
+
+    .partners-title::after{
+      background:linear-gradient(90deg, rgba(193,145,84,.68), transparent);
+    }
+
+    .partners-title span{
+      position:relative;
+      display:block;
+      white-space:nowrap;
+    }
+
+    .partners-title span::before,
+    .partners-title span::after{
+      content:"";
+      position:absolute;
+      top:50%;
+      width:5px;
+      height:5px;
+      border-radius:50%;
+      background:var(--gold);
+      box-shadow:0 0 12px rgba(193,145,84,.5);
+      transform:translateY(-50%);
+    }
+
+    .partners-title span::before{ left:-18px; }
+    .partners-title span::after{ right:-18px; }
+
+    .partners-list{
+      width:100%;
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:14px 16px;
+    }
+
+    .partner-link{
+      min-height:78px;
+      padding:14px 20px;
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;
+      gap:16px;
+      border:1px solid rgba(193,145,84,.42);
+      border-radius:15px;
+      background:
+        linear-gradient(145deg, rgba(193,145,84,.08), rgba(255,255,255,.018)),
+        rgba(18,20,19,.72);
+      color:var(--text);
+      text-decoration:none;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.04),
+        0 12px 28px rgba(0,0,0,.2);
+      transition:transform .11s ease;
+      touch-action:manipulation;
+    }
+
+    .partner-link:active{ transform:scale(.965); }
+
+    .partner-link img{
+      width:58px;
+      height:46px;
+      border-radius:10px;
+      display:block;
+      object-fit:contain;
+      filter:drop-shadow(0 8px 16px rgba(0,0,0,.24));
+      flex:0 0 auto;
+    }
+
+    .partner-name{
+      color:rgba(242,238,229,.74);
+      font-size:17px;
+      font-weight:700;
+      line-height:1.15;
+    }
+
     .category-tabs{
       display:grid;
       grid-template-columns:1fr 1fr;
@@ -128,6 +229,13 @@
       border-radius:16px;
       color:var(--text);
     }
+
+    .tap-scale{
+      will-change:transform;
+      transform:translateZ(0);
+      -webkit-transform:translateZ(0);
+    }
+    .tap-scale.is-pressed{ transform:scale(.965) translateZ(0); }
 
     .category-output{
       display:grid;
@@ -297,10 +405,22 @@
     .games-table{ min-width:0; }
 
     @media (max-width:560px){
+      .partners-list{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
+      .partners-title{ font-size:16px; gap:9px; }
+      .partners-title span::before{ left:-14px; }
+      .partners-title span::after{ right:-14px; }
+      .partner-link{ min-height:70px; padding:11px 10px; gap:10px; }
+      .partner-link img{ width:44px; height:38px; }
+      .partner-name{ font-size:14px; }
       .profile-stats{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
       .profile-card{ max-height:88vh; }
       th,
       td{ padding:11px 12px; }
+    }
+
+    @media (max-width:370px){
+      .partners-list{ grid-template-columns:1fr; }
+      .partner-link{ justify-content:center; }
     }
   </style>
   <link rel="stylesheet" href="assets/liquid-glass.css">
@@ -315,7 +435,7 @@
     </filter>
   </svg>
 
-  <a class="back-link liquid-glass-pill" href="tournament-results.html" aria-label="Вернуться к списку турниров">
+  <a class="back-link liquid-glass-pill tap-scale" href="tournament-results.html" aria-label="Вернуться к списку турниров">
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M15 6 9 12l6 6"></path>
     </svg>
@@ -325,11 +445,32 @@
     <header>
       <h1 class="page-title">Турнир 10.05.26</h1>
       <p class="subtitle">Турниры Красная Поляна</p>
+      <section class="partners" aria-labelledby="partnersTitle">
+        <p id="partnersTitle" class="partners-title"><span>При поддержке партнёров</span></p>
+        <div class="partners-list">
+          <a class="partner-link liquid-glass tap-scale" href="https://t.me/gostigroup" target="_blank" rel="noopener" aria-label="Gosti Group">
+            <img src="assets/Partners/Gosti_Group.webp" alt="Gosti Group">
+            <span class="partner-name">Gosti Group</span>
+          </a>
+          <a class="partner-link liquid-glass tap-scale" href="https://t.me/rosaspringshotel" target="_blank" rel="noopener" aria-label="Rosa Springs Hotel">
+            <img src="assets/Partners/Rosa_Springs.webp" alt="Rosa Springs Hotel">
+            <span class="partner-name">Rosa Springs Hotel</span>
+          </a>
+          <a class="partner-link liquid-glass tap-scale" href="https://t.me/purr_ceramic" target="_blank" rel="noopener" aria-label="Purr Ceramic">
+            <img src="assets/Partners/Purr_Ceramic.webp" alt="Purr Ceramic">
+            <span class="partner-name">Purr Ceramic</span>
+          </a>
+          <a class="partner-link liquid-glass tap-scale" href="https://t.me/banyapixtaKP" target="_blank" rel="noopener" aria-label="Баня Пихта">
+            <img src="assets/Partners/Pihta.webp" alt="Баня Пихта">
+            <span class="partner-name">Баня Пихта</span>
+          </a>
+        </div>
+      </section>
     </header>
 
     <div class="category-tabs" aria-label="Категории турнира">
-      <button class="category-btn liquid-glass active" type="button" data-category="kids">Дети</button>
-      <button class="category-btn liquid-glass" type="button" data-category="adults">Взрослые</button>
+      <button class="category-btn liquid-glass tap-scale active" type="button" data-category="kids">Дети</button>
+      <button class="category-btn liquid-glass tap-scale" type="button" data-category="adults">Взрослые</button>
     </div>
 
     <section id="categoryContent" class="category-output"></section>
@@ -340,7 +481,7 @@
       <div class="profile-head">
         <div class="profile-top">
           <h2 id="profileName" class="profile-name"></h2>
-          <button id="closeProfile" class="close-btn liquid-glass-pill" type="button" aria-label="Закрыть">×</button>
+          <button id="closeProfile" class="close-btn liquid-glass-pill tap-scale" type="button" aria-label="Закрыть">×</button>
         </div>
         <div id="profileStats" class="profile-stats"></div>
       </div>
@@ -1262,6 +1403,26 @@
       document.documentElement.style.setProperty('--tg-safe-area-top', `${tg.safeAreaInset?.top || 0}px`);
     }
 
+    function installTapScaleFeedback(){
+      const elements = document.querySelectorAll('.tap-scale');
+      const release = (event) => {
+        const target = event.target.closest('.tap-scale');
+        if (target) target.classList.remove('is-pressed');
+      };
+      elements.forEach((element) => {
+        element.addEventListener('touchstart', () => element.classList.add('is-pressed'), { passive: true });
+        element.addEventListener('touchend', () => element.classList.remove('is-pressed'), { passive: true });
+        element.addEventListener('touchcancel', () => element.classList.remove('is-pressed'), { passive: true });
+        element.addEventListener('pointerdown', () => element.classList.add('is-pressed'));
+      });
+      document.addEventListener('pointerup', release, { passive: true });
+      document.addEventListener('pointercancel', release, { passive: true });
+      document.addEventListener('touchmove', () => {
+        document.querySelectorAll('.tap-scale.is-pressed').forEach((node) => node.classList.remove('is-pressed'));
+      }, { passive: true });
+    }
+
+    installTapScaleFeedback();
     renderCategory();
   </script>
 

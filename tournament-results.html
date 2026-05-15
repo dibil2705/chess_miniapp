@@ -151,6 +151,13 @@
       border-right:3px solid rgba(242,238,229,.58);
       transform:rotate(45deg);
     }
+
+    .tap-scale{
+      will-change:transform;
+      transform:translateZ(0);
+      -webkit-transform:translateZ(0);
+    }
+    .tap-scale.is-pressed{ transform:scale(.965) translateZ(0); }
   </style>
   <link rel="stylesheet" href="assets/liquid-glass.css">
 </head>
@@ -164,7 +171,7 @@
     </filter>
   </svg>
 
-  <a class="back-link liquid-glass-pill" href="index.html" aria-label="Вернуться в главное меню">
+  <a class="back-link liquid-glass-pill tap-scale" href="index.html" aria-label="Вернуться в главное меню">
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M15 6 9 12l6 6"></path>
     </svg>
@@ -179,7 +186,7 @@
     <section aria-labelledby="tournamentListTitle">
       <h2 id="tournamentListTitle" class="section-title">Список турниров</h2>
       <div class="tournament-list">
-        <a class="tournament-card liquid-glass" href="tournament-2026-05-10.html">
+        <a class="tournament-card liquid-glass tap-scale" href="tournament-2026-05-10.html">
           <span>10.05.26</span>
           <span class="arrow" aria-hidden="true"></span>
         </a>
@@ -195,6 +202,26 @@
       tg.disableVerticalSwipes?.();
       document.documentElement.style.setProperty('--tg-safe-area-top', `${tg.safeAreaInset?.top || 0}px`);
     }
+
+    function installTapScaleFeedback(){
+      const elements = document.querySelectorAll('.tap-scale');
+      const release = (event) => {
+        const target = event.target.closest('.tap-scale');
+        if (target) target.classList.remove('is-pressed');
+      };
+      elements.forEach((element) => {
+        element.addEventListener('touchstart', () => element.classList.add('is-pressed'), { passive: true });
+        element.addEventListener('touchend', () => element.classList.remove('is-pressed'), { passive: true });
+        element.addEventListener('touchcancel', () => element.classList.remove('is-pressed'), { passive: true });
+        element.addEventListener('pointerdown', () => element.classList.add('is-pressed'));
+      });
+      document.addEventListener('pointerup', release, { passive: true });
+      document.addEventListener('pointercancel', release, { passive: true });
+      document.addEventListener('touchmove', () => {
+        document.querySelectorAll('.tap-scale.is-pressed').forEach((node) => node.classList.remove('is-pressed'));
+      }, { passive: true });
+    }
+    installTapScaleFeedback();
 
     // Preload tournament subpages immediately after opening results page.
     (function preloadTournamentSubpages(){
