@@ -507,11 +507,13 @@
     const ADMIN_ACCESS_STORAGE_PREFIX = 'chess-miniapp-admin-access';
     const ACCESS_CODE_ATTEMPTS_MAX = 3;
     const ACCESS_CODE_UNLOCK = '322';
+    const ACCESS_CODE_HIDE_DATA = '323';
     const ACCESS_CODE_RESET = '999';
     const ACCESS_CODE_DISABLE = '666';
     let cloudStateSaveTimerId = null;
     let isApplyingCloudState = false;
     let cloudMissingInitDataWarned = false;
+    let puzzleDataSecretTaps = 0;
     const defaultTheme = {
       bg: '#111',
       panel: 'rgba(255,255,255,.06)',
@@ -636,32 +638,34 @@
       const details = document.getElementById('puzzleDataDetails');
       const icon = document.getElementById('soundSecretIcon');
       if (!soundRow || !details) return;
-      const revealDetails = () => {
-        details.classList.remove('is-hidden');
-        details.open = true;
-        renderAccessCodeState();
-      };
       try {
         if (localStorage.getItem(getPuzzleDataUnlockedStorageKey()) === '1'){
-          revealDetails();
-          return;
+          setPuzzleDataDetailsVisible(true);
         }
       } catch (_) {}
-      let taps = 0;
       if (icon) icon.style.cursor = 'pointer';
       soundRow.addEventListener('click', (event) => {
         const target = event.target;
         const clickedSecretIcon = target?.closest?.('#soundSecretIcon');
         const clickedSoundToggle = target?.closest?.('#soundToggle');
         if (!clickedSecretIcon && !clickedSoundToggle) return;
-        taps += 1;
-        if (taps >= 7){
+        puzzleDataSecretTaps += 1;
+        if (puzzleDataSecretTaps >= 7){
           try {
             localStorage.setItem(getPuzzleDataUnlockedStorageKey(), '1');
           } catch (_) {}
-          revealDetails();
+          setPuzzleDataDetailsVisible(true);
         }
       });
+    }
+
+    function setPuzzleDataDetailsVisible(visible){
+      const details = document.getElementById('puzzleDataDetails');
+      if (!details) return;
+      details.classList.toggle('is-hidden', !visible);
+      details.open = Boolean(visible);
+      puzzleDataSecretTaps = 0;
+      if (visible) renderAccessCodeState();
     }
 
     function updatePaletteSelection(selected){
@@ -847,6 +851,15 @@
         statusEl.textContent = 'Безлимит задач отключен.';
         inputEl.value = '';
         renderAccessCodeState();
+        return;
+      }
+      if (code === ACCESS_CODE_HIDE_DATA){
+        try {
+          localStorage.removeItem(getPuzzleDataUnlockedStorageKey());
+        } catch (_) {}
+        setPuzzleDataDetailsVisible(false);
+        saveCloudStateNow();
+        inputEl.value = '';
         return;
       }
       if (state.attemptsLeft <= 0){
