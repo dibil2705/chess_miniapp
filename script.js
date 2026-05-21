@@ -682,9 +682,16 @@ async function fetchChessComRandomPuzzleAvoidingDuplicate(excludeKeys = [], maxA
 
 function normalizeWeeklyPuzzleSet(raw){
   if (!raw || typeof raw !== 'object') return null;
-  const puzzles = Array.isArray(raw.puzzles)
+  const source = Array.isArray(raw.puzzles)
     ? raw.puzzles.filter(item => item && typeof item === 'object' && item.fen)
     : [];
+  const seenKeys = new Set();
+  const puzzles = source.filter(item => {
+    const key = getPuzzleKey(item) || String(item.fen || '').trim();
+    if (!key || seenKeys.has(key)) return false;
+    seenKeys.add(key);
+    return true;
+  });
   if (!puzzles.length) return null;
   return {
     weekKey: String(raw.weekKey || ''),
