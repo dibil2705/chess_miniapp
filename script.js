@@ -891,6 +891,15 @@ function isValidStoredPuzzleState(state){
   return Boolean(state?.puzzleData && state?.boardFen);
 }
 
+
+function isPuzzleStateFreshForCurrentDay(state){
+  if (!state || typeof state !== 'object') return false;
+  const loadedAt = Number(state.puzzleLoadedAt) || 0;
+  if (!loadedAt) return false;
+  const windowStart = getCurrentWindowStartMs();
+  return loadedAt >= windowStart;
+}
+
 function getStoredPuzzleState(){
   const scoped = parseStoredJson(getPuzzleStorageKey());
   if (isValidStoredPuzzleState(scoped)) return scoped;
@@ -3484,7 +3493,7 @@ async function bootstrapApp(){
     const hasCloudPuzzle = Boolean(cloudPuzzle?.puzzleData && cloudPuzzle?.boardFen);
 
     if (hasTelegramProfile && openData){
-      if (hasCloudPuzzle){
+      if (hasCloudPuzzle && isPuzzleStateFreshForCurrentDay(cloudPuzzle)){
         const restoredCloudPuzzle = hydratePuzzleState({ suppressRender: true, useBoardLoader: true });
         if (restoredCloudPuzzle){
           render();
@@ -3499,7 +3508,10 @@ async function bootstrapApp(){
       return;
     }
 
-    const restoredPuzzle = hydratePuzzleState({ suppressRender: true, useBoardLoader: true });
+    const storedPuzzle = getStoredPuzzleState();
+    const restoredPuzzle = storedPuzzle && isPuzzleStateFreshForCurrentDay(storedPuzzle)
+      ? hydratePuzzleState({ suppressRender: true, useBoardLoader: true })
+      : false;
     if (restoredPuzzle){
       render();
       updatePuzzleStatus();
