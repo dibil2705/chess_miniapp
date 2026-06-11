@@ -186,7 +186,11 @@
     <section aria-labelledby="tournamentListTitle">
       <h2 id="tournamentListTitle" class="section-title">Список турниров</h2>
       <div class="tournament-list">
-        <a class="tournament-card liquid-glass tap-scale" href="tournament-2026-05-10.html">
+        <a class="tournament-card liquid-glass tap-scale" href="tournament-2026-06-07.html">
+          <span>7 июня</span>
+          <span class="arrow" aria-hidden="true"></span>
+        </a>
+        <a class="tournament-card liquid-glass tap-scale" href="tournament-2026-05-10.html?v=20260514-1" data-miniapp-versioned="1">
           <span>10 мая</span>
           <span class="arrow" aria-hidden="true"></span>
         </a>
@@ -227,7 +231,11 @@
     (function preloadTournamentSubpages(){
       const links = Array.from(document.querySelectorAll('.tournament-list a[href]'))
         .map((a) => a.getAttribute('href'))
-        .filter((href) => href && href.endsWith('.html') && href !== 'tournament-results.html');
+        .filter((href) => {
+          if (!href) return false;
+          const url = new URL(href, window.location.href);
+          return url.pathname.endsWith('.html') && !url.pathname.endsWith('tournament-results.html');
+        });
 
       if (!links.length) return;
 

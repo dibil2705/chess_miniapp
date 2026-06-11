@@ -891,7 +891,6 @@ function isValidStoredPuzzleState(state){
   return Boolean(state?.puzzleData && state?.boardFen);
 }
 
-
 function isPuzzleStateFreshForCurrentDay(state){
   if (!state || typeof state !== 'object') return false;
   const loadedAt = Number(state.puzzleLoadedAt) || 0;
