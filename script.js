@@ -390,6 +390,10 @@ function loadPieceSetPreference(){
   return PIECE_SETS[stored] ? stored : DEFAULT_PIECE_SET;
 }
 
+function updateBoardOrientationForPlayer(){
+  flipped = puzzlePlayerColor === 'b';
+}
+
 function applyPieceSet(name, options = {}){
   const nextName = PIECE_SETS[name] ? name : DEFAULT_PIECE_SET;
   const set = getPieceSet(nextName);
@@ -1439,6 +1443,7 @@ function loadPositionFromFen(fen, options = {}){
     puzzleMode = puzzleMode && hasSolution;
     puzzlePlayerColor = puzzlePlayerColor || parsed.active;
   }
+  updateBoardOrientationForPlayer();
   promotionState = null;
   resetSelection();
   closePromotionDialog();
@@ -3437,6 +3442,7 @@ function hydratePuzzleState(options = {}){
     puzzleMode = !!saved.puzzleMode && puzzleSolutionMoves.length > 0;
     puzzleStartFen = saved.puzzleStartFen || puzzleStartFen;
     puzzlePlayerColor = saved.puzzlePlayerColor || parsed.active;
+    updateBoardOrientationForPlayer();
     puzzleSolutionTargetFen = saved.puzzleSolutionTargetFen || puzzleSolutionTargetFen;
     puzzleLoadedAt = Number(saved.puzzleLoadedAt) || 0;
     puzzleLoading = false;
