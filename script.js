@@ -2137,14 +2137,49 @@ function updateCastlingRightsForState(state, fromR, fromC, toR, toC, piece){
 }
 
 function tokenizePgnMoves(pgn){
-  const withoutHeaders = pgn.replace(/^\s*\[[^\]]+\]\s*$/gm, '');
-  const withoutComments = withoutHeaders
-    .replace(/\{[^}]*\}/g, ' ')
-    .replace(/;[^\n]*/g, ' ')
-    .replace(/\([^)]*\)/g, ' ');
+  const withoutHeaders = pgn.replace(/\[[A-Za-z0-9_]+\s+"[^"]*"\]\s*/g, ' ');
+  let withoutComments = '';
+  let variationDepth = 0;
+  let inBraceComment = false;
+  let inLineComment = false;
+
+  for (const ch of withoutHeaders){
+    if (inLineComment){
+      if (ch === '\n' || ch === '\r'){
+        inLineComment = false;
+        withoutComments += ' ';
+      }
+      continue;
+    }
+    if (inBraceComment){
+      if (ch === '}') inBraceComment = false;
+      continue;
+    }
+    if (ch === ';'){
+      inLineComment = true;
+      continue;
+    }
+    if (ch === '{'){
+      inBraceComment = true;
+      continue;
+    }
+    if (ch === '('){
+      variationDepth += 1;
+      withoutComments += ' ';
+      continue;
+    }
+    if (ch === ')' && variationDepth > 0){
+      variationDepth -= 1;
+      withoutComments += ' ';
+      continue;
+    }
+    if (variationDepth > 0) continue;
+    withoutComments += ch;
+  }
   const tokens = withoutComments
     .replace(/\d+\.\.\./g, ' ')
     .replace(/\d+\./g, ' ')
+    .replace(/\$\d+/g, ' ')
     .split(/\s+/)
     .map(t => t.trim())
     .filter(Boolean);
