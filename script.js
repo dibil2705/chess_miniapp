@@ -2,7 +2,7 @@ const PIECE_SET_STORAGE_KEY = 'chess-miniapp-piece-set';
 const DEFAULT_PIECE_SET = 'modern';
 const PIECE_SETS = {
   modern: {
-    boardScale: 118,
+    boardScale: 92,
     white: {
       P: 'icone/white2/wp.webp',
       N: 'icone/white2/wn.webp',
