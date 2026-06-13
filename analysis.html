@@ -31,6 +31,8 @@
       --panel:rgba(255,255,255,.06);
       --border:rgba(255,255,255,.12);
       --text:#fff;
+      --piece-scale-white:118%;
+      --piece-scale-black:118%;
       --tg-safe-area-top:0px;
       --app-safe-top:max(env(safe-area-inset-top), var(--tg-safe-area-top));
     }
@@ -270,7 +272,18 @@
       position: relative;
       z-index: 1;
     }
-    .piece img{ width: 140.712%; height: 140.712%; display:block; user-select:none; -webkit-user-select:none; }
+    .piece img{
+      width: var(--piece-scale-white);
+      height: var(--piece-scale-white);
+      display:block;
+      object-fit: contain;
+      user-select:none;
+      -webkit-user-select:none;
+    }
+    .piece.black img{
+      width: var(--piece-scale-black);
+      height: var(--piece-scale-black);
+    }
     .sq.selected{ outline: 3px solid rgba(255,255,255,.4); outline-offset:-3px; }
     .sq .move-dot{
       position:absolute;
@@ -1002,19 +1015,19 @@
       <div class="promotion-title">Превратить пешку в:</div>
       <div class="promotion-grid">
         <button class="promotion-btn" data-piece="q">
-          <img class="promotion-icon" alt="" src="icone/white/Chess_qlt45.svg" />
+          <img class="promotion-icon" alt="" src="icone/white2/wq.webp" />
           <span>Ферзь</span>
         </button>
         <button class="promotion-btn" data-piece="r">
-          <img class="promotion-icon" alt="" src="icone/white/Chess_rlt45.svg" />
+          <img class="promotion-icon" alt="" src="icone/white2/wr.webp" />
           <span>Ладья</span>
         </button>
         <button class="promotion-btn" data-piece="b">
-          <img class="promotion-icon" alt="" src="icone/white/Chess_blt45.svg" />
+          <img class="promotion-icon" alt="" src="icone/white2/wb.webp" />
           <span>Слон</span>
         </button>
         <button class="promotion-btn" data-piece="n">
-          <img class="promotion-icon" alt="" src="icone/white/Chess_nlt45.svg" />
+          <img class="promotion-icon" alt="" src="icone/white2/wn.webp" />
           <span>Конь</span>
         </button>
       </div>
@@ -1144,24 +1157,51 @@
 
     const files = ['a','b','c','d','e','f','g','h'];
     const ranks = ['8','7','6','5','4','3','2','1'];
-
-    const WHITE_SVG = {
-      P: 'icone/white/Chess_plt45.svg',
-      N: 'icone/white/Chess_nlt45.svg',
-      B: 'icone/white/Chess_blt45.svg',
-      R: 'icone/white/Chess_rlt45.svg',
-      Q: 'icone/white/Chess_qlt45.svg',
-      K: 'icone/white/Chess_klt45.svg'
+    const PIECE_SET_STORAGE_KEY = 'chess-miniapp-piece-set';
+    const DEFAULT_PIECE_SET = 'modern';
+    const PIECE_SETS = {
+      modern: {
+        boardScale: 118,
+        white: {
+          P: 'icone/white2/wp.webp',
+          N: 'icone/white2/wn.webp',
+          B: 'icone/white2/wb.webp',
+          R: 'icone/white2/wr.webp',
+          Q: 'icone/white2/wq.webp',
+          K: 'icone/white2/wk.webp'
+        },
+        black: {
+          p: 'icone/black2/bp.webp',
+          n: 'icone/black2/bn.webp',
+          b: 'icone/black2/bb.webp',
+          r: 'icone/black2/br.webp',
+          q: 'icone/black2/bq.webp',
+          k: 'icone/black2/bk.webp'
+        }
+      },
+      classic: {
+        boardScale: 160,
+        white: {
+          P: 'icone/white/Chess_plt45.svg',
+          N: 'icone/white/Chess_nlt45.svg',
+          B: 'icone/white/Chess_blt45.svg',
+          R: 'icone/white/Chess_rlt45.svg',
+          Q: 'icone/white/Chess_qlt45.svg',
+          K: 'icone/white/Chess_klt45.svg'
+        },
+        black: {
+          p: 'icone/black/Chess_pdt45.svg',
+          n: 'icone/black/Chess_ndt45.svg',
+          b: 'icone/black/Chess_bdt45.svg',
+          r: 'icone/black/Chess_rdt45.svg',
+          q: 'icone/black/Chess_qdt45.svg',
+          k: 'icone/black/Chess_kdt45.svg'
+        }
+      }
     };
-
-    const BLACK_SVG = {
-      p: 'icone/black/Chess_pdt45.svg',
-      n: 'icone/black/Chess_ndt45.svg',
-      b: 'icone/black/Chess_bdt45.svg',
-      r: 'icone/black/Chess_rdt45.svg',
-      q: 'icone/black/Chess_qdt45.svg',
-      k: 'icone/black/Chess_kdt45.svg'
-    };
+    let activePieceSetName = loadPieceSetPreference();
+    let WHITE_SVG = PIECE_SETS[activePieceSetName].white;
+    let BLACK_SVG = PIECE_SETS[activePieceSetName].black;
 
     const fenTextEl = document.getElementById('fenText');
     const statusEl = document.getElementById('engineStatus');
@@ -1232,6 +1272,7 @@
     let selectedSq = null;
     let possibleMoves = [];
     let promotionState = null;
+    let promotionDialogColor = 'w';
     let coachHintsEnabled = true;
     let audioContext = null;
     let audioBuffers = new Map();
@@ -1302,6 +1343,27 @@
       return boardPalettes[stored] ? stored : 'coffee';
     }
 
+    function loadPieceSetPreference(){
+      const stored = localStorage.getItem(PIECE_SET_STORAGE_KEY);
+      return PIECE_SETS[stored] ? stored : DEFAULT_PIECE_SET;
+    }
+
+    function applyPieceSet(name, options = {}){
+      const nextName = PIECE_SETS[name] ? name : DEFAULT_PIECE_SET;
+      const set = PIECE_SETS[nextName];
+      activePieceSetName = nextName;
+      WHITE_SVG = set.white;
+      BLACK_SVG = set.black;
+      document.documentElement.style.setProperty('--piece-scale-white', `${set.boardScale || 160}%`);
+      document.documentElement.style.setProperty('--piece-scale-black', `${set.boardScale || 160}%`);
+      if (promotionOverlay?.classList.contains('active')){
+        setPromotionIcons(promotionDialogColor);
+      }
+      if (options.render !== false){
+        renderBoardFromFen(boardToFen(boardState));
+      }
+    }
+
     function applyBoardPalette(name){
       const palette = getBoardPalette(name);
       const root = document.documentElement;
@@ -1311,9 +1373,13 @@
 
     function initBoardPalette(){
       applyBoardPalette(loadPalettePreference());
+      applyPieceSet(loadPieceSetPreference(), { render: false });
       window.addEventListener('storage', (event) => {
         if (event.key === PALETTE_STORAGE_KEY){
           applyBoardPalette(loadPalettePreference());
+        }
+        if (event.key === PIECE_SET_STORAGE_KEY){
+          applyPieceSet(loadPieceSetPreference());
         }
       });
     }
@@ -1331,6 +1397,7 @@
 
     function openPromotionDialog(color){
       if (!promotionOverlay) return;
+      promotionDialogColor = color === 'b' ? 'b' : 'w';
       setPromotionIcons(color);
       promotionOverlay.classList.add('active');
     }

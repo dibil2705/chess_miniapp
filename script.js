@@ -2,6 +2,7 @@ const PIECE_SET_STORAGE_KEY = 'chess-miniapp-piece-set';
 const DEFAULT_PIECE_SET = 'modern';
 const PIECE_SETS = {
   modern: {
+    boardScale: 118,
     white: {
       P: 'icone/white2/wp.webp',
       N: 'icone/white2/wn.webp',
@@ -20,6 +21,7 @@ const PIECE_SETS = {
     }
   },
   classic: {
+    boardScale: 160,
     white: {
       P: 'icone/white/Chess_plt45.svg',
       N: 'icone/white/Chess_nlt45.svg',
@@ -394,6 +396,8 @@ function applyPieceSet(name, options = {}){
   activePieceSetName = nextName;
   WHITE_SVG = set.white;
   BLACK_SVG = set.black;
+  document.documentElement.style.setProperty('--piece-scale-white', `${set.boardScale || 160}%`);
+  document.documentElement.style.setProperty('--piece-scale-black', `${set.boardScale || 160}%`);
   if (options.save){
     localStorage.setItem(PIECE_SET_STORAGE_KEY, nextName);
   }
@@ -2746,6 +2750,23 @@ function getPieceRenderSize(r, c){
   return { width: rect.width, height: rect.height };
 }
 
+function createPieceGhostElement(sourceEl){
+  const sourceImg = sourceEl?.querySelector?.('img');
+  if (!sourceImg) return null;
+  const rect = sourceImg.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+
+  const ghost = document.createElement('div');
+  ghost.className = 'drag-ghost drag-ghost-active';
+  ghost.style.width = `${rect.width}px`;
+  ghost.style.height = `${rect.height}px`;
+
+  const ghostImg = sourceImg.cloneNode(true);
+  ghostImg.draggable = false;
+  ghost.appendChild(ghostImg);
+  return ghost;
+}
+
 function hyperbolicEase(t){
   if (t <= 0) return 0;
   if (t >= 1) return 1;
@@ -3008,12 +3029,8 @@ function onPointerDownManual(e){
     return;
   }
 
-  const rect = e.currentTarget.getBoundingClientRect();
-  const ghost = e.currentTarget.cloneNode(true);
-  ghost.classList.remove('dragging');
-  ghost.classList.add('drag-ghost', 'drag-ghost-active');
-  ghost.style.width = `${rect.width}px`;
-  ghost.style.height = `${rect.height}px`;
+  const ghost = createPieceGhostElement(e.currentTarget);
+  if (!ghost) return;
   document.body.appendChild(ghost);
 
   manualDragActive = true;
