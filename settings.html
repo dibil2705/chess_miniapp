@@ -302,6 +302,52 @@
       font-weight: 700;
       font-size: clamp(13px, 4vw, 15px);
     }
+    .piece-set-grid{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+    }
+    .piece-set-card{
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 10px;
+      padding: 8px;
+      display: grid;
+      gap: 8px;
+      cursor: pointer;
+      transition: border-color .2s ease, box-shadow .2s ease, transform .1s ease;
+    }
+    .piece-set-card:active{ transform: translateY(1px); }
+    .piece-set-card.selected{
+      border-color: rgba(255,255,255,.36);
+      box-shadow: 0 10px 24px rgba(0,0,0,.32), inset 0 0 0 1px rgba(255,255,255,.14);
+    }
+    .piece-set-card:focus-visible{
+      outline: 2px solid rgba(255,255,255,.45);
+      outline-offset: 2px;
+    }
+    .piece-set-preview{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      min-height: 54px;
+      align-items: center;
+      justify-items: center;
+      border-radius: 8px;
+      background: rgba(0,0,0,.2);
+      padding: 6px;
+    }
+    .piece-set-preview img{
+      width: min(42px, 100%);
+      aspect-ratio: 1 / 1;
+      object-fit: contain;
+      display: block;
+    }
+    .piece-set-name{
+      margin: 0;
+      font-weight: 700;
+      font-size: 15px;
+    }
     .hint{
       opacity:.8;
       font-size: 13px;
@@ -351,6 +397,9 @@
       .palette-grid{
         grid-template-columns: repeat(2, minmax(0, 1fr));
         --palette-scale: 0.315;
+      }
+      .piece-set-grid{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       header{ align-items: flex-start; }
       .title{ padding-right: 92px; }
@@ -440,6 +489,31 @@
 
     <div class="info-block">
       <h3 class="section-title">
+        <span class="iconify" data-icon="mdi:chess-queen" aria-hidden="true"></span>
+        Дизайн фигур
+      </h3>
+      <div class="piece-set-grid" aria-label="Варианты дизайна фигур">
+        <div class="piece-set-card" data-piece-set="modern" role="button" tabindex="0" aria-pressed="false" aria-label="Новый дизайн фигур">
+          <div class="piece-set-preview" aria-hidden="true">
+            <img alt="" src="icone/white2/wq.webp">
+            <img alt="" src="icone/white2/wn.webp">
+            <img alt="" src="icone/black2/bk.webp">
+          </div>
+          <p class="piece-set-name">Новый</p>
+        </div>
+        <div class="piece-set-card" data-piece-set="classic" role="button" tabindex="0" aria-pressed="false" aria-label="Классический дизайн фигур">
+          <div class="piece-set-preview" aria-hidden="true">
+            <img alt="" src="icone/white/Chess_qlt45.svg">
+            <img alt="" src="icone/white/Chess_nlt45.svg">
+            <img alt="" src="icone/black/Chess_kdt45.svg">
+          </div>
+          <p class="piece-set-name">Классический</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-block">
+      <h3 class="section-title">
         <span class="iconify" data-icon="mdi:telegram" aria-hidden="true"></span>
         Контакты
       </h3>
@@ -502,6 +576,8 @@
     const HISTORY_STORAGE_KEY = 'chess-miniapp-history';
     const SOUND_STORAGE_KEY = 'chess-miniapp-sound-enabled';
     const PALETTE_STORAGE_KEY = 'chess-miniapp-board-palette';
+    const PIECE_SET_STORAGE_KEY = 'chess-miniapp-piece-set';
+    const DEFAULT_PIECE_SET = 'modern';
     const PUZZLE_QUOTA_STORAGE_PREFIX = 'chess-miniapp-quota';
     const PUZZLE_DATA_UNLOCKED_KEY_PREFIX = 'chess-miniapp-puzzle-data-unlocked';
     const ADMIN_ACCESS_STORAGE_PREFIX = 'chess-miniapp-admin-access';
@@ -528,6 +604,10 @@
       sea: { dark: '#466b8a', light: '#e9ddc5' },
       warm: { dark: '#b83c3c', light: '#f0e7d8' }
     };
+    const pieceSets = {
+      modern: true,
+      classic: true
+    };
 
     function getBoardPalette(name){
       return boardPalettes[name] || boardPalettes.default;
@@ -545,6 +625,22 @@
         window.parent?.postMessage({ type: 'chess-miniapp-palette-changed', palette: name }, '*');
       } catch (err) {
         console.warn('Не удалось отправить изменение палитры', err);
+      }
+    }
+
+    function loadPieceSetPreference(){
+      const stored = localStorage.getItem(PIECE_SET_STORAGE_KEY);
+      return pieceSets[stored] ? stored : DEFAULT_PIECE_SET;
+    }
+
+    function savePieceSetPreference(name){
+      const normalized = pieceSets[name] ? name : DEFAULT_PIECE_SET;
+      localStorage.setItem(PIECE_SET_STORAGE_KEY, normalized);
+      scheduleCloudStateSave();
+      try {
+        window.parent?.postMessage({ type: 'chess-miniapp-piece-set-changed', pieceSet: normalized }, '*');
+      } catch (err) {
+        console.warn('Не удалось отправить изменение дизайна фигур', err);
       }
     }
 
@@ -694,6 +790,40 @@
       cards.forEach(card => {
         const name = card.dataset.palette;
         const handler = () => selectPalette(name);
+        card.addEventListener('click', handler);
+        card.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' '){
+            event.preventDefault();
+            handler();
+          }
+        });
+      });
+    }
+
+    function updatePieceSetSelection(selected){
+      const cards = document.querySelectorAll('.piece-set-card[data-piece-set]');
+      cards.forEach(card => {
+        const isActive = card.dataset.pieceSet === selected;
+        card.classList.toggle('selected', isActive);
+        card.setAttribute('aria-pressed', String(isActive));
+      });
+    }
+
+    function initPieceSetPicker(){
+      const cards = document.querySelectorAll('.piece-set-card[data-piece-set]');
+      if (!cards.length) return;
+      let current = loadPieceSetPreference();
+      updatePieceSetSelection(current);
+
+      const selectPieceSet = (name) => {
+        current = pieceSets[name] ? name : DEFAULT_PIECE_SET;
+        savePieceSetPreference(current);
+        updatePieceSetSelection(current);
+      };
+
+      cards.forEach(card => {
+        const name = card.dataset.pieceSet;
+        const handler = () => selectPieceSet(name);
         card.addEventListener('click', handler);
         card.addEventListener('keydown', (event) => {
           if (event.key === 'Enter' || event.key === ' '){
@@ -937,7 +1067,8 @@
     function collectCloudState(){
       const settings = {
         soundEnabled: loadSoundPreference(),
-        palette: loadPalettePreference()
+        palette: loadPalettePreference(),
+        pieceSet: loadPieceSetPreference()
       };
       const adminAccess = loadAdminAccessState();
       return {
@@ -946,7 +1077,8 @@
         settings,
         adminAccess,
         soundEnabled: settings.soundEnabled,
-        palette: settings.palette
+        palette: settings.palette,
+        pieceSet: settings.pieceSet
       };
     }
 
@@ -962,11 +1094,17 @@
         if (Object.prototype.hasOwnProperty.call(settings, 'palette') && boardPalettes[settings.palette]){
           localStorage.setItem(PALETTE_STORAGE_KEY, settings.palette);
         }
+        if (Object.prototype.hasOwnProperty.call(settings, 'pieceSet') && pieceSets[settings.pieceSet]){
+          localStorage.setItem(PIECE_SET_STORAGE_KEY, settings.pieceSet);
+        }
         if (Object.prototype.hasOwnProperty.call(state, 'soundEnabled')){
           localStorage.setItem(SOUND_STORAGE_KEY, state.soundEnabled ? 'true' : 'false');
         }
         if (Object.prototype.hasOwnProperty.call(state, 'palette') && boardPalettes[state.palette]){
           localStorage.setItem(PALETTE_STORAGE_KEY, state.palette);
+        }
+        if (Object.prototype.hasOwnProperty.call(state, 'pieceSet') && pieceSets[state.pieceSet]){
+          localStorage.setItem(PIECE_SET_STORAGE_KEY, state.pieceSet);
         }
         if (Object.prototype.hasOwnProperty.call(state, 'quota') && state.quota){
           localStorage.setItem(getQuotaStorageKey(), JSON.stringify(state.quota));
@@ -1049,9 +1187,11 @@
     function refreshSettingsPage(){
       const soundEnabled = loadSoundPreference();
       const paletteName = loadPalettePreference();
+      const pieceSetName = loadPieceSetPreference();
       updateSoundToggleUI(soundEnabled);
       applyBoardPalette(paletteName);
       updatePaletteSelection(paletteName);
+      updatePieceSetSelection(pieceSetName);
       hydratePuzzle();
       renderAccessCodeState();
     }
@@ -1081,6 +1221,7 @@
     initPuzzleDataUnlock();
     initAccessCodeControls();
     initPalettePicker();
+    initPieceSetPicker();
     hydratePuzzle();
     loadCloudState();
     initEmbeddedMode();

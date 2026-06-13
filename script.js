@@ -1,26 +1,48 @@
-// --- White pieces: local SVGs (relative to this HTML file) ---
-// IMPORTANT: in URLs use forward slashes: icone/white/...
-const WHITE_SVG = {
-  P: 'icone/white/Chess_plt45.svg',
-  N: 'icone/white/Chess_nlt45.svg',
-  B: 'icone/white/Chess_blt45.svg',
-  R: 'icone/white/Chess_rlt45.svg',
-  Q: 'icone/white/Chess_qlt45.svg',
-  K: 'icone/white/Chess_klt45.svg'
+const PIECE_SET_STORAGE_KEY = 'chess-miniapp-piece-set';
+const DEFAULT_PIECE_SET = 'modern';
+const PIECE_SETS = {
+  modern: {
+    white: {
+      P: 'icone/white2/wp.webp',
+      N: 'icone/white2/wn.webp',
+      B: 'icone/white2/wb.webp',
+      R: 'icone/white2/wr.webp',
+      Q: 'icone/white2/wq.webp',
+      K: 'icone/white2/wk.webp'
+    },
+    black: {
+      p: 'icone/black2/bp.webp',
+      n: 'icone/black2/bn.webp',
+      b: 'icone/black2/bb.webp',
+      r: 'icone/black2/br.webp',
+      q: 'icone/black2/bq.webp',
+      k: 'icone/black2/bk.webp'
+    }
+  },
+  classic: {
+    white: {
+      P: 'icone/white/Chess_plt45.svg',
+      N: 'icone/white/Chess_nlt45.svg',
+      B: 'icone/white/Chess_blt45.svg',
+      R: 'icone/white/Chess_rlt45.svg',
+      Q: 'icone/white/Chess_qlt45.svg',
+      K: 'icone/white/Chess_klt45.svg'
+    },
+    black: {
+      p: 'icone/black/Chess_pdt45.svg',
+      n: 'icone/black/Chess_ndt45.svg',
+      b: 'icone/black/Chess_bdt45.svg',
+      r: 'icone/black/Chess_rdt45.svg',
+      q: 'icone/black/Chess_qdt45.svg',
+      k: 'icone/black/Chess_kdt45.svg'
+    }
+  }
 };
+let activePieceSetName = loadPieceSetPreference();
+let WHITE_SVG = PIECE_SETS[activePieceSetName].white;
+let BLACK_SVG = PIECE_SETS[activePieceSetName].black;
 
-// --- Black pieces: local SVGs (relative to this HTML file) ---
-// IMPORTANT: in URLs use forward slashes: icone/black/...
-const BLACK_SVG = {
-  p: 'icone/black/Chess_pdt45.svg',
-  n: 'icone/black/Chess_ndt45.svg',
-  b: 'icone/black/Chess_bdt45.svg',
-  r: 'icone/black/Chess_rdt45.svg',
-  q: 'icone/black/Chess_qdt45.svg',
-  k: 'icone/black/Chess_kdt45.svg'
-};
-
-const SPRITE_URLS = [...new Set([...Object.values(WHITE_SVG), ...Object.values(BLACK_SVG)])];
+const SPRITE_URLS = [...new Set(Object.values(PIECE_SETS).flatMap(set => [...Object.values(set.white), ...Object.values(set.black)]))];
 const STAR_SPRITES = ['assets/stars/gold-star.svg'];
 
 // Default: empty board while ждем задачу
@@ -354,6 +376,35 @@ function loadSoundPreference(){
 function saveSoundPreference(enabled){
   soundEnabled = !!enabled;
   localStorage.setItem(SOUND_STORAGE_KEY, soundEnabled ? 'true' : 'false');
+  scheduleCloudStateSave();
+}
+
+function getPieceSet(name){
+  return PIECE_SETS[name] || PIECE_SETS[DEFAULT_PIECE_SET];
+}
+
+function loadPieceSetPreference(){
+  const stored = localStorage.getItem(PIECE_SET_STORAGE_KEY);
+  return PIECE_SETS[stored] ? stored : DEFAULT_PIECE_SET;
+}
+
+function applyPieceSet(name, options = {}){
+  const nextName = PIECE_SETS[name] ? name : DEFAULT_PIECE_SET;
+  const set = getPieceSet(nextName);
+  activePieceSetName = nextName;
+  WHITE_SVG = set.white;
+  BLACK_SVG = set.black;
+  if (options.save){
+    localStorage.setItem(PIECE_SET_STORAGE_KEY, nextName);
+  }
+  if (options.render !== false){
+    render();
+  }
+}
+
+function savePieceSetPreference(name){
+  const nextName = PIECE_SETS[name] ? name : DEFAULT_PIECE_SET;
+  applyPieceSet(nextName, { save: true });
   scheduleCloudStateSave();
 }
 
@@ -968,7 +1019,8 @@ function buildCurrentHistoryState(){
 function collectCloudState(){
   const settings = {
     soundEnabled: loadSoundPreference(),
-    palette: loadPalettePreference()
+    palette: loadPalettePreference(),
+    pieceSet: activePieceSetName || loadPieceSetPreference()
   };
   const state = {
     version: 1,
@@ -977,7 +1029,8 @@ function collectCloudState(){
     adminAccess: loadAdminAccessState(),
     settings,
     soundEnabled: settings.soundEnabled,
-    palette: settings.palette
+    palette: settings.palette,
+    pieceSet: settings.pieceSet
   };
   if (cloudQuotaResetAt) state.quotaResetAt = cloudQuotaResetAt;
   const puzzle = buildCurrentPuzzleState() || getStoredPuzzleState();
@@ -1067,12 +1120,20 @@ function applyCloudState(appState){
     if (Object.prototype.hasOwnProperty.call(settings, 'soundEnabled')){
       saveSoundPreference(Boolean(settings.soundEnabled));
     }
+    if (Object.prototype.hasOwnProperty.call(settings, 'pieceSet') && PIECE_SETS[settings.pieceSet]){
+      localStorage.setItem(PIECE_SET_STORAGE_KEY, settings.pieceSet);
+      applyPieceSet(settings.pieceSet);
+    }
     if (Object.prototype.hasOwnProperty.call(state, 'palette') && boardPalettes[state.palette]){
       localStorage.setItem(PALETTE_STORAGE_KEY, state.palette);
       applyBoardPalette(state.palette);
     }
     if (Object.prototype.hasOwnProperty.call(state, 'soundEnabled')){
       saveSoundPreference(Boolean(state.soundEnabled));
+    }
+    if (Object.prototype.hasOwnProperty.call(state, 'pieceSet') && PIECE_SETS[state.pieceSet]){
+      localStorage.setItem(PIECE_SET_STORAGE_KEY, state.pieceSet);
+      applyPieceSet(state.pieceSet);
     }
   } catch (err) {
     console.warn('Could not apply cloud state', err);
@@ -3433,6 +3494,9 @@ window.addEventListener('message', (event) => {
   if (event.data?.type === 'chess-miniapp-sound-changed'){
     saveSoundPreference(!!event.data.soundEnabled);
   }
+  if (event.data?.type === 'chess-miniapp-piece-set-changed'){
+    savePieceSetPreference(event.data.pieceSet);
+  }
   if (event.data?.type === 'chess-miniapp-access-updated'){
     adminAccessStateCache = null;
     updatePuzzleStatus();
@@ -3453,6 +3517,9 @@ window.addEventListener('storage', (event) => {
   if (event.key === PALETTE_STORAGE_KEY){
     applyBoardPalette(loadPalettePreference());
     render();
+  }
+  if (event.key === PIECE_SET_STORAGE_KEY){
+    applyPieceSet(loadPieceSetPreference());
   }
   if (event.key === getPuzzleStorageKey() || event.key === getQuotaStorageKey() || event.key === getHistoryStorageKey()){
     quotaStateCache = null;
