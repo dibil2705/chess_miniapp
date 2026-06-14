@@ -3361,8 +3361,9 @@ async function fetchRandomPuzzle(options = {}){
 function openAnalysisPage(){
   const fen = boardToFen(boardState);
   const version = window.CHESS_MINIAPP_VERSION || '20260514-1';
-  const url = `analysis.html?v=${encodeURIComponent(version)}&fen=${encodeURIComponent(fen)}`;
-  trackMiniAppEvent('analysis_opened', { fen }, { beacon: true });
+  const orientation = flipped ? 'black' : 'white';
+  const url = `analysis.html?v=${encodeURIComponent(version)}&fen=${encodeURIComponent(fen)}&orientation=${encodeURIComponent(orientation)}`;
+  trackMiniAppEvent('analysis_opened', { fen, orientation }, { beacon: true });
   persistPuzzleState();
   window.location.href = url;
 }

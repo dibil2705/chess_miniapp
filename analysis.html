@@ -1153,10 +1153,17 @@
       return null;
     }
 
+    function getInitialOrientationFromPuzzleState(){
+      const saved = getStoredPuzzleState();
+      return saved?.puzzlePlayerColor === 'b' ? 'black' : 'white';
+    }
+
     const initialFen = params.get('fen') || getInitialFenFromPuzzleState();
+    const initialOrientation = params.get('orientation') || params.get('flip') || getInitialOrientationFromPuzzleState();
 
     const files = ['a','b','c','d','e','f','g','h'];
     const ranks = ['8','7','6','5','4','3','2','1'];
+    let flipped = initialOrientation === 'black' || initialOrientation === 'b';
     const PIECE_SET_STORAGE_KEY = 'chess-miniapp-piece-set';
     const DEFAULT_PIECE_SET = 'modern';
     const PIECE_SETS = {
@@ -1887,16 +1894,31 @@
       if (!filesBottomEl || !ranksLeftEl) return;
       filesBottomEl.innerHTML = '';
       ranksLeftEl.innerHTML = '';
-      files.forEach((file) => {
+      const displayFiles = flipped ? [...files].reverse() : files;
+      const displayRanks = flipped ? [...ranks].reverse() : ranks;
+      displayFiles.forEach((file) => {
         const span = document.createElement('span');
         span.textContent = file;
         filesBottomEl.appendChild(span);
       });
-      ranks.forEach((rank) => {
+      displayRanks.forEach((rank) => {
         const span = document.createElement('span');
         span.textContent = rank;
         ranksLeftEl.appendChild(span);
       });
+    }
+
+    function displayToBoardIndex(rowIdx, colIdx){
+      if (!flipped) return { rowIdx, colIdx };
+      return { rowIdx: 7 - rowIdx, colIdx: 7 - colIdx };
+    }
+
+    function squareToDisplayIndex(square){
+      const fileIdx = files.indexOf(square?.[0]);
+      const rankIdx = ranks.indexOf(square?.[1]);
+      if (fileIdx < 0 || rankIdx < 0) return null;
+      if (!flipped) return { rowIdx: rankIdx, colIdx: fileIdx };
+      return { rowIdx: 7 - rankIdx, colIdx: 7 - fileIdx };
     }
 
     function renderBoardFromFen(fenStr){
@@ -1908,10 +1930,12 @@
       const whiteInCheck = !!(whiteKingPos && isKingInCheck('w'));
       const blackInCheck = !!(blackKingPos && isKingInCheck('b'));
       const selectedPiece = selectedSq ? getPieceAt(selectedSq) : '';
-      grid.forEach((row, rowIdx) => {
-        row.forEach((cell, colIdx) => {
+      for (let displayRow = 0; displayRow < 8; displayRow += 1){
+        for (let displayCol = 0; displayCol < 8; displayCol += 1){
+          const { rowIdx, colIdx } = displayToBoardIndex(displayRow, displayCol);
+          const cell = grid[rowIdx]?.[colIdx] || '';
           const sq = document.createElement('div');
-          const isLight = (rowIdx + colIdx) % 2 === 0;
+          const isLight = (displayRow + displayCol) % 2 === 0;
           const coord = `${files[colIdx]}${ranks[rowIdx]}`;
           sq.className = `sq ${isLight ? 'light' : 'dark'}`;
           sq.dataset.square = coord;
@@ -1943,8 +1967,8 @@
             }
           }
           boardSquaresEl.appendChild(sq);
-        });
-      });
+        }
+      }
       if (selectedSq){
         const sqEl = boardSquaresEl.querySelector(`[data-square="${selectedSq}"]`);
         if (sqEl) sqEl.classList.add('selected');
@@ -2039,17 +2063,15 @@
       const move = getPuzzleHintMoveUci() || getPriorityMoveUci(line);
       const coords = uciToCoords(move);
       if (!coords) return;
-      const startFile = files.indexOf(coords.from[0]);
-      const startRank = ranks.indexOf(coords.from[1]);
-      const endFile = files.indexOf(coords.to[0]);
-      const endRank = ranks.indexOf(coords.to[1]);
-      if (startFile < 0 || startRank < 0 || endFile < 0 || endRank < 0) return;
+      const start = squareToDisplayIndex(coords.from);
+      const end = squareToDisplayIndex(coords.to);
+      if (!start || !end) return;
       const cell = 100;
       const offset = cell / 2;
-      const x1 = startFile * cell + offset;
-      const y1 = startRank * cell + offset;
-      const x2 = endFile * cell + offset;
-      const y2 = endRank * cell + offset;
+      const x1 = start.colIdx * cell + offset;
+      const y1 = start.rowIdx * cell + offset;
+      const x2 = end.colIdx * cell + offset;
+      const y2 = end.rowIdx * cell + offset;
       const angle = Math.atan2(y2 - y1, x2 - x1);
       if (!Number.isFinite(angle)) return;
       const headLength = 64;
