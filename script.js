@@ -1855,7 +1855,7 @@ function handleSquareTap(r, c){
   } else {
     resetSelection();
   }
-  render();
+  if (!refreshBoardSelectionHighlights()) render();
 }
 
 function updateStatus(){
@@ -2778,6 +2778,25 @@ function getSquareElement(r, c){
   if (!boardEl) return null;
   const display = coordToDisplay(r, c);
   return boardEl.querySelector(`.sq[data-dr="${display.r}"][data-dc="${display.c}"]`);
+}
+
+function refreshBoardSelectionHighlights(){
+  if (!boardEl || !boardEl.children.length) return false;
+  boardEl.querySelectorAll('.sq.selected').forEach(el => el.classList.remove('selected'));
+  boardEl.querySelectorAll('.move-dot, .capture-ring').forEach(el => el.remove());
+
+  if (selectedSquare){
+    getSquareElement(selectedSquare.r, selectedSquare.c)?.classList.add('selected');
+  }
+
+  for (const moveInfo of highlightedMoves){
+    const sq = getSquareElement(moveInfo.r, moveInfo.c);
+    if (!sq) continue;
+    const marker = document.createElement('div');
+    marker.className = moveInfo.capture ? 'capture-ring' : 'move-dot';
+    sq.appendChild(marker);
+  }
+  return true;
 }
 
 function getPieceRenderSize(r, c){
