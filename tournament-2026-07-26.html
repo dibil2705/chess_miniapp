@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
-  <title>Турнир 07.06.26</title>
+  <title>Турнир 26.07.26</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="assets/telegram-miniapp.js?v=20260731-1"></script>
   <style>
@@ -300,7 +300,7 @@
       border:2px solid rgba(15,16,15,.9);
     }
     .table-wrap::-webkit-scrollbar-thumb:hover{ background:linear-gradient(90deg, rgba(213,165,99,.95), rgba(255,231,187,.82)); }
-    table{ width:100%; border-collapse:collapse; min-width:720px; }
+    table{ width:100%; border-collapse:collapse; min-width:1080px; }
     th,
     td{
       padding:12px 14px;
@@ -450,22 +450,13 @@
 
   <main class="page">
     <header>
-      <h1 class="page-title">Турнир 07.06.26</h1>
-      <section class="partners" aria-labelledby="partnersTitle">
-        <p id="partnersTitle" class="partners-title"><span>При поддержке партнёров</span></p>
-        <div class="partners-list single">
-          <a class="partner-link liquid-glass tap-scale" href="https://lialab.ru" target="_blank" rel="noopener" aria-label="Lia lab">
-            <img src="assets/Partners/Lia_lab.webp" alt="Lia lab">
-            <span class="partner-name">Lia lab</span>
-          </a>
-        </div>
-      </section>
+      <h1 class="page-title">Турнир 26.07.26</h1>
     </header>
     <p class="subtitle">Турнир Красная Поляна</p>
 
     <div class="category-tabs" aria-label="Категории турнира">
-      <button class="category-btn liquid-glass tap-scale active" type="button" data-category="adults">Взрослые</button>
-      <button class="category-btn liquid-glass tap-scale" type="button" data-category="kids">Дети</button>
+      <button class="category-btn liquid-glass tap-scale active" type="button" data-category="kids">Дети</button>
+      <button class="category-btn liquid-glass tap-scale" type="button" data-category="adults">Взрослые</button>
     </div>
 
     <section id="categoryContent" class="category-output"></section>
@@ -1010,7 +1001,215 @@
             "rounds": []
       }
 };
-    let activeCategory = 'adults';
+
+    tournamentData.kids = {
+      title: 'Дети',
+      note: '',
+      tiebreakLabels: ['BHC1', 'BH', 'SB', 'PS', 'DE', 'WIN', 'BWG'],
+      initialRatings: {
+        'Алекс Катамадзе': 1548,
+        'Гезолян Давид': 1516,
+        'Акопян Михаил': 1516,
+        'Гезолян Тигран': 1484,
+        'Ананядий Триандофил': 1483
+      },
+      standings: [
+        ['1', 'Алекс Катамадзе', '5', '23', '26', '21', '20', '0', '5', '3'],
+        ['2', 'Гезолян Давид', '5', '21.5', '23.5', '18.5', '19', '0', '5', '3'],
+        ['3', 'Акопян Михаил', '5', '21', '23', '18', '17', '0', '5', '3'],
+        ['4', 'Попов Александр', '5', '17.5', '19.5', '14.5', '18', '0', '5', '2'],
+        ['5', 'Лев Зайцев', '4', '19.5', '21.5', '11.5', '13', '0', '4', '1'],
+        ['6', 'Белакин Влад', '4', '19.5', '20.5', '10.5', '16', '0', '4', '2'],
+        ['7', 'Левицкий Александр', '4', '18.5', '20.5', '10.5', '13', '0', '4', '2'],
+        ['8', 'Сираев Давид', '4', '18', '20', '11', '10', '0', '4', '2'],
+        ['9', 'Ананядий Триандофил', '3.5', '16.5', '18.5', '8.25', '13', '0', '3', '1'],
+        ['10', 'Гезолян Тигран', '3', '19', '21', '8', '12', '0', '3', '0'],
+        ['11', 'Дея Кирпичева', '3', '19', '21', '7', '12', '0', '3', '3'],
+        ['12', 'Аркадий Зайцев', '3', '17.5', '18.5', '6', '11', '0', '3', '2'],
+        ['13', 'Сергей Бережной', '3', '15', '16', '6', '10', '0', '3', '2'],
+        ['14', 'Гезолян Айк', '3', '13.5', '14.5', '5', '7', '0', '3', '1'],
+        ['15', 'Суханов Вильям', '3', '13', '14', '4', '8', '0', '3', '2'],
+        ['16', 'Михаил Хмарин', '2.5', '19.5', '21.5', '6.75', '10', '0', '2', '1'],
+        ['17', 'Вертиков Марат', '2', '18.5', '19.5', '3', '8', '0', '2', '0'],
+        ['18', 'Тео Агонян', '2', '16', '18', '4', '9', '0', '2', '1'],
+        ['19', 'Ярослав Бережной', '2', '16', '17', '3', '8', '0', '2', '0'],
+        ['20', 'Ханас Владимир', '2', '14.5', '16.5', '4', '7', '0', '2', '1'],
+        ['21', 'Коноплев Макар', '2', '10.5', '11.5', '2', '6', '0', '2', '2'],
+        ['22', 'Петя Костюк', '1', '15', '16', '1', '2', '0', '1', '0'],
+        ['23', 'Панков Матвей', '1', '12', '13', '1', '3', '0', '1', '0']
+      ],
+      rounds: [
+        [
+          ['Акопян Михаил', 'Лев Зайцев', '1:0'],
+          ['Левицкий Александр', 'Алекс Катамадзе', '0:1'],
+          ['Ананядий Триандофил', 'Михаил Хмарин', '½:½'],
+          ['Панков Матвей', 'Аркадий Зайцев', '0:1'],
+          ['Белакин Влад', 'Петя Костюк', '1:0'],
+          ['Попов Александр', 'Вертиков Марат', '1:0'],
+          ['Гезолян Айк', 'Сергей Бережной', '0:1'],
+          ['Сираев Давид', 'Гезолян Давид', '0:1'],
+          ['Гезолян Тигран', 'Суханов Вильям', '1:0'],
+          ['Тео Агонян', 'Дея Кирпичева', '0:1'],
+          ['Коноплев Макар', 'Ханас Владимир', '0:1'],
+          ['Ярослав Бережной', '', 'Bye']
+        ],
+        [
+          ['Дея Кирпичева', 'Акопян Михаил', '0:1'],
+          ['Алекс Катамадзе', 'Гезолян Тигран', '1:0'],
+          ['Аркадий Зайцев', 'Попов Александр', '0:1'],
+          ['Сергей Бережной', 'Белакин Влад', '0:1'],
+          ['Гезолян Давид', 'Ярослав Бережной', '1:0'],
+          ['Ханас Владимир', 'Ананядий Триандофил', '0:1'],
+          ['Михаил Хмарин', 'Гезолян Айк', '1:0'],
+          ['Вертиков Марат', 'Панков Матвей', '1:0'],
+          ['Петя Костюк', 'Коноплев Макар', '0:1'],
+          ['Лев Зайцев', 'Сираев Давид', '1:0'],
+          ['Суханов Вильям', 'Левицкий Александр', '0:1'],
+          ['Тео Агонян', '', 'Bye']
+        ],
+        [
+          ['Акопян Михаил', 'Гезолян Давид', '0:1'],
+          ['Белакин Влад', 'Алекс Катамадзе', '0:1'],
+          ['Попов Александр', 'Михаил Хмарин', '1:0'],
+          ['Ананядий Триандофил', 'Аркадий Зайцев', '1:0'],
+          ['Левицкий Александр', 'Вертиков Марат', '1:0'],
+          ['Гезолян Тигран', 'Сергей Бережной', '1:0'],
+          ['Ханас Владимир', 'Дея Кирпичева', '0:1'],
+          ['Коноплев Макар', 'Тео Агонян', '0:1'],
+          ['Ярослав Бережной', 'Лев Зайцев', '0:1'],
+          ['Гезолян Айк', 'Петя Костюк', '1:0'],
+          ['Панков Матвей', 'Суханов Вильям', '0:1'],
+          ['Сираев Давид', '', 'Bye']
+        ],
+        [
+          ['Алекс Катамадзе', 'Попов Александр', '1:0'],
+          ['Гезолян Давид', 'Ананядий Триандофил', '1:0'],
+          ['Тео Агонян', 'Акопян Михаил', '0:1'],
+          ['Дея Кирпичева', 'Белакин Влад', '0:1'],
+          ['Лев Зайцев', 'Гезолян Тигран', '1:0'],
+          ['Михаил Хмарин', 'Левицкий Александр', '0:1'],
+          ['Аркадий Зайцев', 'Ханас Владимир', '1:0'],
+          ['Вертиков Марат', 'Ярослав Бережной', '1:0'],
+          ['Сираев Давид', 'Гезолян Айк', '1:0'],
+          ['Сергей Бережной', 'Коноплев Макар', '1:0'],
+          ['Суханов Вильям', 'Петя Костюк', '1:0'],
+          ['Панков Матвей', '', 'Bye']
+        ],
+        [
+          ['Гезолян Давид', 'Алекс Катамадзе', '0:1'],
+          ['Акопян Михаил', 'Левицкий Александр', '1:0'],
+          ['Попов Александр', 'Лев Зайцев', '1:0'],
+          ['Белакин Влад', 'Ананядий Триандофил', '1:0'],
+          ['Сергей Бережной', 'Аркадий Зайцев', '0:1'],
+          ['Вертиков Марат', 'Сираев Давид', '0:1'],
+          ['Гезолян Тигран', 'Тео Агонян', '1:0'],
+          ['Суханов Вильям', 'Дея Кирпичева', '0:1'],
+          ['Коноплев Макар', 'Михаил Хмарин', '0:1'],
+          ['Гезолян Айк', 'Ханас Владимир', '1:0'],
+          ['Ярослав Бережной', 'Панков Матвей', '1:0'],
+          ['Петя Костюк', '', 'Bye']
+        ],
+        [
+          ['Алекс Катамадзе', 'Акопян Михаил', '0:1'],
+          ['Белакин Влад', 'Гезолян Давид', '0:1'],
+          ['Дея Кирпичева', 'Попов Александр', '0:1'],
+          ['Аркадий Зайцев', 'Сираев Давид', '0:1'],
+          ['Левицкий Александр', 'Гезолян Тигран', '1:0'],
+          ['Лев Зайцев', 'Михаил Хмарин', '1:0'],
+          ['Ананядий Триандофил', 'Вертиков Марат', '1:0'],
+          ['Тео Агонян', 'Гезолян Айк', '0:1'],
+          ['Ярослав Бережной', 'Суханов Вильям', '0:1'],
+          ['Петя Костюк', 'Сергей Бережной', '0:1'],
+          ['Панков Матвей', 'Коноплев Макар', '0:1'],
+          ['Ханас Владимир', '', 'Bye']
+        ]
+      ]
+    };
+
+    tournamentData.adults = {
+      title: 'Взрослые',
+      note: '',
+      tiebreakLabels: ['BHC1', 'BH', 'SB', 'PS'],
+      initialRatings: {
+        'Михаил Сорокин': 1578,
+        'Хмарин Алексей': 1582,
+        'Одарахим Алиев': 1549,
+        'Демченко Сергей': 1517,
+        'Кирпичев Андрей': 1502,
+        'Хмарин Андрей Викторович': 1499,
+        'Ковалев Алексей': 1440
+      },
+      standings: [
+        ['1', 'Михаил Сорокин', '5', '19', '20', '15.5', '16'],
+        ['2', 'Хмарин Алексей', '4.5', '20', '23', '17', '19'],
+        ['3', 'Одарахим Алиев', '4', '21', '22', '12.5', '17'],
+        ['4', 'Гарах Илья', '4', '19.5', '20.5', '11.5', '12'],
+        ['5', 'Хмарин Андрей Викторович', '4', '19', '22', '14', '14.5'],
+        ['6', 'Демченко Сергей', '3.5', '19', '19', '8', '11.5'],
+        ['7', 'Семин-Мигулев Кирилл', '3', '18', '18', '6', '10'],
+        ['8', 'Кирпичев Андрей', '3', '17', '17', '4', '14'],
+        ['9', 'Каратай Дарья', '3', '15', '15', '4', '8'],
+        ['10', 'Радомир Дигилевич', '3', '14', '14', '4', '9'],
+        ['11', 'Ковалев Алексей', '1', '14', '14', '0', '4'],
+        ['12', 'Бережной Александр', '1', '12', '13', '1', '6'],
+        ['13', 'Катерина Нестерова', '0', '15.5', '16.5', '0', '0']
+      ],
+      rounds: [
+        [
+          ['Ковалев Алексей', 'Бережной Александр', '0:1'],
+          ['Демченко Сергей', 'Михаил Сорокин', '0:1'],
+          ['Одарахим Алиев', 'Гарах Илья', '1:0'],
+          ['Каратай Дарья', 'Радомир Дигилевич', '0:1'],
+          ['Катерина Нестерова', 'Кирпичев Андрей', '0:1'],
+          ['Семин-Мигулев Кирилл', 'Хмарин Алексей', '0:1'],
+          ['Хмарин Андрей Викторович', '', 'Bye']
+        ],
+        [
+          ['Бережной Александр', 'Одарахим Алиев', '0:1'],
+          ['Кирпичев Андрей', 'Радомир Дигилевич', '1:0'],
+          ['Михаил Сорокин', 'Хмарин Алексей', '0:1'],
+          ['Катерина Нестерова', 'Демченко Сергей', '0:1'],
+          ['Гарах Илья', 'Ковалев Алексей', '1:0'],
+          ['Хмарин Андрей Викторович', 'Каратай Дарья', '1:0'],
+          ['Семин-Мигулев Кирилл', '', 'Bye']
+        ],
+        [
+          ['Хмарин Алексей', 'Кирпичев Андрей', '1:0'],
+          ['Одарахим Алиев', 'Хмарин Андрей Викторович', '1:0'],
+          ['Михаил Сорокин', 'Бережной Александр', '1:0'],
+          ['Демченко Сергей', 'Семин-Мигулев Кирилл', '1:0'],
+          ['Радомир Дигилевич', 'Гарах Илья', '0:1'],
+          ['Каратай Дарья', '', 'Bye'],
+          ['Ковалев Алексей', 'Катерина Нестерова', '1:0']
+        ],
+        [
+          ['Хмарин Алексей', 'Одарахим Алиев', '1:0'],
+          ['Хмарин Андрей Викторович', 'Демченко Сергей', '½:½'],
+          ['Гарах Илья', 'Михаил Сорокин', '0:1'],
+          ['Кирпичев Андрей', 'Ковалев Алексей', '1:0'],
+          ['Катерина Нестерова', 'Каратай Дарья', '0:1'],
+          ['Радомир Дигилевич', 'Семин-Мигулев Кирилл', '0:1']
+        ],
+        [
+          ['Хмарин Андрей Викторович', 'Хмарин Алексей', '½:½'],
+          ['Михаил Сорокин', 'Кирпичев Андрей', '1:0'],
+          ['Одарахим Алиев', 'Демченко Сергей', '1:0'],
+          ['Каратай Дарья', 'Гарах Илья', '0:1'],
+          ['Семин-Мигулев Кирилл', 'Катерина Нестерова', '1:0'],
+          ['Ковалев Алексей', 'Радомир Дигилевич', '0:1']
+        ],
+        [
+          ['Гарах Илья', 'Хмарин Алексей', '1:0'],
+          ['Одарахим Алиев', 'Михаил Сорокин', '0:1'],
+          ['Семин-Мигулев Кирилл', 'Хмарин Андрей Викторович', '0:1'],
+          ['Демченко Сергей', 'Кирпичев Андрей', '1:0'],
+          ['Каратай Дарья', 'Ковалев Алексей', '1:0'],
+          ['Радомир Дигилевич', 'Катерина Нестерова', '1:0']
+        ]
+      ]
+    };
+
+    let activeCategory = 'kids';
 
     function escapeHtml(value){
       return String(value).replace(/[&<>"']/g, (char) => ({
@@ -1096,12 +1295,19 @@
       return number > 0 ? `+${number}` : String(number);
     }
 
+    function getTiebreakLabels(category){
+      if (Array.isArray(category.tiebreakLabels) && category.tiebreakLabels.length){
+        return category.tiebreakLabels;
+      }
+      return [category.tiebreakLabel || '\u0411\u0443\u0445\u0433\u043e\u043b\u044c\u0446'];
+    }
+
     function buildProfiles(category){
       const map = new Map();
       const eloMap = calculateElo(category);
-      (category.standings || []).forEach(([place, name, points, buchholz]) => {
+      (category.standings || []).forEach(([place, name, points, ...tiebreaks]) => {
         const elo = eloMap.get(name) || null;
-        map.set(name, { place, name, points, buchholz, elo, games: [], wins:0, draws:0, losses:0 });
+        map.set(name, { place, name, points, tiebreaks, elo, games: [], wins:0, draws:0, losses:0 });
       });
 
       (category.rounds || []).forEach((games, roundIndex) => {
@@ -1133,7 +1339,7 @@
     }
 
     function getActiveData(){
-      return tournamentData[activeCategory] || tournamentData.adults;
+      return tournamentData[activeCategory] || tournamentData.kids;
     }
 
     function renderCategory(){
@@ -1143,9 +1349,9 @@
       const showScores = category.showScores !== false;
       const showTiebreak = category.showTiebreak !== false;
       const hasProfiles = (category.rounds || []).length > 0;
-      const tiebreakLabel = category.tiebreakLabel || '\u0411\u0443\u0445\u0433\u043e\u043b\u044c\u0446';
+      const tiebreakLabels = getTiebreakLabels(category);
       const eloMap = hasElo ? calculateElo(category) : new Map();
-      const rows = category.standings.map(([place, player, points, buchholz]) => {
+      const rows = category.standings.map(([place, player, points, ...tiebreaks]) => {
         const elo = eloMap.get(player);
         const playerCell = hasProfiles
           ? `<button class="player-link" type="button" data-player="${escapeHtml(player)}">${escapeHtml(player)}</button>`
@@ -1155,7 +1361,7 @@
             <td class="place">${escapeHtml(place)}</td>
             <td>${playerCell}</td>
             ${showScores ? `<td class="num">${escapeHtml(points)}</td>` : ''}
-            ${showTiebreak ? `<td class="num">${escapeHtml(buchholz)}</td>` : ''}
+            ${showTiebreak ? tiebreakLabels.map((label, index) => `<td class="num">${escapeHtml(tiebreaks[index] ?? '')}</td>`).join('') : ''}
             ${hasElo ? `<td class="num">${elo?.before ?? 1500}</td><td class="num">${formatSigned(elo?.delta ?? 0)}</td><td class="num">${elo?.after ?? 1500}</td>` : ''}
           </tr>
         `;
@@ -1174,7 +1380,7 @@
                   <th>\u041c\u0435\u0441\u0442\u043e</th>
                   <th>\u0418\u0433\u0440\u043e\u043a</th>
                   ${showScores ? '<th class="num">\u041e\u0447\u043a\u0438</th>' : ''}
-                  ${showTiebreak ? `<th class="num">${escapeHtml(tiebreakLabel)}</th>` : ''}
+                  ${showTiebreak ? tiebreakLabels.map((label) => `<th class="num">${escapeHtml(label)}</th>`).join('') : ''}
                   ${hasElo ? '<th class="num">Elo \u0434\u043e</th><th class="num">\u0418\u0437\u043c. Elo</th><th class="num">Elo \u043f\u043e\u0441\u043b\u0435</th>' : ''}
                 </tr>
               </thead>
@@ -1193,13 +1399,13 @@
       const hasElo = category.hasElo !== false;
       const showScores = category.showScores !== false;
       const showTiebreak = category.showTiebreak !== false;
-      const tiebreakLabel = category.tiebreakLabel || '\u0411\u0443\u0445\u0433\u043e\u043b\u044c\u0446';
+      const tiebreakLabels = getTiebreakLabels(category);
       if (!profile) return;
       document.getElementById('profileName').textContent = profile.name;
       document.getElementById('profileStats').innerHTML = `
         <div class="stat"><div class="stat-label">\u041c\u0435\u0441\u0442\u043e</div><div class="stat-value">${escapeHtml(profile.place)}</div></div>
         ${showScores ? `<div class="stat"><div class="stat-label">\u041e\u0447\u043a\u0438</div><div class="stat-value">${escapeHtml(profile.points)}</div></div>` : ''}
-        ${showTiebreak ? `<div class="stat"><div class="stat-label">${escapeHtml(tiebreakLabel)}</div><div class="stat-value">${escapeHtml(profile.buchholz)}</div></div>` : ''}
+        ${showTiebreak ? tiebreakLabels.map((label, index) => `<div class="stat"><div class="stat-label">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(profile.tiebreaks[index] ?? '')}</div></div>`).join('') : ''}
         <div class="stat"><div class="stat-label">\u0412 / \u041d / \u041f</div><div class="stat-value">${profile.wins} / ${profile.draws} / ${profile.losses}</div></div>
         ${hasElo ? `<div class="stat"><div class="stat-label">Elo \u0434\u043e</div><div class="stat-value">${profile.elo?.before ?? 1500}</div></div><div class="stat"><div class="stat-label">\u0418\u0437\u043c. Elo</div><div class="stat-value">${formatSigned(profile.elo?.delta ?? 0)}</div></div><div class="stat"><div class="stat-label">Elo \u043f\u043e\u0441\u043b\u0435</div><div class="stat-value">${profile.elo?.after ?? 1500}</div></div>` : ''}
       `;

@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const APP_VERSION = '20260514-1';
+  const APP_VERSION = '20260731-1';
   const tg = window.Telegram?.WebApp;
   const root = document.documentElement;
   let scrollRoot = null;
@@ -100,6 +100,9 @@
       html.tg-miniapp-ready .miniapp-scroll-root.is-scroll-locked{
         overflow:hidden;
       }
+      html.tg-miniapp-ready .table-wrap{
+        touch-action:pan-y;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -167,11 +170,69 @@
     // Extra touchmove preventDefault handlers caused scroll regressions on some pages.
   }
 
+  function findVerticalScrollTarget(element){
+    let node = element?.parentElement || null;
+    while (node && node !== document.body){
+      const overflowY = window.getComputedStyle(node).overflowY;
+      if (/auto|scroll/.test(overflowY) && node.scrollHeight > node.clientHeight + 1) return node;
+      node = node.parentElement;
+    }
+    return document.scrollingElement || document.documentElement;
+  }
+
+  function installTableScrollHandoff(){
+    let touch = null;
+
+    document.addEventListener('wheel', (event) => {
+      const table = event.target.closest?.('.table-wrap');
+      if (!table || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+
+      const target = findVerticalScrollTarget(table);
+      const before = target.scrollTop;
+      target.scrollTop += event.deltaY;
+      if (target.scrollTop !== before) event.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchstart', (event) => {
+      const table = event.target.closest?.('.table-wrap');
+      if (!table || event.touches.length !== 1) return;
+      const point = event.touches[0];
+      touch = {
+        table,
+        startX: point.clientX,
+        startY: point.clientY,
+        startScrollLeft: table.scrollLeft,
+        axis: null
+      };
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (event) => {
+      if (!touch || event.touches.length !== 1) return;
+      const point = event.touches[0];
+      const deltaX = point.clientX - touch.startX;
+      const deltaY = point.clientY - touch.startY;
+
+      if (!touch.axis && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8){
+        touch.axis = Math.abs(deltaX) > Math.abs(deltaY) ? 'x' : 'y';
+      }
+      if (touch.axis !== 'x') return;
+
+      const maxScrollLeft = Math.max(0, touch.table.scrollWidth - touch.table.clientWidth);
+      touch.table.scrollLeft = Math.max(0, Math.min(maxScrollLeft, touch.startScrollLeft - deltaX));
+      event.preventDefault();
+    }, { passive: false });
+
+    const clearTouch = () => { touch = null; };
+    document.addEventListener('touchend', clearTouch, { passive: true });
+    document.addEventListener('touchcancel', clearTouch, { passive: true });
+  }
+
   function boot(){
     installBaseStyles();
     initTelegram();
     markScrollRoot();
     installTouchGuard();
+    installTableScrollHandoff();
     versionLocalResources(document);
     observeLocalResources();
     root.classList.add('tg-miniapp-ready');
