@@ -1408,13 +1408,12 @@
       const hasElo = category.hasElo !== false;
       const showScores = category.showScores !== false;
       const showTiebreak = category.showTiebreak !== false;
-      const tiebreakLabels = getTiebreakLabels(category);
       if (!profile) return;
       document.getElementById('profileName').textContent = profile.name;
       document.getElementById('profileStats').innerHTML = `
         <div class="stat"><div class="stat-label">\u041c\u0435\u0441\u0442\u043e</div><div class="stat-value">${escapeHtml(profile.place)}</div></div>
         ${showScores ? `<div class="stat"><div class="stat-label">\u041e\u0447\u043a\u0438</div><div class="stat-value">${escapeHtml(profile.points)}</div></div>` : ''}
-        ${showTiebreak ? tiebreakLabels.map((label, index) => `<div class="stat"><div class="stat-label">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(profile.tiebreaks[index] ?? '')}</div></div>`).join('') : ''}
+        ${showTiebreak ? `<div class="stat"><div class="stat-label">Buchholz Cut 1</div><div class="stat-value">${escapeHtml(profile.tiebreaks[0] ?? '')}</div></div>` : ''}
         <div class="stat"><div class="stat-label">\u0412 / \u041d / \u041f</div><div class="stat-value">${profile.wins} / ${profile.draws} / ${profile.losses}</div></div>
         ${hasElo ? `<div class="stat"><div class="stat-label">Elo \u0434\u043e</div><div class="stat-value">${profile.elo?.before ?? 1500}</div></div><div class="stat"><div class="stat-label">\u0418\u0437\u043c. Elo</div><div class="stat-value">${formatSigned(profile.elo?.delta ?? 0)}</div></div><div class="stat"><div class="stat-label">Elo \u043f\u043e\u0441\u043b\u0435</div><div class="stat-value">${profile.elo?.after ?? 1500}</div></div>` : ''}
       `;
