@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const APP_VERSION = '20260731-1';
+  const APP_VERSION = '20260731-2';
   const tg = window.Telegram?.WebApp;
   const root = document.documentElement;
   let scrollRoot = null;
@@ -182,6 +182,44 @@
 
   function installTableScrollHandoff(){
     let touch = null;
+    let inertiaFrame = 0;
+
+    const stopInertia = () => {
+      if (inertiaFrame) cancelAnimationFrame(inertiaFrame);
+      inertiaFrame = 0;
+    };
+
+    const clampScrollLeft = (table, value) => {
+      const maxScrollLeft = Math.max(0, table.scrollWidth - table.clientWidth);
+      return Math.max(0, Math.min(maxScrollLeft, value));
+    };
+
+    const startInertia = (table, initialVelocity) => {
+      let velocity = Math.max(-2.5, Math.min(2.5, initialVelocity));
+      let previousTime = performance.now();
+
+      const step = (time) => {
+        const elapsed = Math.min(32, Math.max(1, time - previousTime));
+        previousTime = time;
+        velocity *= Math.pow(0.92, elapsed / 16.67);
+
+        if (Math.abs(velocity) < 0.02){
+          inertiaFrame = 0;
+          return;
+        }
+
+        const previousScrollLeft = table.scrollLeft;
+        table.scrollLeft = clampScrollLeft(table, previousScrollLeft + velocity * elapsed);
+        if (table.scrollLeft === previousScrollLeft){
+          inertiaFrame = 0;
+          return;
+        }
+        inertiaFrame = requestAnimationFrame(step);
+      };
+
+      stopInertia();
+      inertiaFrame = requestAnimationFrame(step);
+    };
 
     document.addEventListener('wheel', (event) => {
       const table = event.target.closest?.('.table-wrap');
@@ -196,12 +234,16 @@
     document.addEventListener('touchstart', (event) => {
       const table = event.target.closest?.('.table-wrap');
       if (!table || event.touches.length !== 1) return;
+      stopInertia();
       const point = event.touches[0];
       touch = {
         table,
         startX: point.clientX,
         startY: point.clientY,
         startScrollLeft: table.scrollLeft,
+        lastX: point.clientX,
+        lastTime: event.timeStamp || performance.now(),
+        velocityX: 0,
         axis: null
       };
     }, { passive: true });
@@ -217,14 +259,24 @@
       }
       if (touch.axis !== 'x') return;
 
-      const maxScrollLeft = Math.max(0, touch.table.scrollWidth - touch.table.clientWidth);
-      touch.table.scrollLeft = Math.max(0, Math.min(maxScrollLeft, touch.startScrollLeft - deltaX));
+      const time = event.timeStamp || performance.now();
+      const elapsed = Math.max(1, time - touch.lastTime);
+      const instantVelocity = -(point.clientX - touch.lastX) / elapsed;
+      touch.velocityX = touch.velocityX * 0.65 + instantVelocity * 0.35;
+      touch.lastX = point.clientX;
+      touch.lastTime = time;
+      touch.table.scrollLeft = clampScrollLeft(touch.table, touch.startScrollLeft - deltaX);
       event.preventDefault();
     }, { passive: false });
 
-    const clearTouch = () => { touch = null; };
-    document.addEventListener('touchend', clearTouch, { passive: true });
-    document.addEventListener('touchcancel', clearTouch, { passive: true });
+    document.addEventListener('touchend', (event) => {
+      if (touch?.axis === 'x'){
+        const timeSinceMove = (event.timeStamp || performance.now()) - touch.lastTime;
+        if (timeSinceMove < 80) startInertia(touch.table, touch.velocityX);
+      }
+      touch = null;
+    }, { passive: true });
+    document.addEventListener('touchcancel', () => { touch = null; }, { passive: true });
   }
 
   function boot(){
