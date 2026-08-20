@@ -268,10 +268,13 @@
       align-items:center;
       justify-content:center;
       line-height: 1;
-      pointer-events: none;
+      pointer-events: auto;
+      touch-action: none;
+      cursor: grab;
       position: relative;
       z-index: 1;
     }
+    .piece.dragging{ opacity:0; }
     .piece img{
       width: var(--piece-scale-white);
       height: var(--piece-scale-white);
@@ -285,6 +288,24 @@
       height: var(--piece-scale-black);
     }
     .sq.selected{ outline: 3px solid rgba(255,255,255,.4); outline-offset:-3px; }
+    .sq.drop{ outline:3px solid rgba(255,255,255,.55); outline-offset:-3px; }
+    .drag-ghost{
+      position:fixed;
+      pointer-events:none;
+      z-index:9999;
+      filter:drop-shadow(0 12px 18px rgba(0,0,0,.35));
+      transform:translate(-50%, -50%) scale(1.08);
+      transform-origin:center;
+    }
+    .drag-ghost img{
+      width:100%;
+      height:100%;
+      display:block;
+      object-fit:contain;
+      pointer-events:none;
+      user-select:none;
+      -webkit-user-select:none;
+    }
     .sq .move-dot{
       position:absolute;
       width:18%;
@@ -1278,6 +1299,8 @@
     let enPassantTarget = '-';
     let selectedSq = null;
     let possibleMoves = [];
+    let manualDrag = null;
+    let suppressBoardClickUntil = 0;
     let promotionState = null;
     let promotionDialogColor = 'w';
     let coachHintsEnabled = true;
@@ -1939,7 +1962,13 @@
           const coord = `${files[colIdx]}${ranks[rowIdx]}`;
           sq.className = `sq ${isLight ? 'light' : 'dark'}`;
           sq.dataset.square = coord;
-          sq.addEventListener('click', () => handleSquareClick(coord));
+          sq.addEventListener('click', (event) => {
+            if (performance.now() < suppressBoardClickUntil){
+              event.preventDefault();
+              return;
+            }
+            handleSquareClick(coord);
+          });
           if ((whiteInCheck && whiteKingPos?.rankIdx === rowIdx && whiteKingPos?.fileIdx === colIdx)
             || (blackInCheck && blackKingPos?.rankIdx === rowIdx && blackKingPos?.fileIdx === colIdx)){
             sq.classList.add('king-check');
@@ -1950,7 +1979,10 @@
             const isWhite = /[PNBRQK]/.test(cell);
             const src = isWhite ? WHITE_SVG[cell] : BLACK_SVG[cell];
             if (src) img.src = src;
+            img.draggable = false;
             piece.className = `piece ${isWhite ? 'white' : 'black'}`;
+            piece.dataset.square = coord;
+            piece.addEventListener('pointerdown', handlePiecePointerDown);
             piece.appendChild(img);
             sq.appendChild(piece);
           }
@@ -4356,6 +4388,113 @@
         }
       }
       return moves;
+    }
+
+    function createPieceDragGhost(sourceEl){
+      const sourceImg = sourceEl?.querySelector('img');
+      if (!sourceImg) return null;
+      const rect = sourceImg.getBoundingClientRect();
+      if (!rect.width || !rect.height) return null;
+      const ghost = document.createElement('div');
+      ghost.className = 'drag-ghost';
+      ghost.style.width = `${rect.width}px`;
+      ghost.style.height = `${rect.height}px`;
+      const ghostImg = sourceImg.cloneNode(true);
+      ghostImg.draggable = false;
+      ghost.appendChild(ghostImg);
+      return ghost;
+    }
+
+    function getBoardSquareFromPoint(clientX, clientY){
+      if (!boardSquaresEl) return null;
+      const rect = boardSquaresEl.getBoundingClientRect();
+      if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom){
+        return null;
+      }
+      const displayRow = Math.min(7, Math.floor((clientY - rect.top) / (rect.height / 8)));
+      const displayCol = Math.min(7, Math.floor((clientX - rect.left) / (rect.width / 8)));
+      const { rowIdx, colIdx } = displayToBoardIndex(displayRow, displayCol);
+      return `${files[colIdx]}${ranks[rowIdx]}`;
+    }
+
+    function clearDragTarget(){
+      boardSquaresEl?.querySelectorAll('.sq.drop').forEach((element) => element.classList.remove('drop'));
+    }
+
+    function stopPieceDrag(){
+      if (manualDrag){
+        manualDrag.originEl?.classList.remove('dragging');
+        manualDrag.ghost?.remove();
+      }
+      manualDrag = null;
+      clearDragTarget();
+      window.removeEventListener('pointermove', handlePiecePointerMove);
+      window.removeEventListener('pointerup', handlePiecePointerUp);
+      window.removeEventListener('pointercancel', handlePiecePointerCancel);
+    }
+
+    function handlePiecePointerDown(event){
+      const pointerType = event.pointerType || 'mouse';
+      if (pointerType === 'mouse' && event.button !== 0) return;
+      if (promotionOverlay?.classList.contains('active')) return;
+      const fromSquare = event.currentTarget.dataset.square || '';
+      const piece = getPieceAt(fromSquare);
+      if (!piece || getPieceColor(piece) !== activeColor) return;
+      const ghost = createPieceDragGhost(event.currentTarget);
+      if (!ghost) return;
+      document.body.appendChild(ghost);
+      ghost.style.left = `${event.clientX}px`;
+      ghost.style.top = `${event.clientY}px`;
+      event.currentTarget.classList.add('dragging');
+      manualDrag = {
+        fromSquare,
+        pointerId:event.pointerId,
+        originEl:event.currentTarget,
+        ghost,
+        startX:event.clientX,
+        startY:event.clientY,
+        moved:false
+      };
+      window.addEventListener('pointermove', handlePiecePointerMove);
+      window.addEventListener('pointerup', handlePiecePointerUp);
+      window.addEventListener('pointercancel', handlePiecePointerCancel);
+      event.preventDefault();
+    }
+
+    function handlePiecePointerMove(event){
+      if (!manualDrag || event.pointerId !== manualDrag.pointerId) return;
+      manualDrag.ghost.style.left = `${event.clientX}px`;
+      manualDrag.ghost.style.top = `${event.clientY}px`;
+      if (!manualDrag.moved){
+        const distance = Math.abs(event.clientX - manualDrag.startX) + Math.abs(event.clientY - manualDrag.startY);
+        manualDrag.moved = distance > 6;
+      }
+      clearDragTarget();
+      const targetSquare = getBoardSquareFromPoint(event.clientX, event.clientY);
+      if (targetSquare){
+        boardSquaresEl.querySelector(`[data-square="${targetSquare}"]`)?.classList.add('drop');
+      }
+      event.preventDefault();
+    }
+
+    function handlePiecePointerUp(event){
+      if (!manualDrag || event.pointerId !== manualDrag.pointerId) return;
+      const { fromSquare, moved } = manualDrag;
+      const targetSquare = getBoardSquareFromPoint(event.clientX, event.clientY);
+      stopPieceDrag();
+      suppressBoardClickUntil = performance.now() + 500;
+      if (!moved || !targetSquare){
+        if (!moved) handleSquareClick(fromSquare);
+        return;
+      }
+      selectedSq = fromSquare;
+      possibleMoves = calculateLegalMoves(fromSquare);
+      handleSquareClick(targetSquare);
+    }
+
+    function handlePiecePointerCancel(event){
+      if (!manualDrag || event.pointerId !== manualDrag.pointerId) return;
+      stopPieceDrag();
     }
 
     function handleSquareClick(square){
