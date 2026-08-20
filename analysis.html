@@ -50,7 +50,7 @@
       min-height:100%;
       min-height:100svh;
       min-height:100dvh;
-      padding:calc(68px + var(--app-safe-top)) 16px calc(120px + env(safe-area-inset-bottom));
+      padding:calc(68px + var(--app-safe-top)) 16px calc(32px + env(safe-area-inset-bottom));
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       background:var(--bg);
       color:var(--text);
@@ -325,85 +325,73 @@
     }
     .history-bar{
       width:100%;
-      background:
-        linear-gradient(180deg, rgba(76,76,76,.16) 0%, rgba(34,34,34,.14) 100%),
-        rgba(0,0,0,.18);
+      background:rgba(20,20,20,.72);
       border:1px solid var(--border);
-      border-radius:12px;
-      padding:12px 12px 10px;
+      border-radius:8px;
+      overflow:hidden;
       display:flex;
       flex-direction:column;
-      gap:10px;
       min-width:0;
     }
     .history-head{
       display:flex;
       align-items:center;
       justify-content:space-between;
-      gap:12px;
+      gap:10px;
       width:100%;
+      min-height:54px;
+      padding:8px 10px 8px 14px;
+      border-bottom:1px solid var(--border);
     }
-    .history-head .status{ margin:2px 0 0 0; font-size:12px; opacity:.7; }
-    .history-controls{
-      --liquid-position: fixed;
-      --liquid-overflow: hidden;
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      transform: none;
-      width: auto;
-      max-width: none;
+    .history-title-group{
+      min-width:0;
       display:flex;
-      gap:12px;
-      justify-content:space-between;
+      flex-direction:column;
+      gap:2px;
+    }
+    .history-title-group strong{
+      font-size:15px;
+      line-height:1.2;
+    }
+    .history-position{
+      min-width:0;
+      color:rgba(255,255,255,.56);
+      font-size:11px;
+      line-height:1.2;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .history-controls{
+      display:grid;
+      grid-template-columns:repeat(4, 34px);
+      gap:4px;
       align-items:center;
-      padding:12px 12px calc(12px + max(env(safe-area-inset-bottom), 8px));
-      border-radius:18px 18px 0 0;
-      border:1px solid rgba(255,255,255,.1);
-      background:
-        linear-gradient(180deg, rgba(255,255,255,.08) 0%, rgba(255,255,255,.02) 100%),
-        rgba(16,16,16,.74);
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.18),
-        0 20px 44px rgba(0,0,0,.5);
-      backdrop-filter: blur(8px) saturate(112%);
-      -webkit-backdrop-filter: blur(8px) saturate(112%);
-      z-index:9000;
+      flex-shrink:0;
     }
     .history-btn{
-      flex:1;
-      min-width:0;
-      height:68px;
+      width:34px;
+      height:34px;
       display:grid;
       place-items:center;
       padding:0;
-      border-radius:13px;
+      border-radius:6px;
       border:1px solid rgba(255,255,255,.1);
-      background:
-        linear-gradient(180deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.015) 100%),
-        rgba(12,12,12,.9);
-      color:var(--text);
+      background:rgba(255,255,255,.055);
+      color:rgba(255,255,255,.86);
       cursor:pointer;
-      font-size: clamp(20px, 5vw, 26px);
-      transition: background .15s ease, transform .1s ease, box-shadow .15s ease;
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.12),
-        0 10px 24px rgba(0,0,0,.45);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
+      transition:background .15s ease, border-color .15s ease, transform .1s ease;
     }
     .history-btn:hover{
-      background:
-        linear-gradient(180deg, rgba(255,255,255,.08) 0%, rgba(255,255,255,.02) 100%),
-        rgba(20,20,20,.94);
+      background:rgba(255,255,255,.12);
+      border-color:rgba(255,255,255,.2);
     }
     .history-btn .iconify{
-      font-size: clamp(22px, 6vw, 30px);
+      font-size:20px;
       color: currentColor;
     }
     .history-btn:active{ transform: translateY(1px); }
-    .history-btn:disabled{ opacity:.45; cursor:not-allowed; }
+    .history-btn:disabled{ opacity:.28; cursor:not-allowed; }
     @media (max-width: 640px){
       .wrap{ padding: 0; width: 100%; max-width: none; }
       body{
@@ -430,50 +418,6 @@
       .eval-bar{ width: 24px; }
       .coord-files{ padding: 0; }
       .priority-moves{ grid-template-columns: 1fr; }
-      .history-body{ padding-right: 0; }
-      .analysis-history{
-        --tree-step: 16px;
-        --tree-trunk-x: 8px;
-        padding: 6px 2px 8px 16px;
-      }
-      .move-tree-node{
-        grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1fr) 56px;
-        gap: 7px;
-        margin-left: calc(var(--tree-depth, 0) * var(--tree-step));
-        width: calc(100% - (var(--tree-depth, 0) * var(--tree-step)));
-        min-width: 0;
-        padding: 7px 8px;
-        font-size: 13px;
-      }
-      .move-tree-node.is-root{
-        grid-template-columns: minmax(0, 1fr) 56px;
-        min-width: 0;
-        width: 100%;
-      }
-      .move-tree-prefix{
-        font-size: 12px;
-      }
-      .move-tree-node.is-mainline .move-tree-prefix::before{
-        left: -16px;
-        width: 8px;
-        height: 8px;
-      }
-      .move-tree-node.is-mainline .move-tree-prefix::after{
-        left: -13px;
-        width: 12px;
-      }
-      .move-tree-eval{
-        min-width: 0;
-        padding: 4px 6px;
-        font-size: 12px;
-      }
-    }
-    @media (max-width: 520px){
-      .history-controls{
-        padding: 10px 10px calc(10px + max(env(safe-area-inset-bottom), 8px));
-        gap: 10px;
-      }
-      .history-btn{ height:60px; font-size: clamp(18px, 6vw, 24px); }
     }
     .priority-wrap{
       display:flex;
@@ -493,41 +437,64 @@
       letter-spacing:0.3px;
     }
     .coach-card{
+      --quality-color:#cfe0f7;
       width:100%;
-      min-height:58px;
+      min-height:72px;
       padding:12px 14px;
-      border-radius:12px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(255,255,255,.055);
-      display:flex;
-      flex-direction:column;
-      gap:7px;
+      border-radius:8px;
+      border:1px solid color-mix(in srgb, var(--quality-color) 38%, rgba(255,255,255,.1));
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--quality-color) 10%, transparent), transparent 55%),
+        rgba(255,255,255,.045);
+      box-shadow:inset 3px 0 0 var(--quality-color);
+      display:grid;
+      grid-template-columns:42px minmax(0, 1fr);
+      align-items:center;
+      gap:12px;
     }
     .coach-card.hidden{ display:none; }
-    .coach-comment{
-      width:100%;
-      color:rgba(255,255,255,.9);
-      font-size:15px;
-      line-height:1.35;
+    .coach-card[data-quality="brilliant"]{ --quality-color:#f7e27b; }
+    .coach-card[data-quality="best"]{ --quality-color:#72d6a3; }
+    .coach-card[data-quality="excellent"]{ --quality-color:#72cbe8; }
+    .coach-card[data-quality="good"]{ --quality-color:#b3d66f; }
+    .coach-card[data-quality="inaccuracy"]{ --quality-color:#f0c45b; }
+    .coach-card[data-quality="mistake"]{ --quality-color:#ef955f; }
+    .coach-card[data-quality="blunder"]{ --quality-color:#ec7188; }
+    .move-quality-mark{
+      width:40px;
+      height:40px;
+      display:grid;
+      place-items:center;
+      border-radius:50%;
+      color:var(--quality-color);
+      background:color-mix(in srgb, var(--quality-color) 14%, rgba(255,255,255,.035));
+      border:1px solid color-mix(in srgb, var(--quality-color) 34%, transparent);
     }
-    .coach-comment.loading{ opacity:.72; }
+    .move-quality-symbol{
+      font-size:18px;
+      font-weight:900;
+      line-height:1;
+      letter-spacing:0;
+    }
+    .move-quality-copy{ min-width:0; }
+    .move-quality-label{
+      display:block;
+      margin-bottom:3px;
+      color:rgba(255,255,255,.58);
+      font-size:11px;
+      font-weight:700;
+      line-height:1.2;
+    }
     .move-quality{
       display:none;
       width:100%;
-      color:rgba(255,255,255,.92);
+      color:var(--quality-color);
       font-weight:900;
-      font-size:15px;
+      font-size:20px;
       line-height:1.2;
-      letter-spacing:.2px;
+      letter-spacing:0;
     }
     .move-quality.visible{ display:block; }
-    .move-quality.brilliant{ color:#f7e27b; }
-    .move-quality.best{ color:#aef2d0; }
-    .move-quality.excellent{ color:#8fe8ff; }
-    .move-quality.good{ color:#c7e77c; }
-    .move-quality.inaccuracy{ color:#ffd166; }
-    .move-quality.mistake{ color:#ff9f6e; }
-    .move-quality.blunder{ color:#ff8fa3; }
     .priority-moves{
       display:grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -593,48 +560,39 @@
     }
     .history-body{
       display:grid;
-      gap:10px;
-      max-height:360px;
+      max-height:420px;
       overflow:auto;
       overflow-x:hidden;
-      padding-right:6px;
       scroll-behavior:smooth;
       min-width:0;
+      overscroll-behavior:contain;
     }
-    .history-body::-webkit-scrollbar{ width:8px; }
-    .history-body::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.2); border-radius:999px; }
-    .history-body::-webkit-scrollbar-track{ background:rgba(255,255,255,.06); }
+    .history-body::-webkit-scrollbar{ width:6px; }
+    .history-body::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.18); border-radius:6px; }
+    .history-body::-webkit-scrollbar-track{ background:transparent; }
+    .history-columns{
+      display:grid;
+      grid-template-columns:38px minmax(0, 1fr) minmax(0, 1fr) 58px;
+      align-items:center;
+      min-height:28px;
+      padding:0 6px;
+      border-bottom:1px solid rgba(255,255,255,.07);
+      color:rgba(255,255,255,.42);
+      font-size:10px;
+      font-weight:700;
+      text-transform:uppercase;
+    }
+    .history-columns span:last-child{ text-align:right; }
     .analysis-history{
-      --tree-step: 30px;
-      --tree-trunk-x: 20px;
-      --tree-muted-line: rgba(150,158,172,.16);
-      --tree-line: rgba(150,158,172,.30);
-      --tree-active-line: rgba(244,232,196,.92);
-      position:relative;
+      --tree-step:18px;
       display:flex;
       flex-direction:column;
-      gap:6px;
-      padding:6px 8px 8px 42px;
+      padding:0 6px 6px;
       margin:0;
       width:100%;
       background:transparent;
-      border-radius:12px;
       min-width:0;
     }
-    .analysis-history::before{
-      content:"";
-      position:absolute;
-      left:var(--tree-trunk-x);
-      top:24px;
-      bottom:22px;
-      width:0;
-      border-left:2px solid var(--tree-line);
-      pointer-events:none;
-    }
-    .analysis-history.has-active-branch::before{
-      border-left-color:rgba(150,158,172,.12);
-    }
-    .analysis-history:empty::before{ display:none; }
     .move-row{
       display:grid;
       grid-template-columns: 42px 1fr 1fr;
@@ -740,176 +698,118 @@
     .move-col.is-active::after{ opacity:1; }
     .move-col.is-empty{ opacity:.45; font-weight:500; }
     .move-tree-node{
-      position:relative;
       display:grid;
-      grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1fr) 72px;
+      grid-template-columns:38px minmax(0, 1fr) minmax(0, 1fr) 58px;
       align-items:center;
-      gap:12px;
       margin-left:calc(var(--tree-depth, 0) * var(--tree-step));
       width:calc(100% - (var(--tree-depth, 0) * var(--tree-step)));
-      min-width:min(430px, 100%);
-      max-width:100%;
-      min-height:38px;
-      padding:7px 10px;
+      min-width:0;
+      min-height:40px;
       color:var(--text);
-      text-align:left;
-      border:1px solid transparent;
-      border-radius:8px;
+      border-bottom:1px solid rgba(255,255,255,.055);
       background:transparent;
-      cursor:pointer;
-      font-size:15px;
     }
-    .move-tree-node::before{
-      content:"";
-      position:absolute;
-      left:calc(var(--tree-step) * -1 + 6px);
-      top:-7px;
-      width:24px;
-      height:calc(50% + 7px);
-      border-left:2px solid var(--tree-line);
-      border-bottom:2px solid var(--tree-line);
-      border-bottom-left-radius:7px;
-      pointer-events:none;
-      transition:border-color .16s ease, opacity .16s ease, box-shadow .16s ease;
-    }
-    .move-tree-node::after{
-      content:"";
-      position:absolute;
-      left:calc(var(--tree-step) * -1 + 6px);
-      top:-7px;
-      bottom:-7px;
-      width:0;
-      border-left:2px solid var(--tree-muted-line);
-      pointer-events:none;
-      transition:border-color .16s ease, opacity .16s ease, box-shadow .16s ease;
-    }
-    .move-tree-node.is-mainline::before{
-      display:none;
-    }
-    .move-tree-node.is-mainline::after,
-    .move-tree-node.is-root::after{
-      display:none;
-    }
-    .move-tree-node.is-nested:not(.is-variation)::before{
-      display:none;
+    .move-tree-node.is-nested{
+      border-left:2px solid rgba(165,178,198,.22);
+      background:rgba(255,255,255,.025);
     }
     .move-tree-node.is-variation{
-      background:transparent;
-    }
-    .move-tree-node.is-variation::before{
-      border-left-color:var(--tree-line);
-      border-bottom-color:var(--tree-line);
+      margin-top:5px;
+      border-top:1px solid rgba(255,255,255,.055);
     }
     .analysis-history.has-active-branch .move-tree-node.is-muted{
-      opacity:.46;
-    }
-    .analysis-history.has-active-branch .move-tree-node.is-muted::before,
-    .analysis-history.has-active-branch .move-tree-node.is-muted::after{
-      border-color:rgba(150,158,172,.10);
       opacity:.55;
     }
-    .move-tree-node.is-branch::before,
-    .move-tree-node.is-branch::after{
-      border-color:var(--tree-active-line);
-      opacity:1;
-      box-shadow:0 0 10px rgba(244,232,196,.20);
-    }
-    .move-tree-node.is-mainline.is-branch::after{
-      display:block;
-      left:-22px;
-      top:-7px;
-      bottom:-7px;
-      border-left-color:var(--tree-active-line);
-    }
-    .move-tree-node.is-current-node::after{
-      bottom:50%;
-    }
-    .move-tree-node.is-active{
-      border-color:rgba(244,232,196,.56);
-      box-shadow:0 0 0 1px rgba(244,232,196,.14), 0 10px 24px rgba(0,0,0,.24);
-      background:linear-gradient(180deg, rgba(160,150,122,.22), rgba(24,24,24,.30));
-    }
     .move-tree-node.is-root{
-      grid-template-columns: 1fr 72px;
+      grid-template-columns:38px minmax(0, 1fr) 58px;
       margin-left:0;
-      max-width:100%;
       width:100%;
-      min-width:min(260px, 100%);
-      background:transparent;
+      min-width:0;
+      background:rgba(255,255,255,.018);
     }
-    .move-tree-node.is-root::before{ display:none; }
-    .move-tree-node.is-root .move-tree-prefix{ display:none; }
+    .move-tree-node.is-root .move-tree-move{ grid-column:2; }
     .move-tree-prefix{
-      position:relative;
-      opacity:.76;
-      font-weight:800;
-      font-size:15px;
+      padding-right:6px;
+      color:rgba(255,255,255,.42);
+      font-weight:700;
+      font-size:12px;
       text-align:right;
-      color:rgba(235,241,255,.82);
-      transition:color .16s ease, opacity .16s ease;
-    }
-    .move-tree-node.is-mainline .move-tree-prefix::before{
-      content:"";
-      position:absolute;
-      left:-35px;
-      top:50%;
-      width:10px;
-      height:10px;
-      border-radius:50%;
-      background:rgba(170,178,192,.82);
-      box-shadow:0 0 0 3px rgba(170,178,192,.10);
-      transform:translateY(-50%);
-      transition:background .16s ease, box-shadow .16s ease, opacity .16s ease;
-    }
-    .move-tree-node.is-mainline .move-tree-prefix::after{
-      content:"";
-      position:absolute;
-      left:-30px;
-      top:50%;
-      width:24px;
-      border-top:2px solid var(--tree-line);
-      transform:translateY(-50%);
-      transition:border-color .16s ease, box-shadow .16s ease, opacity .16s ease;
-    }
-    .move-tree-node.is-mainline.is-branch .move-tree-prefix::before{
-      background:var(--tree-active-line);
-      box-shadow:0 0 0 4px rgba(244,232,196,.16), 0 0 12px rgba(244,232,196,.28);
-    }
-    .move-tree-node.is-mainline.is-branch .move-tree-prefix::after{
-      border-top-color:var(--tree-active-line);
-      box-shadow:0 0 10px rgba(244,232,196,.18);
     }
     .move-tree-move{
+      appearance:none;
+      width:100%;
       min-width:0;
       overflow:hidden;
       text-overflow:ellipsis;
       white-space:nowrap;
-      font-weight:800;
-      color:rgba(255,255,255,.93);
-      text-shadow:0 1px 2px rgba(0,0,0,.35);
-      transition:color .16s ease, text-shadow .16s ease, opacity .16s ease;
+      padding:8px 9px;
+      border:0;
+      border-radius:4px;
+      background:transparent;
+      color:rgba(255,255,255,.9);
+      font-family:inherit;
+      font-size:14px;
+      font-weight:650;
+      line-height:1.2;
+      text-align:left;
+      cursor:pointer;
+      transition:background .12s ease, color .12s ease;
+    }
+    .move-tree-move:hover{
+      background:rgba(255,255,255,.07);
     }
     .move-tree-move.is-selected{
-      color:#fff4cf;
-      text-shadow:0 0 10px rgba(244,232,196,.36), 0 1px 2px rgba(0,0,0,.45);
+      background:#769656;
+      color:#fff;
     }
     .move-tree-move.is-empty{
-      opacity:.18;
+      visibility:hidden;
+      pointer-events:none;
     }
     .move-tree-eval{
-      justify-self:end;
-      min-width:66px;
-      padding:5px 9px;
-      border-radius:8px;
-      border:1px solid rgba(255,255,255,.08);
-      background:linear-gradient(180deg, rgba(255,255,255,.1), rgba(255,255,255,.035));
-      color:rgba(245,248,255,.92);
-      font-size:14px;
-      font-weight:800;
-      text-align:center;
-      box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+      min-width:0;
+      padding-right:8px;
+      color:rgba(255,255,255,.55);
+      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size:12px;
+      font-weight:700;
+      text-align:right;
     }
-    .history-empty{ opacity:.7; font-size:14px; padding:4px 0 2px; }
+    .history-empty{
+      color:rgba(255,255,255,.55);
+      font-size:13px;
+      padding:18px 14px;
+      text-align:center;
+    }
+    @media (max-width:640px){
+      .history-head{ padding-left:10px; }
+      .history-controls{
+        grid-template-columns:repeat(4, 32px);
+        gap:3px;
+      }
+      .history-btn{
+        width:32px;
+        height:32px;
+      }
+      .history-columns,
+      .move-tree-node{
+        grid-template-columns:30px minmax(0, 1fr) minmax(0, 1fr) 48px;
+      }
+      .move-tree-node.is-root{
+        grid-template-columns:30px minmax(0, 1fr) 48px;
+      }
+      .analysis-history{ --tree-step:10px; }
+      .move-tree-node{ min-height:38px; }
+      .move-tree-prefix{ font-size:11px; }
+      .move-tree-move{
+        padding:7px 6px;
+        font-size:13px;
+      }
+      .move-tree-eval{
+        padding-right:6px;
+        font-size:11px;
+      }
+    }
     .promotion-overlay{
       position: fixed;
       inset: 0;
@@ -978,22 +878,19 @@
           </div>
           <div id="ranksLeft" class="coord-ranks"></div>
           <div id="board" class="board" aria-label="Доска для визуализации позиции">
-            <svg id="boardArrows" class="board-arrows" viewBox="0 0 800 800"></svg>
           <div id="boardSquares" class="board-squares"></div>
           </div>
           <div id="filesBottom" class="coord-files"></div>
         </div>
         <div class="board-meta">
-          <div class="coach-card liquid-glass-subtle">
-            <div id="moveQuality" class="move-quality" aria-live="polite"></div>
-            <div id="coachComment" class="coach-comment">AI-комментарий появится после анализа позиции.</div>
-          </div>
-          <div class="coach-hints-control">
-            <label class="coach-hints-label" for="coachHintsToggle">
-              <span>Стрелка и AI</span>
-              <input id="coachHintsToggle" class="coach-hints-input" type="checkbox" checked />
-              <span class="coach-hints-track liquid-glass-toggle" aria-hidden="true"><span class="coach-hints-thumb"></span></span>
-            </label>
+          <div class="coach-card liquid-glass-subtle hidden">
+            <span class="move-quality-mark" aria-hidden="true">
+              <span id="moveQualitySymbol" class="move-quality-symbol">!</span>
+            </span>
+            <div class="move-quality-copy">
+              <span class="move-quality-label">Характеристика хода</span>
+              <div id="moveQuality" class="move-quality" aria-live="polite"></div>
+            </div>
           </div>
           <div class="priority-wrap" id="boardPriorityWrap">
             <div class="priority-title">Приоритетные ходы</div>
@@ -1004,8 +901,9 @@
         <div class="status" id="boardStatus">Выберите фигуру текущего цвета, чтобы сделать ход.</div>
         <div class="history-bar">
           <div class="history-head">
-            <div>
+            <div class="history-title-group">
               <strong>Дерево ходов</strong>
+              <span id="historyPosition" class="history-position">Начальная позиция</span>
             </div>
             <div class="history-controls" aria-label="Управление историей">
               <button class="history-btn" id="historyFirstBtn" title="К началу" aria-label="К началу">
@@ -1021,6 +919,12 @@
                 <span class="iconify" data-icon="mdi:page-last" aria-hidden="true"></span>
               </button>
             </div>
+          </div>
+          <div class="history-columns" aria-hidden="true">
+            <span>№</span>
+            <span>Белые</span>
+            <span>Чёрные</span>
+            <span>Оценка</span>
           </div>
           <div class="history-body">
             <div id="analysisHistory" class="analysis-history" aria-live="polite" aria-atomic="true"></div>
@@ -1241,6 +1145,7 @@
     const historyUpBtn = document.getElementById('historyUpBtn');
     const historyDownBtn = document.getElementById('historyDownBtn');
     const historyLastBtn = document.getElementById('historyLastBtn');
+    const historyPositionEl = document.getElementById('historyPosition');
     const refreshBtn = document.getElementById('refreshBtn');
     const boardSquaresEl = document.getElementById('boardSquares');
     const arrowsEl = document.getElementById('boardArrows');
@@ -1248,6 +1153,7 @@
     const boardPriorityMovesEl = document.getElementById('boardPriorityMoves');
     const coachCardEl = document.querySelector('.coach-card');
     const moveQualityEl = document.getElementById('moveQuality');
+    const moveQualitySymbolEl = document.getElementById('moveQualitySymbol');
     const coachCommentEl = document.getElementById('coachComment');
     const coachHintsToggleEl = document.getElementById('coachHintsToggle');
     const analysisStatusEl = document.getElementById('analysisStatus');
@@ -1555,6 +1461,25 @@
       if (!moveQualityEl) return;
       moveQualityEl.className = 'move-quality';
       moveQualityEl.textContent = '';
+      if (coachCardEl) delete coachCardEl.dataset.quality;
+      coachCardEl?.classList.add('hidden');
+    }
+
+    function showMoveQuality(category){
+      const symbols = {
+        brilliant:'!!',
+        best:'!',
+        excellent:'!',
+        good:'\u2713',
+        inaccuracy:'?!',
+        mistake:'?',
+        blunder:'??'
+      };
+      moveQualityEl.className = `move-quality visible ${category.className}`;
+      moveQualityEl.textContent = category.label;
+      if (moveQualitySymbolEl) moveQualitySymbolEl.textContent = symbols[category.className] || '!';
+      if (coachCardEl) coachCardEl.dataset.quality = category.className;
+      coachCardEl?.classList.remove('hidden');
     }
 
     function hasBrilliantMoveIdea(move, currentMate, previousMate){
@@ -1614,8 +1539,7 @@
         const matchedCategory = hasBrilliantMoveIdea(move, currentMate, previousMate)
           ? { label: 'Блестящий ход', className: 'brilliant' }
           : { label: 'Лучший ход', className: 'best' };
-        moveQualityEl.className = `move-quality visible ${matchedCategory.className}`;
-        moveQualityEl.textContent = matchedCategory.label;
+        showMoveQuality(matchedCategory);
         return;
       }
       const moverSide = move.side || getFenActiveColor(parent?.fen || '');
@@ -1645,8 +1569,7 @@
         if (bestScore.mate !== null && bestScore.mate > 0 && !(playedScore.mate !== null && playedScore.mate > 0)) lossCp = Math.max(lossCp, 151);
       }
       const category = getMoveQualityCategory(lossCp, { currentMate, previousMate, move });
-      moveQualityEl.className = `move-quality visible ${category.className}`;
-      moveQualityEl.textContent = category.label;
+      showMoveQuality(category);
     }
 
     function renderAnalysisLines(lines = [], { fromCache = false, perspective = null } = {}){
@@ -1664,13 +1587,9 @@
             : 'Пат. Легальных ходов нет.';
           analysisListEl.appendChild(empty);
         }
-        updateArrow(null);
         if (hasEngineLines) updateEvalBar(lines?.[0], viewColor);
         updatePriorityMoves([], viewColor);
         clearMoveQuality();
-        if (gameEnd?.kind === 'checkmate'){
-          updateCoachComment([]);
-        }
         return;
       }
       if (!lines.length){
@@ -1679,7 +1598,6 @@
           empty.textContent = 'Нет данных анализа';
           analysisListEl.appendChild(empty);
         }
-        updateArrow(null);
         updatePriorityMoves([], viewColor);
         clearMoveQuality();
         return;
@@ -1706,10 +1624,8 @@
       }
       setAnalysisStatus(fromCache ? 'Показан кешированный анализ (до 10 секунд).' : 'Анализ обновлён.');
       updatePriorityMoves(lines, viewColor);
-      updateArrow(lines?.[0]);
       updateEvalBar(lines?.[0], viewColor);
       updateMoveQuality(lines);
-      updateCoachComment(lines);
     }
 
     function normalizeTokenToString(token){
@@ -3580,17 +3496,52 @@
       const raw = node?.move?.label || node?.move?.uci || '';
       const uci = node?.move?.uci || raw;
       if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(uci)) return raw || '—';
+      if (raw && raw !== uci && !/^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(raw)) return raw;
+
       const from = uci.slice(0, 2);
       const to = uci.slice(2, 4);
       const parentFen = node?.parentId ? historyNodes.get(node.parentId)?.fen : null;
-      const piece = parentFen ? getPieceAtFenSquare(parentFen, from) : '';
-      const upper = (piece || '').toUpperCase();
+      if (!parentFen) return raw || uci;
+      const parentState = parseFenState(parentFen);
+      const piece = getPieceAtFenSquare(parentFen, from) || node?.move?.movingPiece || '';
+      const upper = piece.toUpperCase();
       if (upper === 'K' && from[0] === 'e' && (to[0] === 'g' || to[0] === 'c')){
-        return to[0] === 'g' ? 'O-O' : 'O-O-O';
+        return `${to[0] === 'g' ? 'O-O' : 'O-O-O'}${getTreeMoveCheckSuffix(node)}`;
       }
-      const glyphs = { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘' };
+
+      const targetPiece = getPieceAtFenSquare(parentFen, to);
+      const isCapture = Boolean(targetPiece) || (upper === 'P' && from[0] !== to[0]);
+      let disambiguation = '';
+      if (upper !== 'P' && upper !== 'K'){
+        const alternatives = [];
+        for (let rankIdx = 0; rankIdx < 8; rankIdx++){
+          for (let fileIdx = 0; fileIdx < 8; fileIdx++){
+            const candidate = parentState.board[rankIdx]?.[fileIdx];
+            const candidateSquare = `${files[fileIdx]}${ranks[rankIdx]}`;
+            if (candidateSquare === from || candidate !== piece) continue;
+            if (!isLegalPieceMove(candidate, candidateSquare, to, parentState.board)) continue;
+            if (wouldLeaveKingInCheckOnBoard(parentState.board, candidateSquare, to, candidate)) continue;
+            alternatives.push(candidateSquare);
+          }
+        }
+        if (alternatives.length){
+          const sameFile = alternatives.some((square) => square[0] === from[0]);
+          const sameRank = alternatives.some((square) => square[1] === from[1]);
+          disambiguation = !sameFile ? from[0] : (!sameRank ? from[1] : from);
+        }
+      }
+
+      const pieceLetter = upper === 'P' ? '' : upper;
+      const pawnFile = upper === 'P' && isCapture ? from[0] : '';
+      const captureMark = isCapture ? 'x' : '';
       const promotion = uci.length > 4 ? `=${uci[4].toUpperCase()}` : '';
-      return `${glyphs[upper] || ''}${to}${promotion}`;
+      return `${pieceLetter}${disambiguation}${pawnFile}${captureMark}${to}${promotion}${getTreeMoveCheckSuffix(node)}`;
+    }
+
+    function getTreeMoveCheckSuffix(node){
+      const state = parseFenState(node?.fen || '');
+      if (!state?.board?.length || !isKingInCheckOnBoard(state.active, state.board)) return '';
+      return generateLegalMovesOnBoard(state.board, state.active).length ? '+' : '#';
     }
 
     function formatTreeEval(node){
@@ -3737,6 +3688,7 @@
       ensureMoveTreeRoot();
       rebuildHistoryPlies();
       analysisHistoryEl.innerHTML = '';
+      updateHistoryPositionLabel();
       updateHistoryControlsEnabled();
       if (!historyPlies.length){
         analysisHistoryEl.classList.remove('has-active-branch');
@@ -3766,7 +3718,7 @@
         if (item.isRoot) row.classList.add('is-root');
         if (item.depth === 0 && !item.isRoot) row.classList.add('is-mainline');
         if (item.depth > 0) row.classList.add('is-nested');
-        if (isCurrentRow) row.classList.add('is-active', 'is-current-node');
+        if (isCurrentRow) row.classList.add('is-active');
         if (isOnActiveBranch) row.classList.add('is-branch');
         if (hasActiveBranch && !isOnActiveBranch) row.classList.add('is-muted');
         if (item.isVariation) row.classList.add('is-variation');
@@ -3776,32 +3728,52 @@
         prefix.textContent = item.isRoot
           ? ''
           : getMovePrefix((whiteNode || blackNode || node).move);
-        const whiteMove = document.createElement('span');
-        whiteMove.className = 'move-tree-move mono';
-        const blackMove = document.createElement('span');
-        blackMove.className = 'move-tree-move mono';
+        const whiteMove = document.createElement('button');
+        whiteMove.type = 'button';
+        whiteMove.className = 'move-tree-move';
+        const blackMove = document.createElement('button');
+        blackMove.type = 'button';
+        blackMove.className = 'move-tree-move';
         const evalBadge = document.createElement('span');
-        evalBadge.className = 'move-tree-eval mono';
-        evalBadge.textContent = formatTreeEval(node);
+        evalBadge.className = 'move-tree-eval';
+        evalBadge.textContent = item.isRoot ? '' : (formatTreeEval(node) || '—');
         if (item.isRoot){
-          whiteMove.textContent = 'Стартовая позиция';
+          whiteMove.textContent = 'Начальная позиция';
+          whiteMove.title = 'Перейти к начальной позиции';
+          if (node.id === currentNodeId){
+            whiteMove.classList.add('is-selected');
+            whiteMove.setAttribute('aria-current', 'step');
+          }
+          whiteMove.addEventListener('click', () => loadHistoryNode(node.id));
           blackMove.remove();
         } else {
           whiteMove.textContent = whiteNode ? formatTreeMoveLabel(whiteNode) : '';
           blackMove.textContent = blackNode ? formatTreeMoveLabel(blackNode) : '';
-          if (!whiteNode) whiteMove.classList.add('is-empty');
-          if (!blackNode) blackMove.classList.add('is-empty');
-          if (whiteNode?.id === currentNodeId) whiteMove.classList.add('is-selected');
-          if (blackNode?.id === currentNodeId) blackMove.classList.add('is-selected');
+          if (!whiteNode){
+            whiteMove.classList.add('is-empty');
+            whiteMove.disabled = true;
+          }
+          if (!blackNode){
+            blackMove.classList.add('is-empty');
+            blackMove.disabled = true;
+          }
+          if (whiteNode?.id === currentNodeId){
+            whiteMove.classList.add('is-selected');
+            whiteMove.setAttribute('aria-current', 'step');
+          }
+          if (blackNode?.id === currentNodeId){
+            blackMove.classList.add('is-selected');
+            blackMove.setAttribute('aria-current', 'step');
+          }
           if (whiteNode){
+            whiteMove.title = `Перейти к ходу ${getMovePrefix(whiteNode.move)} ${formatTreeMoveLabel(whiteNode)}`;
             whiteMove.addEventListener('click', (event) => {
-              event.stopPropagation();
               loadHistoryNode(whiteNode.id);
             });
           }
           if (blackNode){
+            blackMove.title = `Перейти к ходу ${getMovePrefix(blackNode.move)} ${formatTreeMoveLabel(blackNode)}`;
             blackMove.addEventListener('click', (event) => {
-              event.stopPropagation();
               loadHistoryNode(blackNode.id);
             });
           }
@@ -3811,10 +3783,6 @@
         row.appendChild(whiteMove);
         if (!item.isRoot) row.appendChild(blackMove);
         row.appendChild(evalBadge);
-        row.addEventListener('click', () => {
-          historyCursor = historyNavNodes.findIndex((entry) => entry.id === node.id);
-          loadHistoryNode(node.id);
-        });
         analysisHistoryEl.appendChild(row);
       });
 
@@ -3834,25 +3802,59 @@
       }
     }
 
+    function updateHistoryPositionLabel(){
+      if (!historyPositionEl) return;
+      const node = currentHistoryNodeId ? historyNodes.get(currentHistoryNodeId) : moveTreeRoot;
+      if (!node?.move){
+        historyPositionEl.textContent = 'Начальная позиция';
+        return;
+      }
+      historyPositionEl.textContent = `${getMovePrefix(node.move)} ${formatTreeMoveLabel(node)}`;
+    }
+
     function updateHistoryControlsEnabled(){
-      const disabled = !historyPlies.length;
-      [historyFirstBtn, historyUpBtn, historyDownBtn, historyLastBtn].forEach((btn) => {
-        if (btn) btn.disabled = disabled;
-      });
+      const hasMoves = Boolean(moveTreeRoot?.children?.length);
+      const currentNode = currentHistoryNodeId ? historyNodes.get(currentHistoryNodeId) : moveTreeRoot;
+      const atStart = !currentNode || currentNode.id === moveTreeRoot?.id;
+      const hasContinuation = Boolean(currentNode?.children?.length);
+      if (historyFirstBtn) historyFirstBtn.disabled = !hasMoves || atStart;
+      if (historyUpBtn) historyUpBtn.disabled = !hasMoves || atStart;
+      if (historyDownBtn) historyDownBtn.disabled = !hasMoves || !hasContinuation;
+      if (historyLastBtn) historyLastBtn.disabled = !hasMoves || !hasContinuation;
     }
 
     function scrollHistory(where){
-      if (!analysisHistoryEl || !historyNavNodes.length) return;
-      if (historyCursor === -1) historyCursor = historyNavNodes.length - 1;
+      if (!analysisHistoryEl || !moveTreeRoot?.children?.length) return;
+      let node = currentHistoryNodeId ? historyNodes.get(currentHistoryNodeId) : moveTreeRoot;
+      if (!node) node = moveTreeRoot;
       if (where === 'top'){
-        historyCursor = 0;
+        node = moveTreeRoot;
       } else if (where === 'bottom'){
-        historyCursor = historyNavNodes.length - 1;
+        while (node?.children?.length){
+          node = historyNodes.get(node.children[0]);
+        }
+      } else if (where === 'up'){
+        node = node.parentId ? historyNodes.get(node.parentId) : node;
       } else {
-        const step = where === 'up' ? -1 : 1;
-        historyCursor = Math.min(Math.max(historyCursor + step, 0), historyNavNodes.length - 1);
+        node = node.children?.length ? historyNodes.get(node.children[0]) : node;
       }
-      loadHistoryPosition(historyCursor);
+      if (node) loadHistoryNode(node.id);
+    }
+
+    function handleHistoryKeyboard(event){
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return;
+      const directionByKey = {
+        ArrowLeft: 'up',
+        ArrowRight: 'down',
+        Home: 'top',
+        End: 'bottom'
+      };
+      const direction = directionByKey[event.key];
+      if (!direction) return;
+      event.preventDefault();
+      scrollHistory(direction);
     }
 
     function loadHistoryPosition(index){
@@ -4694,12 +4696,6 @@
       renderBoardFromFen(currentFen);
       hydrateHistoryFromStorage();
       setAnalysisStatus(statusEl?.textContent || 'Готовимся к анализу...');
-      setCoachHintsEnabled(readCoachHintsEnabled());
-      if (coachHintsToggleEl){
-        coachHintsToggleEl.addEventListener('change', () => {
-          setCoachHintsEnabled(Boolean(coachHintsToggleEl.checked), { syncControl: false });
-        });
-      }
       analyzePosition({ targetNodeId: currentHistoryNodeId });
       if (refreshBtn){
         refreshBtn.addEventListener('click', () => {
@@ -4713,6 +4709,7 @@
       if (historyUpBtn) historyUpBtn.addEventListener('click', () => scrollHistory('up'));
       if (historyDownBtn) historyDownBtn.addEventListener('click', () => scrollHistory('down'));
       if (historyLastBtn) historyLastBtn.addEventListener('click', () => scrollHistory('bottom'));
+      document.addEventListener('keydown', handleHistoryKeyboard);
       promotionButtons.forEach((btn) => {
         btn.addEventListener('click', () => handlePromotionChoice(btn.dataset.piece));
       });
