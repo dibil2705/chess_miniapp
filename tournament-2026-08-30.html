@@ -1,0 +1,1734 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <title>Турнир 30.08.26</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="assets/telegram-miniapp.js?v=20260731-2"></script>
+  <style>
+    @font-face{
+      font-family:"LiteraturnayaMenu";
+      src:url("assets/font/TEST-literaturnaya_book.otf") format("opentype");
+      font-weight:400;
+      font-style:normal;
+      font-display:swap;
+    }
+
+    :root{
+      --bg:#111;
+      --text:#f2eee5;
+      --muted:rgba(242,238,229,.62);
+      --gold:#c19154;
+      --panel:rgba(18,20,19,.90);
+      --border:rgba(255,255,255,.105);
+      --tg-safe-area-top:0px;
+      --app-safe-top:max(env(safe-area-inset-top), var(--tg-safe-area-top));
+    }
+
+    *, *::before, *::after{ box-sizing:border-box; }
+    html{ min-height:100%; min-height:100svh; min-height:100dvh; background:var(--bg); -webkit-text-size-adjust:100%; }
+    body{
+      margin:0;
+      min-height:100%;
+      min-height:100svh;
+      min-height:100dvh;
+      padding:calc(124px + var(--app-safe-top)) 12px calc(18px + env(safe-area-inset-bottom));
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 50% 112%, rgba(118,150,86,.16), transparent 42%),
+        linear-gradient(160deg, #171817 0%, #0f100f 48%, #0a0b0a 100%);
+      overflow-x:hidden;
+      -webkit-tap-highlight-color:transparent;
+    }
+    body.no-scroll{ overflow:hidden; }
+
+    .page{
+      position:relative;
+      z-index:1;
+      width:min(100%, 760px);
+      margin:0 auto;
+      display:grid;
+      gap:18px;
+    }
+
+    .back-link{
+      --liquid-position: fixed;
+      --liquid-overflow: visible;
+      position:fixed;
+      top:calc(62px + var(--app-safe-top));
+      left:10px;
+      z-index:10;
+      min-width:46px;
+      min-height:46px;
+      padding:10px 14px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:999px;
+      color:var(--text);
+      text-decoration:none;
+      font-weight:900;
+      transition:transform .11s ease;
+    }
+    .back-link svg{
+      width:24px;
+      height:24px;
+      display:block;
+      fill:none;
+      stroke:currentColor;
+      stroke-width:2.4;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+      transform:translateX(-1px);
+    }
+    .back-link:active{ transform:scale(.965); }
+
+    .page-title{
+      margin:0;
+      font-family:"LiteraturnayaMenu", Georgia, serif;
+      font-size:clamp(42px, 11vw, 64px);
+      font-weight:400;
+      line-height:.95;
+      letter-spacing:.015em;
+      text-align:center;
+      text-shadow:0 6px 18px rgba(0,0,0,.58), 0 0 1px rgba(255,255,255,.42);
+    }
+
+    .subtitle{
+      margin:12px 0;
+      color:var(--muted);
+      text-align:center;
+      font-weight:600;
+    }
+
+    .partners{
+      width:min(100%, 760px);
+      margin:16px auto 0;
+      display:grid;
+      gap:14px;
+    }
+
+    .partners-title{
+      margin:0;
+      display:grid;
+      grid-template-columns:1fr auto 1fr;
+      align-items:center;
+      gap:12px;
+      color:var(--gold);
+      text-align:center;
+      font-size:18px;
+      font-weight:600;
+      letter-spacing:.02em;
+    }
+
+    .partners-title::before,
+    .partners-title::after{
+      content:"";
+      height:1px;
+      background:linear-gradient(90deg, transparent, rgba(193,145,84,.68));
+      box-shadow:0 0 10px rgba(193,145,84,.18);
+    }
+
+    .partners-title::after{
+      background:linear-gradient(90deg, rgba(193,145,84,.68), transparent);
+    }
+
+    .partners-title span{
+      position:relative;
+      display:block;
+      white-space:nowrap;
+    }
+
+    .partners-title span::before,
+    .partners-title span::after{
+      content:"";
+      position:absolute;
+      top:50%;
+      width:5px;
+      height:5px;
+      border-radius:50%;
+      background:var(--gold);
+      box-shadow:0 0 12px rgba(193,145,84,.5);
+      transform:translateY(-50%);
+    }
+
+    .partners-title span::before{ left:-18px; }
+    .partners-title span::after{ right:-18px; }
+
+    .partners-list{
+      width:100%;
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:14px 16px;
+    }
+
+    .partners-list.single{
+      grid-template-columns:minmax(0, 240px);
+      justify-content:center;
+    }
+
+    .partners-list.single .partner-link{ justify-content:center; }
+
+    .partner-link{
+      min-height:78px;
+      padding:14px 20px;
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;
+      gap:16px;
+      border:1px solid rgba(193,145,84,.42);
+      border-radius:15px;
+      background:
+        linear-gradient(145deg, rgba(193,145,84,.08), rgba(255,255,255,.018)),
+        rgba(18,20,19,.72);
+      color:var(--text);
+      text-decoration:none;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.04),
+        0 12px 28px rgba(0,0,0,.2);
+      transition:transform .11s ease;
+      touch-action:manipulation;
+    }
+
+    .partner-link:active{ transform:scale(.965); }
+
+    .partner-link.icon-only{ justify-content:center; }
+
+    .partner-link img{
+      width:58px;
+      height:46px;
+      border-radius:10px;
+      display:block;
+      object-fit:contain;
+      filter:drop-shadow(0 8px 16px rgba(0,0,0,.24));
+      flex:0 0 auto;
+    }
+
+    .partner-link img.inverted-logo{
+      width:130px;
+      filter:invert(1) drop-shadow(0 8px 16px rgba(0,0,0,.24));
+    }
+
+    .partner-name{
+      color:rgba(242,238,229,.74);
+      font-size:17px;
+      font-weight:700;
+      line-height:1.15;
+    }
+
+    .category-tabs{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+
+    .category-btn{
+      padding:13px 14px;
+      border-radius:14px;
+      color:var(--text);
+      text-align:center;
+      font-size:16px;
+      font-weight:600;
+      cursor:pointer;
+      transition:transform .11s ease;
+      touch-action:manipulation;
+    }
+    .category-btn:active{ transform:scale(.965); }
+    .category-btn.active{ border-color:rgba(193,145,84,.55); color:#fff6e6; }
+
+    .panel{
+      overflow:hidden;
+      border-radius:16px;
+      color:var(--text);
+    }
+
+    .tap-scale{
+      will-change:transform;
+      transform:translateZ(0);
+      -webkit-transform:translateZ(0);
+    }
+    .tap-scale.is-pressed{ transform:scale(.965) translateZ(0); }
+
+    .category-output{
+      display:grid;
+      gap:10px;
+    }
+
+    .panel-head{
+      padding:16px;
+      border-bottom:1px solid rgba(255,255,255,.09);
+      display:grid;
+      gap:4px;
+    }
+
+    .panel-title{
+      margin:0;
+      font-size:20px;
+      font-weight:600;
+      letter-spacing:-.02em;
+    }
+
+    .panel-note{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.35;
+    }
+
+    .elo-note{
+      margin:0;
+      padding:0 12px;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.45;
+      text-align:center;
+    }
+
+    .table-wrap{
+      width:100%;
+      overflow-x:auto;
+      overflow-y:hidden;
+      -webkit-overflow-scrolling:touch;
+      touch-action:auto;
+      overscroll-behavior-x:contain;
+      scrollbar-width:thin;
+      scrollbar-color:rgba(193,145,84,.58) rgba(255,255,255,.07);
+    }
+    .table-wrap::-webkit-scrollbar{ height:8px; }
+    .table-wrap::-webkit-scrollbar-track{
+      background:linear-gradient(90deg, rgba(255,255,255,.035), rgba(255,255,255,.075));
+      border-radius:999px;
+    }
+    .table-wrap::-webkit-scrollbar-thumb{
+      border-radius:999px;
+      background:linear-gradient(90deg, rgba(193,145,84,.88), rgba(242,218,174,.7));
+      border:2px solid rgba(15,16,15,.9);
+    }
+    .table-wrap::-webkit-scrollbar-thumb:hover{ background:linear-gradient(90deg, rgba(213,165,99,.95), rgba(255,231,187,.82)); }
+    table{ width:100%; border-collapse:collapse; min-width:1080px; }
+    th,
+    td{
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.075);
+      text-align:left;
+      font-size:14px;
+      white-space:nowrap;
+    }
+    th{
+      color:rgba(242,238,229,.72);
+      font-size:12px;
+      font-weight:600;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      background:rgba(0,0,0,.14);
+    }
+    td{ font-weight:600; }
+    tr:last-child td{ border-bottom:0; }
+    .num{ text-align:right; font-variant-numeric:tabular-nums; }
+    .place{ width:78px; color:#fff6e6; }
+
+    .player-link{
+      padding:0;
+      border:0;
+      background:none;
+      color:var(--text);
+      font:inherit;
+      font-weight:600;
+      cursor:pointer;
+      text-align:left;
+      text-decoration:underline;
+      text-decoration-color:rgba(193,145,84,.55);
+      text-underline-offset:4px;
+    }
+
+    .empty{ padding:18px; color:var(--muted); line-height:1.45; }
+
+    .profile-overlay{
+      position:fixed;
+      inset:0;
+      z-index:10000;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      background:rgba(0,0,0,.72);
+      backdrop-filter:blur(3px);
+      -webkit-backdrop-filter:blur(3px);
+    }
+    .profile-overlay.active{ display:flex; }
+
+    .profile-card{
+      width:min(680px, 100%);
+      max-height:min(86vh, 760px);
+      overflow:auto;
+      border-radius:18px;
+      color:var(--text);
+    }
+
+    .profile-head{
+      padding:18px;
+      border-bottom:1px solid rgba(255,255,255,.09);
+      display:grid;
+      gap:14px;
+    }
+
+    .profile-top{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:start;
+    }
+
+    .profile-name{
+      margin:0;
+      font-size:24px;
+      font-weight:600;
+      letter-spacing:-.03em;
+    }
+
+    .close-btn{
+      min-width:42px;
+      height:42px;
+      border-radius:999px;
+      border:0;
+      color:var(--text);
+      cursor:pointer;
+      font-size:24px;
+      line-height:1;
+    }
+
+    .profile-stats{
+      display:grid;
+      grid-template-columns:repeat(4, minmax(0, 1fr));
+      gap:8px;
+    }
+
+    .stat{
+      padding:10px;
+      border-radius:12px;
+      background:rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.08);
+    }
+    .stat-label{ color:var(--muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+    .stat-value{ margin-top:4px; font-size:18px; font-weight:600; }
+
+    .profile-body{ padding:16px; display:grid; gap:12px; }
+    .profile-section-title{ margin:0; font-size:17px; font-weight:600; }
+    .games-table{ min-width:0; }
+
+    @media (max-width:560px){
+      .partners-list{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
+      .partners-title{ font-size:16px; gap:9px; }
+      .partners-title span::before{ left:-14px; }
+      .partners-title span::after{ right:-14px; }
+      .partner-link{ min-height:70px; padding:11px 10px; gap:10px; }
+      .partner-link img{ width:44px; height:38px; }
+      .partner-name{ font-size:14px; }
+      .profile-stats{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
+      .profile-card{ max-height:88vh; }
+      th,
+      td{ padding:11px 12px; }
+    }
+
+    @media (max-width:370px){
+      .partners-list{ grid-template-columns:1fr; }
+      .partner-link{ justify-content:center; }
+    }
+  </style>
+  <link rel="stylesheet" href="assets/liquid-glass.css">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute;pointer-events:none" aria-hidden="true" focusable="false">
+    <filter id="liquid-glass-filter" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.018" numOctaves="2" seed="8" result="noise"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="10" xChannelSelector="R" yChannelSelector="G" result="displaced"></feDisplacementMap>
+      <feGaussianBlur in="displaced" stdDeviation="0.2" result="softened"></feGaussianBlur>
+      <feComposite in="softened" in2="SourceGraphic" operator="over"></feComposite>
+    </filter>
+  </svg>
+
+  <a class="back-link liquid-glass-pill tap-scale" href="tournament-results.html" aria-label="Вернуться к списку турниров">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M15 6 9 12l6 6"></path>
+    </svg>
+  </a>
+
+  <main class="page">
+    <header>
+      <h1 class="page-title">Турнир 30.08.26</h1>
+      <section class="partners" aria-labelledby="partnersTitle">
+        <p id="partnersTitle" class="partners-title"><span>При поддержке партнёров</span></p>
+        <div class="partners-list">
+          <a class="partner-link liquid-glass tap-scale" href="https://t.me/robbo_learn" target="_blank" rel="noopener" aria-label="РОБОКЛУБ">
+            <img src="assets/Partners/Robo_club.jpg" alt="РОБОКЛУБ">
+            <span class="partner-name">РОБОКЛУБ</span>
+          </a>
+          <a class="partner-link icon-only liquid-glass tap-scale" href="https://banyadobro.ru" target="_blank" rel="noopener" aria-label="Баня Добро">
+            <img class="inverted-logo" src="assets/Partners/Banya_Dobro.svg" alt="Баня Добро">
+          </a>
+        </div>
+      </section>
+    </header>
+    <p class="subtitle">Турнир Красная Поляна</p>
+
+    <div class="category-tabs" aria-label="Категории турнира">
+      <button class="category-btn liquid-glass tap-scale active" type="button" data-category="adults">Взрослые</button>
+      <button class="category-btn liquid-glass tap-scale" type="button" data-category="kids">Дети</button>
+    </div>
+
+    <section id="categoryContent" class="category-output"></section>
+  </main>
+
+  <div id="profileOverlay" class="profile-overlay" role="dialog" aria-modal="true" aria-labelledby="profileName">
+    <article class="profile-card liquid-glass-panel">
+      <div class="profile-head">
+        <div class="profile-top">
+          <h2 id="profileName" class="profile-name"></h2>
+          <button id="closeProfile" class="close-btn liquid-glass-pill tap-scale" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <div id="profileStats" class="profile-stats"></div>
+      </div>
+      <div class="profile-body">
+        <h3 class="profile-section-title">Партии по турам</h3>
+        <div id="profileGames" class="table-wrap"></div>
+      </div>
+    </article>
+  </div>
+
+  <script>
+    const tournamentData = {
+      "adults": {
+            "title": "\u0412\u0437\u0440\u043e\u0441\u043b\u044b\u0435",
+            "note": "",
+            "initialRatings": {
+                  "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430": 1512,
+                  "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439": 1544,
+                  "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439": 1517,
+                  "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439": 1501,
+                  "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434": 1484
+            },
+            "standings": [
+                  [
+                        "1",
+                        "\u0421\u043e\u0440\u043e\u043a\u0438\u043d \u041c\u0438\u0445\u0430\u0438\u043b",
+                        "6",
+                        "28.5"
+                  ],
+                  [
+                        "2",
+                        "\u0412\u043b\u0430\u0434\u0438\u0441\u043b\u0430\u0432 \u0418\u0432\u0430\u043d\u043e\u0432",
+                        "5.5",
+                        "27"
+                  ],
+                  [
+                        "3",
+                        "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439",
+                        "5",
+                        "27"
+                  ],
+                  [
+                        "4",
+                        "\u0415\u043a\u0430\u0442\u0435\u0440\u0438\u043d\u0430 \u041c\u0438\u0445\u0430\u0439\u043b\u043e\u0432\u0430",
+                        "5",
+                        "26.5"
+                  ],
+                  [
+                        "5",
+                        "\u041e\u0434\u0430\u0440\u0430\u0445\u0438\u043c \u0410\u043b\u0438\u0435\u0432",
+                        "5",
+                        "26"
+                  ],
+                  [
+                        "6",
+                        "\u0414\u0435\u043c\u0447\u0435\u043d\u043a\u043e \u0421\u0435\u0440\u0433\u0435\u0439",
+                        "4",
+                        "26"
+                  ],
+                  [
+                        "7",
+                        "\u0421\u0432\u0438\u0440\u0438\u0434\u043e\u0432 \u041f\u0430\u0432\u0435\u043b",
+                        "4",
+                        "24.5"
+                  ],
+                  [
+                        "8",
+                        "\u041a\u043e\u043b\u0442\u0430\u0448\u043e\u0432 \u0412\u044f\u0447\u0435\u0441\u043b\u0430\u0432",
+                        "4",
+                        "20"
+                  ],
+                  [
+                        "9",
+                        "\u041a\u0438\u0440\u043f\u0438\u0447\u0435\u0432 \u0410\u043d\u0434\u0440\u0435\u0439",
+                        "3.5",
+                        "23.5"
+                  ],
+                  [
+                        "10",
+                        "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439",
+                        "3",
+                        "24.5"
+                  ],
+                  [
+                        "11",
+                        "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439",
+                        "3",
+                        "22"
+                  ],
+                  [
+                        "12",
+                        "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434",
+                        "3",
+                        "21.5"
+                  ],
+                  [
+                        "13",
+                        "\u041c\u0430\u0442\u0432\u0435\u0435\u0432 \u042f\u0440\u043e\u0441\u043b\u0430\u0432",
+                        "3",
+                        "20.5"
+                  ],
+                  [
+                        "14",
+                        "\u0414\u043e\u0431\u0440\u043e\u0432\u043e\u043b\u044c\u0441\u043a\u0438\u0439 \u0412\u0441\u0435\u0432\u043e\u043b\u043e\u0434",
+                        "3",
+                        "19.5"
+                  ],
+                  [
+                        "15",
+                        "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430",
+                        "2.5",
+                        "17"
+                  ],
+                  [
+                        "16",
+                        "\u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u041a\u043e\u0432\u0430\u043b\u0435\u0432",
+                        "2",
+                        "16.5"
+                  ],
+                  [
+                        "17",
+                        "\u0421\u0430\u0432\u0447\u0435\u043d\u043a\u043e \u0420\u0430\u043c\u0438\u043d",
+                        "1.5",
+                        "20.5"
+                  ],
+                  [
+                        "18",
+                        "\u0411\u0435\u043b\u043a\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u0440",
+                        "0",
+                        "20.5"
+                  ]
+            ],
+            "rounds": [
+                  [
+                        [
+                              "\u041e\u0434\u0430\u0440\u0430\u0445\u0438\u043c \u0410\u043b\u0438\u0435\u0432",
+                              "\u0411\u0435\u043b\u043a\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u0440",
+                              "1:0"
+                        ],
+                        [
+                              "\u0412\u043b\u0430\u0434\u0438\u0441\u043b\u0430\u0432 \u0418\u0432\u0430\u043d\u043e\u0432",
+                              "\u0421\u0430\u0432\u0447\u0435\u043d\u043a\u043e \u0420\u0430\u043c\u0438\u043d",
+                              "1:0"
+                        ],
+                        [
+                              "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430",
+                              "\u0414\u0435\u043c\u0447\u0435\u043d\u043a\u043e \u0421\u0435\u0440\u0433\u0435\u0439",
+                              "0:1"
+                        ],
+                        [
+                              "\u0414\u043e\u0431\u0440\u043e\u0432\u043e\u043b\u044c\u0441\u043a\u0438\u0439 \u0412\u0441\u0435\u0432\u043e\u043b\u043e\u0434",
+                              "\u0421\u0432\u0438\u0440\u0438\u0434\u043e\u0432 \u041f\u0430\u0432\u0435\u043b",
+                              "0:1"
+                        ],
+                        [
+                              "\u0421\u043e\u0440\u043e\u043a\u0438\u043d \u041c\u0438\u0445\u0430\u0438\u043b",
+                              "\u0415\u043a\u0430\u0442\u0435\u0440\u0438\u043d\u0430 \u041c\u0438\u0445\u0430\u0439\u043b\u043e\u0432\u0430",
+                              "1:0"
+                        ],
+                        [
+                              "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439",
+                              "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434",
+                              "0:1"
+                        ],
+                        [
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439",
+                              "\u041a\u0438\u0440\u043f\u0438\u0447\u0435\u0432 \u0410\u043d\u0434\u0440\u0435\u0439",
+                              "1:0"
+                        ],
+                        [
+                              "\u041c\u0430\u0442\u0432\u0435\u0435\u0432 \u042f\u0440\u043e\u0441\u043b\u0430\u0432",
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439",
+                              "0:1"
+                        ],
+                        [
+                              "\u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u041a\u043e\u0432\u0430\u043b\u0435\u0432",
+                              null,
+                              "Bye"
+                        ]
+                  ],
+                  [
+                        [
+                              "\u0421\u0432\u0438\u0440\u0438\u0434\u043e\u0432 \u041f\u0430\u0432\u0435\u043b",
+                              "\u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u041a\u043e\u0432\u0430\u043b\u0435\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434",
+                              "\u0412\u043b\u0430\u0434\u0438\u0441\u043b\u0430\u0432 \u0418\u0432\u0430\u043d\u043e\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0414\u0435\u043c\u0447\u0435\u043d\u043a\u043e \u0421\u0435\u0440\u0433\u0435\u0439",
+                              "\u0421\u043e\u0440\u043e\u043a\u0438\u043d \u041c\u0438\u0445\u0430\u0438\u043b",
+                              "0:1"
+                        ],
+                        [
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439",
+                              "\u041e\u0434\u0430\u0440\u0430\u0445\u0438\u043c \u0410\u043b\u0438\u0435\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0411\u0435\u043b\u043a\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u0440",
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439",
+                              "0:1"
+                        ],
+                        [
+                              "\u041a\u043e\u043b\u0442\u0430\u0448\u043e\u0432 \u0412\u044f\u0447\u0435\u0441\u043b\u0430\u0432",
+                              "\u0414\u043e\u0431\u0440\u043e\u0432\u043e\u043b\u044c\u0441\u043a\u0438\u0439 \u0412\u0441\u0435\u0432\u043e\u043b\u043e\u0434",
+                              "1:0"
+                        ],
+                        [
+                              "\u0415\u043a\u0430\u0442\u0435\u0440\u0438\u043d\u0430 \u041c\u0438\u0445\u0430\u0439\u043b\u043e\u0432\u0430",
+                              "\u041c\u0430\u0442\u0432\u0435\u0435\u0432 \u042f\u0440\u043e\u0441\u043b\u0430\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u0421\u0430\u0432\u0447\u0435\u043d\u043a\u043e \u0420\u0430\u043c\u0438\u043d",
+                              "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439",
+                              "0:1"
+                        ],
+                        [
+                              "\u041a\u0438\u0440\u043f\u0438\u0447\u0435\u0432 \u0410\u043d\u0434\u0440\u0435\u0439",
+                              "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430",
+                              "1:0"
+                        ]
+                  ],
+                  [
+                        [
+                              "\u0412\u043b\u0430\u0434\u0438\u0441\u043b\u0430\u0432 \u0418\u0432\u0430\u043d\u043e\u0432",
+                              "\u0421\u0432\u0438\u0440\u0438\u0434\u043e\u0432 \u041f\u0430\u0432\u0435\u043b",
+                              "\u00bd:\u00bd"
+                        ],
+                        [
+                              "\u041e\u0434\u0430\u0440\u0430\u0445\u0438\u043c \u0410\u043b\u0438\u0435\u0432",
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439",
+                              "1:0"
+                        ],
+                        [
+                              "\u0421\u043e\u0440\u043e\u043a\u0438\u043d \u041c\u0438\u0445\u0430\u0438\u043b",
+                              "\u041a\u0438\u0440\u043f\u0438\u0447\u0435\u0432 \u0410\u043d\u0434\u0440\u0435\u0439",
+                              "1:0"
+                        ],
+                        [
+                              "\u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u041a\u043e\u0432\u0430\u043b\u0435\u0432",
+                              "\u041a\u043e\u043b\u0442\u0430\u0448\u043e\u0432 \u0412\u044f\u0447\u0435\u0441\u043b\u0430\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439",
+                              "\u0414\u0435\u043c\u0447\u0435\u043d\u043a\u043e \u0421\u0435\u0440\u0433\u0435\u0439",
+                              "0:1"
+                        ],
+                        [
+                              "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434",
+                              "\u0415\u043a\u0430\u0442\u0435\u0440\u0438\u043d\u0430 \u041c\u0438\u0445\u0430\u0439\u043b\u043e\u0432\u0430",
+                              "0:1"
+                        ],
+                        [
+                              "\u0414\u043e\u0431\u0440\u043e\u0432\u043e\u043b\u044c\u0441\u043a\u0438\u0439 \u0412\u0441\u0435\u0432\u043e\u043b\u043e\u0434",
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439",
+                              "0:1"
+                        ],
+                        [
+                              "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430",
+                              "\u0411\u0435\u043b\u043a\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u0440",
+                              "1:0"
+                        ],
+                        [
+                              "\u041c\u0430\u0442\u0432\u0435\u0435\u0432 \u042f\u0440\u043e\u0441\u043b\u0430\u0432",
+                              "\u0421\u0430\u0432\u0447\u0435\u043d\u043a\u043e \u0420\u0430\u043c\u0438\u043d",
+                              "1:0"
+                        ]
+                  ],
+                  [
+                        [
+                              "\u0421\u043e\u0440\u043e\u043a\u0438\u043d \u041c\u0438\u0445\u0430\u0438\u043b",
+                              "\u041e\u0434\u0430\u0440\u0430\u0445\u0438\u043c \u0410\u043b\u0438\u0435\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u0414\u0435\u043c\u0447\u0435\u043d\u043a\u043e \u0421\u0435\u0440\u0433\u0435\u0439",
+                              "\u0412\u043b\u0430\u0434\u0438\u0441\u043b\u0430\u0432 \u0418\u0432\u0430\u043d\u043e\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0421\u0432\u0438\u0440\u0438\u0434\u043e\u0432 \u041f\u0430\u0432\u0435\u043b",
+                              "\u041a\u043e\u043b\u0442\u0430\u0448\u043e\u0432 \u0412\u044f\u0447\u0435\u0441\u043b\u0430\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439",
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439",
+                              "1:0"
+                        ],
+                        [
+                              "\u0415\u043a\u0430\u0442\u0435\u0440\u0438\u043d\u0430 \u041c\u0438\u0445\u0430\u0439\u043b\u043e\u0432\u0430",
+                              "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439",
+                              "1:0"
+                        ],
+                        [
+                              "\u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u041a\u043e\u0432\u0430\u043b\u0435\u0432",
+                              "\u041c\u0430\u0442\u0432\u0435\u0435\u0432 \u042f\u0440\u043e\u0441\u043b\u0430\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u041a\u0438\u0440\u043f\u0438\u0447\u0435\u0432 \u0410\u043d\u0434\u0440\u0435\u0439",
+                              "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434",
+                              "1:0"
+                        ],
+                        [
+                              "\u0421\u0430\u0432\u0447\u0435\u043d\u043a\u043e \u0420\u0430\u043c\u0438\u043d",
+                              "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430",
+                              "\u00bd:\u00bd"
+                        ],
+                        [
+                              "\u0411\u0435\u043b\u043a\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u0440",
+                              "\u0414\u043e\u0431\u0440\u043e\u0432\u043e\u043b\u044c\u0441\u043a\u0438\u0439 \u0412\u0441\u0435\u0432\u043e\u043b\u043e\u0434",
+                              "0:1"
+                        ]
+                  ],
+                  [
+                        [
+                              "\u0412\u043b\u0430\u0434\u0438\u0441\u043b\u0430\u0432 \u0418\u0432\u0430\u043d\u043e\u0432",
+                              "\u0421\u043e\u0440\u043e\u043a\u0438\u043d \u041c\u0438\u0445\u0430\u0438\u043b",
+                              "1:0"
+                        ],
+                        [
+                              "\u041e\u0434\u0430\u0440\u0430\u0445\u0438\u043c \u0410\u043b\u0438\u0435\u0432",
+                              "\u0415\u043a\u0430\u0442\u0435\u0440\u0438\u043d\u0430 \u041c\u0438\u0445\u0430\u0439\u043b\u043e\u0432\u0430",
+                              "0:1"
+                        ],
+                        [
+                              "\u041a\u043e\u043b\u0442\u0430\u0448\u043e\u0432 \u0412\u044f\u0447\u0435\u0441\u043b\u0430\u0432",
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439",
+                              "0:1"
+                        ],
+                        [
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439",
+                              "\u0421\u0432\u0438\u0440\u0438\u0434\u043e\u0432 \u041f\u0430\u0432\u0435\u043b",
+                              "\u00bd:\u00bd"
+                        ],
+                        [
+                              "\u041a\u0438\u0440\u043f\u0438\u0447\u0435\u0432 \u0410\u043d\u0434\u0440\u0435\u0439",
+                              "\u0414\u0435\u043c\u0447\u0435\u043d\u043a\u043e \u0421\u0435\u0440\u0433\u0435\u0439",
+                              "0:1"
+                        ],
+                        [
+                              "\u041c\u0430\u0442\u0432\u0435\u0435\u0432 \u042f\u0440\u043e\u0441\u043b\u0430\u0432",
+                              "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430",
+                              "1:0"
+                        ],
+                        [
+                              "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439",
+                              "\u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u041a\u043e\u0432\u0430\u043b\u0435\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u0414\u043e\u0431\u0440\u043e\u0432\u043e\u043b\u044c\u0441\u043a\u0438\u0439 \u0412\u0441\u0435\u0432\u043e\u043b\u043e\u0434",
+                              "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434",
+                              "1:0"
+                        ],
+                        [
+                              "\u0411\u0435\u043b\u043a\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u0440",
+                              "\u0421\u0430\u0432\u0447\u0435\u043d\u043a\u043e \u0420\u0430\u043c\u0438\u043d",
+                              "0:1"
+                        ]
+                  ],
+                  [
+                        [
+                              "\u0415\u043a\u0430\u0442\u0435\u0440\u0438\u043d\u0430 \u041c\u0438\u0445\u0430\u0439\u043b\u043e\u0432\u0430",
+                              "\u0412\u043b\u0430\u0434\u0438\u0441\u043b\u0430\u0432 \u0418\u0432\u0430\u043d\u043e\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439",
+                              "\u0421\u043e\u0440\u043e\u043a\u0438\u043d \u041c\u0438\u0445\u0430\u0438\u043b",
+                              "0:1"
+                        ],
+                        [
+                              "\u0414\u0435\u043c\u0447\u0435\u043d\u043a\u043e \u0421\u0435\u0440\u0433\u0435\u0439",
+                              "\u041e\u0434\u0430\u0440\u0430\u0445\u0438\u043c \u0410\u043b\u0438\u0435\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0421\u0432\u0438\u0440\u0438\u0434\u043e\u0432 \u041f\u0430\u0432\u0435\u043b",
+                              "\u041c\u0430\u0442\u0432\u0435\u0435\u0432 \u042f\u0440\u043e\u0441\u043b\u0430\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439",
+                              "\u041a\u043e\u043b\u0442\u0430\u0448\u043e\u0432 \u0412\u044f\u0447\u0435\u0441\u043b\u0430\u0432",
+                              "0:1"
+                        ],
+                        [
+                              "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439",
+                              "\u0414\u043e\u0431\u0440\u043e\u0432\u043e\u043b\u044c\u0441\u043a\u0438\u0439 \u0412\u0441\u0435\u0432\u043e\u043b\u043e\u0434",
+                              "1:0"
+                        ],
+                        [
+                              "\u0421\u0430\u0432\u0447\u0435\u043d\u043a\u043e \u0420\u0430\u043c\u0438\u043d",
+                              "\u041a\u0438\u0440\u043f\u0438\u0447\u0435\u0432 \u0410\u043d\u0434\u0440\u0435\u0439",
+                              "0:1"
+                        ],
+                        [
+                              "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430",
+                              "\u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u041a\u043e\u0432\u0430\u043b\u0435\u0432",
+                              "1:0"
+                        ],
+                        [
+                              "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434",
+                              "\u0411\u0435\u043b\u043a\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u0440",
+                              "1:0"
+                        ]
+                  ],
+                  [
+                        [
+                              "\u0412\u043b\u0430\u0434\u0438\u0441\u043b\u0430\u0432 \u0418\u0432\u0430\u043d\u043e\u0432",
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0435\u0439",
+                              "0:1"
+                        ],
+                        [
+                              "\u0421\u043e\u0440\u043e\u043a\u0438\u043d \u041c\u0438\u0445\u0430\u0438\u043b",
+                              "\u0421\u0432\u0438\u0440\u0438\u0434\u043e\u0432 \u041f\u0430\u0432\u0435\u043b",
+                              "1:0"
+                        ],
+                        [
+                              "\u041a\u043e\u043b\u0442\u0430\u0448\u043e\u0432 \u0412\u044f\u0447\u0435\u0441\u043b\u0430\u0432",
+                              "\u0415\u043a\u0430\u0442\u0435\u0440\u0438\u043d\u0430 \u041c\u0438\u0445\u0430\u0439\u043b\u043e\u0432\u0430",
+                              "0:1"
+                        ],
+                        [
+                              "\u041e\u0434\u0430\u0440\u0430\u0445\u0438\u043c \u0410\u043b\u0438\u0435\u0432",
+                              "\u0415\u043b\u044c\u0446\u043e\u0432 \u0414\u043c\u0438\u0442\u0440\u0438\u0439",
+                              "1:0"
+                        ],
+                        [
+                              "\u041c\u0430\u0442\u0432\u0435\u0435\u0432 \u042f\u0440\u043e\u0441\u043b\u0430\u0432",
+                              "\u0414\u0435\u043c\u0447\u0435\u043d\u043a\u043e \u0421\u0435\u0440\u0433\u0435\u0439",
+                              "0:1"
+                        ],
+                        [
+                              "\u041a\u0438\u0440\u043f\u0438\u0447\u0435\u0432 \u0410\u043d\u0434\u0440\u0435\u0439",
+                              "\u0425\u043c\u0430\u0440\u0438\u043d \u0410\u043d\u0434\u0440\u0435\u0439",
+                              "\u00bd:\u00bd"
+                        ],
+                        [
+                              "\u0414\u043e\u0431\u0440\u043e\u0432\u043e\u043b\u044c\u0441\u043a\u0438\u0439 \u0412\u0441\u0435\u0432\u043e\u043b\u043e\u0434",
+                              "\u0428\u0430\u043c\u0448\u0443\u0440 \u0421\u0432\u0435\u0442\u043b\u0430\u043d\u0430",
+                              "1:0"
+                        ],
+                        [
+                              "\u0421\u0442\u0435\u0446\u043a\u0438\u0439 \u0412\u043b\u0430\u0434",
+                              "\u0421\u0430\u0432\u0447\u0435\u043d\u043a\u043e \u0420\u0430\u043c\u0438\u043d",
+                              "1:0"
+                        ],
+                        [
+                              "\u0410\u043b\u0435\u043a\u0441\u0435\u0439 \u041a\u043e\u0432\u0430\u043b\u0435\u0432",
+                              "\u0411\u0435\u043b\u043a\u0438\u043d \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u0440",
+                              "1:0"
+                        ]
+                  ]
+            ],
+            "hasElo": true,
+            "showScores": true,
+            "showTiebreak": true,
+            "tiebreakLabel": "Buchholz Cut 1"
+      },
+      "kids": {
+            "title": "\u0414\u0435\u0442\u0438",
+            "note": "",
+            "hasElo": false,
+            "showScores": false,
+            "showTiebreak": false,
+            "standings": [
+                  [
+                        "1",
+                        "\u0418\u0448\u0430\u0435\u0432\u0430 \u0412\u0438\u043e\u043b\u0435\u0442\u0430",
+                        "",
+                        ""
+                  ],
+                  [
+                        "2",
+                        "\u041a\u043e\u0437\u043b\u043e\u0432 \u041c\u0430\u043a\u0441\u0438\u043c",
+                        "",
+                        ""
+                  ],
+                  [
+                        "3",
+                        "\u041a\u0430\u0442\u0430\u043c\u0430\u0434\u0437\u0435 \u0410\u043b\u0435\u043a\u0441",
+                        "",
+                        ""
+                  ],
+                  [
+                        "4",
+                        "\u0412\u0438\u043a\u0442\u043e\u0440 \u041e\u0441\u0438\u043f\u043e\u0432",
+                        "",
+                        ""
+                  ],
+                  [
+                        "5",
+                        "\u0413\u043e\u0440\u0431\u043e\u0432\u0441\u043a\u0438\u0439 \u0410\u0440\u0442\u0443\u0440",
+                        "",
+                        ""
+                  ],
+                  [
+                        "6",
+                        "\u041a\u0438\u0440\u043f\u0438\u0447\u0435\u0432\u0430 \u0414\u0435\u044f",
+                        "",
+                        ""
+                  ],
+                  [
+                        "7",
+                        "\u041c\u043e\u0442\u0430\u043b\u044b\u0433\u0438\u043d \u041c\u0438\u0440\u043e\u043d",
+                        "",
+                        ""
+                  ],
+                  [
+                        "8",
+                        "\u041c\u0438\u0445\u0430\u0439\u043b\u043e\u0432\u0430 \u041c\u0430\u0440\u0438\u044f",
+                        "",
+                        ""
+                  ],
+                  [
+                        "9",
+                        "\u0428\u0430\u0440\u0438\u043f\u043e\u0432 \u042d\u043b\u044c\u043d\u0430\u0440",
+                        "",
+                        ""
+                  ]
+            ],
+            "rounds": []
+      }
+};
+
+    tournamentData.kids = {
+      title: 'Дети',
+      note: '',
+      tiebreakLabels: ['BHC1', 'BH', 'SB', 'PS', 'DE', 'WIN', 'BWG'],
+      initialRatings: {
+        'Алекс Катамадзе': 1548,
+        'Гезолян Давид': 1516,
+        'Акопян Михаил': 1516,
+        'Гезолян Тигран': 1484,
+        'Ананядий Триандофил': 1483
+      },
+      standings: [
+        ['1', 'Алекс Катамадзе', '5', '23', '26', '21', '20', '0', '5', '3'],
+        ['2', 'Гезолян Давид', '5', '21.5', '23.5', '18.5', '19', '0', '5', '3'],
+        ['3', 'Акопян Михаил', '5', '21', '23', '18', '17', '0', '5', '3'],
+        ['4', 'Попов Александр', '5', '17.5', '19.5', '14.5', '18', '0', '5', '2'],
+        ['5', 'Лев Зайцев', '4', '19.5', '21.5', '11.5', '13', '0', '4', '1'],
+        ['6', 'Белакин Влад', '4', '19.5', '20.5', '10.5', '16', '0', '4', '2'],
+        ['7', 'Левицкий Александр', '4', '18.5', '20.5', '10.5', '13', '0', '4', '2'],
+        ['8', 'Сираев Давид', '4', '18', '20', '11', '10', '0', '4', '2'],
+        ['9', 'Ананядий Триандофил', '3.5', '16.5', '18.5', '8.25', '13', '0', '3', '1'],
+        ['10', 'Гезолян Тигран', '3', '19', '21', '8', '12', '0', '3', '0'],
+        ['11', 'Дея Кирпичева', '3', '19', '21', '7', '12', '0', '3', '3'],
+        ['12', 'Аркадий Зайцев', '3', '17.5', '18.5', '6', '11', '0', '3', '2'],
+        ['13', 'Сергей Бережной', '3', '15', '16', '6', '10', '0', '3', '2'],
+        ['14', 'Гезолян Айк', '3', '13.5', '14.5', '5', '7', '0', '3', '1'],
+        ['15', 'Суханов Вильям', '3', '13', '14', '4', '8', '0', '3', '2'],
+        ['16', 'Михаил Хмарин', '2.5', '19.5', '21.5', '6.75', '10', '0', '2', '1'],
+        ['17', 'Вертиков Марат', '2', '18.5', '19.5', '3', '8', '0', '2', '0'],
+        ['18', 'Тео Агонян', '2', '16', '18', '4', '9', '0', '2', '1'],
+        ['19', 'Ярослав Бережной', '2', '16', '17', '3', '8', '0', '2', '0'],
+        ['20', 'Ханас Владимир', '2', '14.5', '16.5', '4', '7', '0', '2', '1'],
+        ['21', 'Коноплев Макар', '2', '10.5', '11.5', '2', '6', '0', '2', '2'],
+        ['22', 'Петя Костюк', '1', '15', '16', '1', '2', '0', '1', '0'],
+        ['23', 'Панков Матвей', '1', '12', '13', '1', '3', '0', '1', '0']
+      ],
+      rounds: [
+        [
+          ['Акопян Михаил', 'Лев Зайцев', '1:0'],
+          ['Левицкий Александр', 'Алекс Катамадзе', '0:1'],
+          ['Ананядий Триандофил', 'Михаил Хмарин', '½:½'],
+          ['Панков Матвей', 'Аркадий Зайцев', '0:1'],
+          ['Белакин Влад', 'Петя Костюк', '1:0'],
+          ['Попов Александр', 'Вертиков Марат', '1:0'],
+          ['Гезолян Айк', 'Сергей Бережной', '0:1'],
+          ['Сираев Давид', 'Гезолян Давид', '0:1'],
+          ['Гезолян Тигран', 'Суханов Вильям', '1:0'],
+          ['Тео Агонян', 'Дея Кирпичева', '0:1'],
+          ['Коноплев Макар', 'Ханас Владимир', '0:1'],
+          ['Ярослав Бережной', '', 'Bye']
+        ],
+        [
+          ['Дея Кирпичева', 'Акопян Михаил', '0:1'],
+          ['Алекс Катамадзе', 'Гезолян Тигран', '1:0'],
+          ['Аркадий Зайцев', 'Попов Александр', '0:1'],
+          ['Сергей Бережной', 'Белакин Влад', '0:1'],
+          ['Гезолян Давид', 'Ярослав Бережной', '1:0'],
+          ['Ханас Владимир', 'Ананядий Триандофил', '0:1'],
+          ['Михаил Хмарин', 'Гезолян Айк', '1:0'],
+          ['Вертиков Марат', 'Панков Матвей', '1:0'],
+          ['Петя Костюк', 'Коноплев Макар', '0:1'],
+          ['Лев Зайцев', 'Сираев Давид', '1:0'],
+          ['Суханов Вильям', 'Левицкий Александр', '0:1'],
+          ['Тео Агонян', '', 'Bye']
+        ],
+        [
+          ['Акопян Михаил', 'Гезолян Давид', '0:1'],
+          ['Белакин Влад', 'Алекс Катамадзе', '0:1'],
+          ['Попов Александр', 'Михаил Хмарин', '1:0'],
+          ['Ананядий Триандофил', 'Аркадий Зайцев', '1:0'],
+          ['Левицкий Александр', 'Вертиков Марат', '1:0'],
+          ['Гезолян Тигран', 'Сергей Бережной', '1:0'],
+          ['Ханас Владимир', 'Дея Кирпичева', '0:1'],
+          ['Коноплев Макар', 'Тео Агонян', '0:1'],
+          ['Ярослав Бережной', 'Лев Зайцев', '0:1'],
+          ['Гезолян Айк', 'Петя Костюк', '1:0'],
+          ['Панков Матвей', 'Суханов Вильям', '0:1'],
+          ['Сираев Давид', '', 'Bye']
+        ],
+        [
+          ['Алекс Катамадзе', 'Попов Александр', '1:0'],
+          ['Гезолян Давид', 'Ананядий Триандофил', '1:0'],
+          ['Тео Агонян', 'Акопян Михаил', '0:1'],
+          ['Дея Кирпичева', 'Белакин Влад', '0:1'],
+          ['Лев Зайцев', 'Гезолян Тигран', '1:0'],
+          ['Михаил Хмарин', 'Левицкий Александр', '0:1'],
+          ['Аркадий Зайцев', 'Ханас Владимир', '1:0'],
+          ['Вертиков Марат', 'Ярослав Бережной', '1:0'],
+          ['Сираев Давид', 'Гезолян Айк', '1:0'],
+          ['Сергей Бережной', 'Коноплев Макар', '1:0'],
+          ['Суханов Вильям', 'Петя Костюк', '1:0'],
+          ['Панков Матвей', '', 'Bye']
+        ],
+        [
+          ['Гезолян Давид', 'Алекс Катамадзе', '0:1'],
+          ['Акопян Михаил', 'Левицкий Александр', '1:0'],
+          ['Попов Александр', 'Лев Зайцев', '1:0'],
+          ['Белакин Влад', 'Ананядий Триандофил', '1:0'],
+          ['Сергей Бережной', 'Аркадий Зайцев', '0:1'],
+          ['Вертиков Марат', 'Сираев Давид', '0:1'],
+          ['Гезолян Тигран', 'Тео Агонян', '1:0'],
+          ['Суханов Вильям', 'Дея Кирпичева', '0:1'],
+          ['Коноплев Макар', 'Михаил Хмарин', '0:1'],
+          ['Гезолян Айк', 'Ханас Владимир', '1:0'],
+          ['Ярослав Бережной', 'Панков Матвей', '1:0'],
+          ['Петя Костюк', '', 'Bye']
+        ],
+        [
+          ['Алекс Катамадзе', 'Акопян Михаил', '0:1'],
+          ['Белакин Влад', 'Гезолян Давид', '0:1'],
+          ['Дея Кирпичева', 'Попов Александр', '0:1'],
+          ['Аркадий Зайцев', 'Сираев Давид', '0:1'],
+          ['Левицкий Александр', 'Гезолян Тигран', '1:0'],
+          ['Лев Зайцев', 'Михаил Хмарин', '1:0'],
+          ['Ананядий Триандофил', 'Вертиков Марат', '1:0'],
+          ['Тео Агонян', 'Гезолян Айк', '0:1'],
+          ['Ярослав Бережной', 'Суханов Вильям', '0:1'],
+          ['Петя Костюк', 'Сергей Бережной', '0:1'],
+          ['Панков Матвей', 'Коноплев Макар', '0:1'],
+          ['Ханас Владимир', '', 'Bye']
+        ]
+      ]
+    };
+
+    tournamentData.adults = {
+      title: 'Взрослые',
+      note: '',
+      tiebreakLabels: ['BHC1', 'BH', 'SB', 'PS'],
+      initialRatings: {
+        'Михаил Сорокин': 1578,
+        'Хмарин Алексей': 1582,
+        'Одарахим Алиев': 1549,
+        'Демченко Сергей': 1517,
+        'Кирпичев Андрей': 1502,
+        'Хмарин Андрей Викторович': 1499,
+        'Ковалев Алексей': 1440
+      },
+      standings: [
+        ['1', 'Михаил Сорокин', '5', '19', '20', '15.5', '16'],
+        ['2', 'Хмарин Алексей', '4.5', '20', '23', '17', '19'],
+        ['3', 'Одарахим Алиев', '4', '21', '22', '12.5', '17'],
+        ['4', 'Гарах Илья', '4', '19.5', '20.5', '11.5', '12'],
+        ['5', 'Хмарин Андрей Викторович', '4', '19', '22', '14', '14.5'],
+        ['6', 'Демченко Сергей', '3.5', '19', '19', '8', '11.5'],
+        ['7', 'Семин-Мигулев Кирилл', '3', '18', '18', '6', '10'],
+        ['8', 'Кирпичев Андрей', '3', '17', '17', '4', '14'],
+        ['9', 'Каратай Дарья', '3', '15', '15', '4', '8'],
+        ['10', 'Радомир Дигилевич', '3', '14', '14', '4', '9'],
+        ['11', 'Ковалев Алексей', '1', '14', '14', '0', '4'],
+        ['12', 'Бережной Александр', '1', '12', '13', '1', '6'],
+        ['13', 'Катерина Нестерова', '0', '15.5', '16.5', '0', '0']
+      ],
+      rounds: [
+        [
+          ['Ковалев Алексей', 'Бережной Александр', '0:1'],
+          ['Демченко Сергей', 'Михаил Сорокин', '0:1'],
+          ['Одарахим Алиев', 'Гарах Илья', '1:0'],
+          ['Каратай Дарья', 'Радомир Дигилевич', '0:1'],
+          ['Катерина Нестерова', 'Кирпичев Андрей', '0:1'],
+          ['Семин-Мигулев Кирилл', 'Хмарин Алексей', '0:1'],
+          ['Хмарин Андрей Викторович', '', 'Bye']
+        ],
+        [
+          ['Бережной Александр', 'Одарахим Алиев', '0:1'],
+          ['Кирпичев Андрей', 'Радомир Дигилевич', '1:0'],
+          ['Михаил Сорокин', 'Хмарин Алексей', '0:1'],
+          ['Катерина Нестерова', 'Демченко Сергей', '0:1'],
+          ['Гарах Илья', 'Ковалев Алексей', '1:0'],
+          ['Хмарин Андрей Викторович', 'Каратай Дарья', '1:0'],
+          ['Семин-Мигулев Кирилл', '', 'Bye']
+        ],
+        [
+          ['Хмарин Алексей', 'Кирпичев Андрей', '1:0'],
+          ['Одарахим Алиев', 'Хмарин Андрей Викторович', '1:0'],
+          ['Михаил Сорокин', 'Бережной Александр', '1:0'],
+          ['Демченко Сергей', 'Семин-Мигулев Кирилл', '1:0'],
+          ['Радомир Дигилевич', 'Гарах Илья', '0:1'],
+          ['Каратай Дарья', '', 'Bye'],
+          ['Ковалев Алексей', 'Катерина Нестерова', '1:0']
+        ],
+        [
+          ['Хмарин Алексей', 'Одарахим Алиев', '1:0'],
+          ['Хмарин Андрей Викторович', 'Демченко Сергей', '½:½'],
+          ['Гарах Илья', 'Михаил Сорокин', '0:1'],
+          ['Кирпичев Андрей', 'Ковалев Алексей', '1:0'],
+          ['Катерина Нестерова', 'Каратай Дарья', '0:1'],
+          ['Радомир Дигилевич', 'Семин-Мигулев Кирилл', '0:1']
+        ],
+        [
+          ['Хмарин Андрей Викторович', 'Хмарин Алексей', '½:½'],
+          ['Михаил Сорокин', 'Кирпичев Андрей', '1:0'],
+          ['Одарахим Алиев', 'Демченко Сергей', '1:0'],
+          ['Каратай Дарья', 'Гарах Илья', '0:1'],
+          ['Семин-Мигулев Кирилл', 'Катерина Нестерова', '1:0'],
+          ['Ковалев Алексей', 'Радомир Дигилевич', '0:1']
+        ],
+        [
+          ['Гарах Илья', 'Хмарин Алексей', '1:0'],
+          ['Одарахим Алиев', 'Михаил Сорокин', '0:1'],
+          ['Семин-Мигулев Кирилл', 'Хмарин Андрей Викторович', '0:1'],
+          ['Демченко Сергей', 'Кирпичев Андрей', '1:0'],
+          ['Каратай Дарья', 'Ковалев Алексей', '1:0'],
+          ['Радомир Дигилевич', 'Катерина Нестерова', '1:0']
+        ]
+      ]
+    };
+
+    tournamentData.kids = {
+      title: 'Дети',
+      note: '',
+      tiebreakLabels: ['BHC1', 'BH', 'SB', 'PS', 'DE', 'WIN', 'BWG'],
+      initialRatings: {
+        'Гезолян Давид': 1576,
+        'Гезолян Тигран': 1489,
+        'Айк Гезалян': 1499,
+        'Кирпичева Дея': 1502,
+        'Хмарин Михаил': 1484,
+        'Матвей Панков': 1421,
+        'Ханас Владимир': 1451
+      },
+      standings: [
+        ['1', 'Гезолян Давид', '6', '19.5', '21.5', '21.5', '21', '0', '6', '3'],
+        ['2', 'Михайлова Мария', '5', '17.5', '19.5', '15', '16', '0', '5', '3'],
+        ['3', 'Виноградов Платон', '4.5', '22', '23', '14.75', '17', '0', '4', '3'],
+        ['4', 'Егор Зигануров', '4.5', '20.5', '22.5', '14.25', '18', '0', '4', '2'],
+        ['5', 'Максим Козлов', '4', '18.5', '19.5', '9', '14', '0', '4', '2'],
+        ['6', 'Кисс Рада', '3.5', '20.5', '23.5', '10.75', '13.5', '0', '3', '2'],
+        ['7', 'Хмарин Михаил', '3.5', '19', '21', '9.75', '14.5', '0', '3', '2'],
+        ['8', 'Никита Залеский', '3', '20.5', '21.5', '7', '12', '0', '3', '2'],
+        ['9', 'Уткин Артемий', '3', '18', '19', '6', '11', '0', '3', '1'],
+        ['10', 'Кирпичева Дея', '3', '17', '19', '8', '10', '0', '3', '1'],
+        ['11', 'Айк Гезалян', '3', '13.5', '14.5', '5', '7', '0', '3', '1'],
+        ['12', 'Григорьев Максим', '3', '13.5', '13.5', '5', '9', '0', '3', '1'],
+        ['13', 'Шарипов Эльнар', '3', '13', '13', '3', '11', '0', '3', '3'],
+        ['14', 'Гезолян Тигран', '3', '12.5', '12.5', '2', '8', '0', '3', '2'],
+        ['15', 'Осипов Виктор', '2', '19.5', '22.5', '6', '9', '0', '2', '1'],
+        ['16', 'Михаил Леонтьев', '2', '17.5', '18.5', '3', '9', '0', '2', '1'],
+        ['17', 'Виноградова Ася', '2', '12', '12', '1', '5', '0', '2', '0'],
+        ['18', 'Василиса Орехова', '1', '16', '16', '0', '3', '0', '1', '0'],
+        ['19', 'Матвей Панков', '1', '14.5', '14.5', '0', '2', '0', '1', '1'],
+        ['20', 'Ханас Владимир', '0', '12', '13', '0', '0', '0', '0', '0']
+      ],
+      rounds: [
+        [
+          ['Айк Гезалян', 'Кисс Рада', '0:1'],
+          ['Максим Козлов', 'Василиса Орехова', '1:0'],
+          ['Виноградов Платон', 'Матвей Панков', '1:0'],
+          ['Михаил Леонтьев', 'Виноградова Ася', '1:0'],
+          ['Гезолян Тигран', 'Михайлова Мария', '0:1'],
+          ['Никита Залеский', 'Гезолян Давид', '0:1'],
+          ['Григорьев Максим', 'Осипов Виктор', '0:1'],
+          ['Уткин Артемий', 'Егор Зигануров', '0:1'],
+          ['Кирпичева Дея', 'Хмарин Михаил', '0:1'],
+          ['Ханас Владимир', 'Шарипов Эльнар', '0:1']
+        ],
+        [
+          ['Михайлова Мария', 'Виноградов Платон', '0:1'],
+          ['Гезолян Давид', 'Михаил Леонтьев', '1:0'],
+          ['Егор Зигануров', 'Осипов Виктор', '1:0'],
+          ['Кисс Рада', 'Хмарин Михаил', '½:½'],
+          ['Шарипов Эльнар', 'Максим Козлов', '0:1'],
+          ['Кирпичева Дея', 'Айк Гезалян', '1:0'],
+          ['Василиса Орехова', 'Никита Залеский', '0:1'],
+          ['Виноградова Ася', 'Уткин Артемий', '0:1'],
+          ['Матвей Панков', 'Гезолян Тигран', '0:1'],
+          ['Ханас Владимир', 'Григорьев Максим', '0:1']
+        ],
+        [
+          ['Виноградов Платон', 'Егор Зигануров', '½:½'],
+          ['Максим Козлов', 'Гезолян Давид', '0:1'],
+          ['Гезолян Тигран', 'Кисс Рада', '0:1'],
+          ['Хмарин Михаил', 'Григорьев Максим', '1:0'],
+          ['Никита Залеский', 'Кирпичева Дея', '1:0'],
+          ['Михаил Леонтьев', 'Шарипов Эльнар', '0:1'],
+          ['Осипов Виктор', 'Михайлова Мария', '0:1'],
+          ['Уткин Артемий', 'Василиса Орехова', '1:0'],
+          ['Айк Гезалян', 'Матвей Панков', '1:0'],
+          ['Виноградова Ася', 'Ханас Владимир', '1:0']
+        ],
+        [
+          ['Гезолян Давид', 'Кисс Рада', '1:0'],
+          ['Хмарин Михаил', 'Виноградов Платон', '0:1'],
+          ['Егор Зигануров', 'Максим Козлов', '1:0'],
+          ['Михайлова Мария', 'Уткин Артемий', '1:0'],
+          ['Шарипов Эльнар', 'Никита Залеский', '0:1'],
+          ['Григорьев Максим', 'Айк Гезалян', '1:0'],
+          ['Кирпичева Дея', 'Виноградова Ася', '1:0'],
+          ['Осипов Виктор', 'Гезолян Тигран', '1:0'],
+          ['Матвей Панков', 'Михаил Леонтьев', '0:1'],
+          ['Василиса Орехова', 'Ханас Владимир', '1:0']
+        ],
+        [
+          ['Виноградов Платон', 'Гезолян Давид', '0:1'],
+          ['Никита Залеский', 'Егор Зигануров', '0:1'],
+          ['Кисс Рада', 'Михайлова Мария', '0:1'],
+          ['Михаил Леонтьев', 'Хмарин Михаил', '0:1'],
+          ['Уткин Артемий', 'Григорьев Максим', '1:0'],
+          ['Шарипов Эльнар', 'Кирпичева Дея', '0:1'],
+          ['Максим Козлов', 'Осипов Виктор', '1:0'],
+          ['Айк Гезалян', 'Виноградова Ася', '1:0'],
+          ['Гезолян Тигран', 'Василиса Орехова', '1:0'],
+          ['Ханас Владимир', 'Матвей Панков', '0:1']
+        ],
+        [
+          ['Гезолян Давид', 'Егор Зигануров', '1:0'],
+          ['Михайлова Мария', 'Хмарин Михаил', '1:0'],
+          ['Кирпичева Дея', 'Виноградов Платон', '0:1'],
+          ['Никита Залеский', 'Максим Козлов', '0:1'],
+          ['Кисс Рада', 'Уткин Артемий', '1:0'],
+          ['Осипов Виктор', 'Айк Гезалян', '0:1'],
+          ['Григорьев Максим', 'Михаил Леонтьев', '1:0'],
+          ['Василиса Орехова', 'Шарипов Эльнар', '0:1'],
+          ['Ханас Владимир', 'Гезолян Тигран', '0:1'],
+          ['Виноградова Ася', 'Матвей Панков', '1:0']
+        ]
+      ]
+    };
+
+    tournamentData.adults = {
+      title: 'Взрослые',
+      note: '',
+      tiebreakLabels: ['BHC1', 'BH', 'SB', 'PS', 'DE', 'WIN', 'BWG'],
+      initialRatings: {
+        'Сорокин Михаил': 1628,
+        'Одарахим Алиев': 1574,
+        'Михайлова Екатерина': 1548,
+        'Хмарин Алексей': 1610,
+        'Хмарин Андрей': 1524,
+        'Кирпичев Андрей': 1504,
+        'Демченко Сергей': 1534,
+        'Свиридов Павел': 1517,
+        'Каратай Дарья': 1482,
+        'Стецкий Влад': 1471
+      },
+      standings: [
+        ['1', 'Сорокин Михаил', '5.5', '18.5', '20.5', '18.25', '19', '0', '5', '3'],
+        ['2', 'Одарахим Алиев', '5', '20', '22', '16.5', '20', '0', '5', '2'],
+        ['3', 'Михайлова Екатерина', '4.5', '22.5', '25.5', '17.75', '17', '0', '4', '2'],
+        ['4', 'Хмарин Алексей', '4', '19.5', '20.5', '11', '14', '0', '4', '2'],
+        ['5', 'Хмарин Андрей', '4', '16.5', '18.5', '10', '14', '0', '4', '2'],
+        ['6', 'Кирпичев Андрей', '4', '16', '17', '10', '12', '0', '4', '2'],
+        ['7', 'Демченко Сергей', '4', '15.5', '17.5', '10', '13', '0', '4', '1'],
+        ['8', 'Свиридов Павел', '3', '22.5', '25.5', '11', '15', '0', '3', '2'],
+        ['9', 'Каратай Дарья', '3', '19.5', '20.5', '6', '12', '0', '3', '1'],
+        ['10', 'Казаков Григорий', '3', '18', '19', '5', '8', '0', '3', '2'],
+        ['11', 'Поздняков Андрей', '3', '16', '17', '6', '6', '0', '3', '1'],
+        ['12', 'Стецкий Влад', '3', '14', '15', '5', '11', '0', '3', '1'],
+        ['13', 'Бондаренко Никита', '2', '18', '19', '3', '8', '0', '2', '1'],
+        ['14', 'Новожилов Вадим', '2', '17.5', '18.5', '3', '5', '0', '2', '0'],
+        ['15', 'Новосельцев Никита', '2', '15', '16', '3', '7', '0', '2', '0'],
+        ['16', 'Поздняков Ярослав', '1', '15', '16', '1', '5', '0', '1', '0'],
+        ['17', 'Орехова Наталья', '1', '14', '15', '1', '3', '0', '1', '0']
+      ],
+      rounds: [
+        [
+          ['Орехова Наталья', 'Бондаренко Никита', '0:1'],
+          ['Демченко Сергей', 'Поздняков Андрей', '1:0'],
+          ['Поздняков Ярослав', 'Каратай Дарья', '0:1'],
+          ['Кирпичев Андрей', 'Свиридов Павел', '0:1'],
+          ['Казаков Григорий', 'Михайлова Екатерина', '0:1'],
+          ['Новожилов Вадим', 'Сорокин Михаил', '0:1'],
+          ['Стецкий Влад', 'Новосельцев Никита', '1:0'],
+          ['Одарахим Алиев', 'Хмарин Алексей', '1:0'],
+          ['Хмарин Андрей', '', 'Bye']
+        ],
+        [
+          ['Бондаренко Никита', 'Одарахим Алиев', '0:1'],
+          ['Свиридов Павел', 'Демченко Сергей', '1:0'],
+          ['Каратай Дарья', 'Стецкий Влад', '1:0'],
+          ['Михайлова Екатерина', 'Хмарин Андрей', '1:0'],
+          ['Сорокин Михаил', 'Казаков Григорий', '1:0'],
+          ['Поздняков Андрей', 'Кирпичев Андрей', '0:1'],
+          ['Хмарин Алексей', 'Новожилов Вадим', '1:0'],
+          ['Новосельцев Никита', 'Орехова Наталья', '1:0'],
+          ['Поздняков Ярослав', '', 'Bye']
+        ],
+        [
+          ['Одарахим Алиев', 'Каратай Дарья', '1:0'],
+          ['Сорокин Михаил', 'Михайлова Екатерина', '½:½'],
+          ['Стецкий Влад', 'Свиридов Павел', '0:1'],
+          ['Хмарин Андрей', 'Бондаренко Никита', '1:0'],
+          ['Демченко Сергей', 'Новосельцев Никита', '1:0'],
+          ['Кирпичев Андрей', 'Поздняков Ярослав', '1:0'],
+          ['Орехова Наталья', 'Хмарин Алексей', '0:1'],
+          ['Казаков Григорий', 'Поздняков Андрей', '1:0'],
+          ['Новожилов Вадим', '', 'Bye']
+        ],
+        [
+          ['Свиридов Павел', 'Одарахим Алиев', '0:1'],
+          ['Михайлова Екатерина', 'Демченко Сергей', '1:0'],
+          ['Каратай Дарья', 'Сорокин Михаил', '0:1'],
+          ['Хмарин Алексей', 'Кирпичев Андрей', '1:0'],
+          ['Новожилов Вадим', 'Хмарин Андрей', '0:1'],
+          ['Бондаренко Никита', 'Стецкий Влад', '0:1'],
+          ['Поздняков Ярослав', 'Казаков Григорий', '0:1'],
+          ['Новосельцев Никита', 'Поздняков Андрей', '0:1'],
+          ['Орехова Наталья', '', 'Bye']
+        ],
+        [
+          ['Одарахим Алиев', 'Михайлова Екатерина', '1:0'],
+          ['Сорокин Михаил', 'Свиридов Павел', '1:0'],
+          ['Хмарин Андрей', 'Хмарин Алексей', '0:1'],
+          ['Демченко Сергей', 'Каратай Дарья', '1:0'],
+          ['Казаков Григорий', 'Кирпичев Андрей', '0:1'],
+          ['Стецкий Влад', 'Поздняков Ярослав', '1:0'],
+          ['Новосельцев Никита', 'Новожилов Вадим', '1:0'],
+          ['Поздняков Андрей', 'Орехова Наталья', '1:0'],
+          ['Бондаренко Никита', '', 'Bye']
+        ],
+        [
+          ['Одарахим Алиев', 'Сорокин Михаил', '0:1'],
+          ['Хмарин Алексей', 'Михайлова Екатерина', '0:1'],
+          ['Кирпичев Андрей', 'Стецкий Влад', '1:0'],
+          ['Свиридов Павел', 'Хмарин Андрей', '0:1'],
+          ['Бондаренко Никита', 'Демченко Сергей', '0:1'],
+          ['Каратай Дарья', 'Новосельцев Никита', '1:0'],
+          ['Орехова Наталья', 'Казаков Григорий', '0:1'],
+          ['Новожилов Вадим', 'Поздняков Ярослав', '1:0'],
+          ['Поздняков Андрей', '', 'Bye']
+        ]
+      ]
+    };
+
+    let activeCategory = 'adults';
+
+    function escapeHtml(value){
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        '&':'&amp;',
+        '<':'&lt;',
+        '>':'&gt;',
+        '"':'&quot;',
+        "'":'&#039;'
+      }[char]));
+    }
+
+    function resultFor(score, color){
+      if (score === '\u00bd:\u00bd') return '\u041d\u0438\u0447\u044c\u044f';
+      if (score === '1:0') return color === '\u0411\u0435\u043b\u044b\u0435' ? '\u041f\u043e\u0431\u0435\u0434\u0430' : '\u041f\u043e\u0440\u0430\u0436\u0435\u043d\u0438\u0435';
+      if (score === '0:1') return color === '\u0427\u0435\u0440\u043d\u044b\u0435' ? '\u041f\u043e\u0431\u0435\u0434\u0430' : '\u041f\u043e\u0440\u0430\u0436\u0435\u043d\u0438\u0435';
+      return 'Bye';
+    }
+
+    function gameScoreFor(score, color){
+      if (score === '\u00bd:\u00bd') return 0.5;
+      if (score === '1:0') return color === '\u0411\u0435\u043b\u044b\u0435' ? 1 : 0;
+      if (score === '0:1') return color === '\u0427\u0435\u0440\u043d\u044b\u0435' ? 1 : 0;
+      return null;
+    }
+
+    function expectedScore(playerRating, opponentRating){
+      return 1 / (1 + 10 ** ((opponentRating - playerRating) / 400));
+    }
+
+    function calculateElo(category){
+      const ratings = new Map();
+      const profiles = new Map();
+      const ensurePlayer = (name) => {
+        if (!name) return;
+        const initialRating = category.initialRatings?.[name] ?? 1500;
+        if (!ratings.has(name)) ratings.set(name, initialRating);
+        if (!profiles.has(name)) profiles.set(name, { before: initialRating, after: initialRating, delta: 0, games: new Map() });
+      };
+
+      (category.standings || []).forEach(([, name]) => ensurePlayer(name));
+      (category.rounds || []).forEach((games) => {
+        games.forEach(([white, black]) => {
+          ensurePlayer(white);
+          ensurePlayer(black);
+        });
+      });
+
+      (category.rounds || []).forEach((games, roundIndex) => {
+        const pending = [];
+        games.forEach(([white, black, score]) => {
+          if (!black || !ratings.has(white) || !ratings.has(black)) return;
+          const whiteRating = ratings.get(white);
+          const blackRating = ratings.get(black);
+          const whiteScore = gameScoreFor(score, '\u0411\u0435\u043b\u044b\u0435');
+          const blackScore = gameScoreFor(score, '\u0427\u0435\u0440\u043d\u044b\u0435');
+          if (whiteScore === null || blackScore === null) return;
+          const whiteDelta = 32 * (whiteScore - expectedScore(whiteRating, blackRating));
+          const blackDelta = 32 * (blackScore - expectedScore(blackRating, whiteRating));
+          pending.push({ name:white, oldRating:whiteRating, delta:whiteDelta, round:roundIndex + 1 });
+          pending.push({ name:black, oldRating:blackRating, delta:blackDelta, round:roundIndex + 1 });
+        });
+        pending.forEach(({ name, oldRating, delta, round }) => {
+          const nextRating = oldRating + delta;
+          ratings.set(name, nextRating);
+          const profile = profiles.get(name);
+          profile.games.set(round, {
+            before: Math.round(oldRating),
+            delta: Math.round(delta),
+            after: Math.round(nextRating)
+          });
+        });
+      });
+
+      profiles.forEach((profile, name) => {
+        profile.after = Math.round(ratings.get(name) ?? profile.before);
+        profile.delta = profile.after - profile.before;
+      });
+      return profiles;
+    }
+
+    function formatSigned(value){
+      const number = Number(value) || 0;
+      return number > 0 ? `+${number}` : String(number);
+    }
+
+    function getTiebreakLabels(category){
+      if (Array.isArray(category.tiebreakLabels) && category.tiebreakLabels.length){
+        return category.tiebreakLabels;
+      }
+      return [category.tiebreakLabel || '\u0411\u0443\u0445\u0433\u043e\u043b\u044c\u0446'];
+    }
+
+    function buildProfiles(category){
+      const map = new Map();
+      const eloMap = calculateElo(category);
+      (category.standings || []).forEach(([place, name, points, ...tiebreaks]) => {
+        const elo = eloMap.get(name) || null;
+        map.set(name, { place, name, points, tiebreaks, elo, games: [], wins:0, draws:0, losses:0 });
+      });
+
+      (category.rounds || []).forEach((games, roundIndex) => {
+        const round = roundIndex + 1;
+        games.forEach(([white, black, score]) => {
+          if (!black){
+            const profile = map.get(white);
+            if (!profile) return;
+            profile.games.push({ round, color:'\u2014', opponent:'\u041d\u0435\u0442 \u043f\u0440\u043e\u0442\u0438\u0432\u043d\u0438\u043a\u0430', result:'Bye', elo:null });
+            return;
+          }
+          [
+            { name:white, color:'\u0411\u0435\u043b\u044b\u0435', opponent:black },
+            { name:black, color:'\u0427\u0435\u0440\u043d\u044b\u0435', opponent:white }
+          ].forEach((entry) => {
+            const profile = map.get(entry.name);
+            if (!profile) return;
+            const result = resultFor(score, entry.color);
+            const elo = profile.elo?.games.get(round) || null;
+            profile.games.push({ round, color:entry.color, opponent:entry.opponent, result, elo });
+            if (result === '\u041f\u043e\u0431\u0435\u0434\u0430') profile.wins += 1;
+            if (result === '\u041d\u0438\u0447\u044c\u044f') profile.draws += 1;
+            if (result === '\u041f\u043e\u0440\u0430\u0436\u0435\u043d\u0438\u0435') profile.losses += 1;
+          });
+        });
+      });
+
+      return map;
+    }
+
+    function getActiveData(){
+      return tournamentData[activeCategory] || tournamentData.kids;
+    }
+
+    function renderCategory(){
+      const content = document.getElementById('categoryContent');
+      const category = getActiveData();
+      const hasElo = category.hasElo !== false;
+      const showScores = category.showScores !== false;
+      const showTiebreak = category.showTiebreak !== false;
+      const hasProfiles = (category.rounds || []).length > 0;
+      const tiebreakLabels = getTiebreakLabels(category);
+      const eloMap = hasElo ? calculateElo(category) : new Map();
+      const rows = category.standings.map(([place, player, points, ...tiebreaks]) => {
+        const elo = eloMap.get(player);
+        const playerCell = hasProfiles
+          ? `<button class="player-link" type="button" data-player="${escapeHtml(player)}">${escapeHtml(player)}</button>`
+          : `<span>${escapeHtml(player)}</span>`;
+        return `
+          <tr>
+            <td class="place">${escapeHtml(place)}</td>
+            <td>${playerCell}</td>
+            ${showScores ? `<td class="num">${escapeHtml(points)}</td>` : ''}
+            ${showTiebreak ? tiebreakLabels.map((label, index) => `<td class="num">${escapeHtml(tiebreaks[index] ?? '')}</td>`).join('') : ''}
+            ${hasElo ? `<td class="num">${elo?.before ?? 1500}</td><td class="num">${formatSigned(elo?.delta ?? 0)}</td><td class="num">${elo?.after ?? 1500}</td>` : ''}
+          </tr>
+        `;
+      }).join('');
+
+      content.innerHTML = `
+        <div class="panel liquid-glass-panel">
+          <div class="panel-head">
+            <h3 class="panel-title">\u0418\u0442\u043e\u0433\u043e\u0432\u0430\u044f \u0442\u0430\u0431\u043b\u0438\u0446\u0430 \u00b7 ${escapeHtml(category.title)}</h3>
+            ${category.note ? `<p class="panel-note">${escapeHtml(category.note)}</p>` : ''}
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>\u041c\u0435\u0441\u0442\u043e</th>
+                  <th>\u0418\u0433\u0440\u043e\u043a</th>
+                  ${showScores ? '<th class="num">\u041e\u0447\u043a\u0438</th>' : ''}
+                  ${showTiebreak ? tiebreakLabels.map((label) => `<th class="num">${escapeHtml(label)}</th>`).join('') : ''}
+                  ${hasElo ? '<th class="num">Elo \u0434\u043e</th><th class="num">\u0418\u0437\u043c. Elo</th><th class="num">Elo \u043f\u043e\u0441\u043b\u0435</th>' : ''}
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>
+        ${hasElo ? '<p class="elo-note">\u0045lo \u0441\u0447\u0438\u0442\u0430\u0435\u0442\u0441\u044f \u0442\u043e\u043b\u044c\u043a\u043e \u043f\u043e \u0441\u044b\u0433\u0440\u0430\u043d\u043d\u044b\u043c \u043f\u0430\u0440\u0442\u0438\u044f\u043c. Bye \u043d\u0435 \u0432\u043b\u0438\u044f\u0435\u0442 \u043d\u0430 \u0440\u0435\u0439\u0442\u0438\u043d\u0433.</p>' : ''}
+      `;
+    }
+
+    function openProfile(name){
+      const profiles = buildProfiles(getActiveData());
+      const profile = profiles.get(name);
+      const category = getActiveData();
+      const hasElo = category.hasElo !== false;
+      const showScores = category.showScores !== false;
+      const showTiebreak = category.showTiebreak !== false;
+      if (!profile) return;
+      document.getElementById('profileName').textContent = profile.name;
+      document.getElementById('profileStats').innerHTML = `
+        <div class="stat"><div class="stat-label">\u041c\u0435\u0441\u0442\u043e</div><div class="stat-value">${escapeHtml(profile.place)}</div></div>
+        ${showScores ? `<div class="stat"><div class="stat-label">\u041e\u0447\u043a\u0438</div><div class="stat-value">${escapeHtml(profile.points)}</div></div>` : ''}
+        ${showTiebreak ? `<div class="stat"><div class="stat-label">Buchholz Cut 1</div><div class="stat-value">${escapeHtml(profile.tiebreaks[0] ?? '')}</div></div>` : ''}
+        <div class="stat"><div class="stat-label">\u0412 / \u041d / \u041f</div><div class="stat-value">${profile.wins} / ${profile.draws} / ${profile.losses}</div></div>
+        ${hasElo ? `<div class="stat"><div class="stat-label">Elo \u0434\u043e</div><div class="stat-value">${profile.elo?.before ?? 1500}</div></div><div class="stat"><div class="stat-label">\u0418\u0437\u043c. Elo</div><div class="stat-value">${formatSigned(profile.elo?.delta ?? 0)}</div></div><div class="stat"><div class="stat-label">Elo \u043f\u043e\u0441\u043b\u0435</div><div class="stat-value">${profile.elo?.after ?? 1500}</div></div>` : ''}
+      `;
+      const rows = profile.games.map((game) => `
+        <tr>
+          <td class="num">${game.round}</td>
+          <td>${escapeHtml(game.color)}</td>
+          <td>${escapeHtml(game.opponent)}</td>
+          <td>${escapeHtml(game.result)}</td>
+          ${hasElo ? `<td class="num">${game.elo ? formatSigned(game.elo.delta) : '\u2014'}</td>` : ''}
+        </tr>
+      `).join('');
+      document.getElementById('profileGames').innerHTML = `
+        <table class="games-table">
+          <thead>
+            <tr>
+              <th class="num">\u0422\u0443\u0440</th>
+              <th>\u0426\u0432\u0435\u0442</th>
+              <th>\u0421\u043e\u043f\u0435\u0440\u043d\u0438\u043a</th>
+              <th>\u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442</th>
+              ${hasElo ? '<th class="num">\u0418\u0437\u043c. Elo</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+      document.getElementById('profileOverlay').classList.add('active');
+      document.body.classList.add('no-scroll');
+    }
+
+    function closeProfile(){
+      document.getElementById('profileOverlay').classList.remove('active');
+      document.body.classList.remove('no-scroll');
+    }
+
+    document.querySelectorAll('.category-btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        activeCategory = button.dataset.category;
+        document.querySelectorAll('.category-btn').forEach((item) => {
+          item.classList.toggle('active', item === button);
+        });
+        renderCategory();
+      });
+    });
+
+    document.getElementById('categoryContent').addEventListener('click', (event) => {
+      const button = event.target.closest('.player-link');
+      if (button) openProfile(button.dataset.player);
+    });
+
+    document.getElementById('closeProfile').addEventListener('click', closeProfile);
+    document.getElementById('profileOverlay').addEventListener('click', (event) => {
+      if (event.target.id === 'profileOverlay') closeProfile();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeProfile();
+    });
+
+    const tg = window.Telegram?.WebApp;
+    if (tg){
+      tg.ready();
+      tg.expand?.();
+      tg.disableVerticalSwipes?.();
+      document.documentElement.style.setProperty('--tg-safe-area-top', `${tg.safeAreaInset?.top || 0}px`);
+    }
+
+    function installTapScaleFeedback(){
+      const elements = document.querySelectorAll('.tap-scale');
+      const release = (event) => {
+        const target = event.target.closest('.tap-scale');
+        if (target) target.classList.remove('is-pressed');
+      };
+      elements.forEach((element) => {
+        element.addEventListener('touchstart', () => element.classList.add('is-pressed'), { passive: true });
+        element.addEventListener('touchend', () => element.classList.remove('is-pressed'), { passive: true });
+        element.addEventListener('touchcancel', () => element.classList.remove('is-pressed'), { passive: true });
+        element.addEventListener('pointerdown', () => element.classList.add('is-pressed'));
+      });
+      document.addEventListener('pointerup', release, { passive: true });
+      document.addEventListener('pointercancel', release, { passive: true });
+      document.addEventListener('touchmove', () => {
+        document.querySelectorAll('.tap-scale.is-pressed').forEach((node) => node.classList.remove('is-pressed'));
+      }, { passive: true });
+    }
+
+    installTapScaleFeedback();
+    renderCategory();
+  </script>
+
+
+</body>
+</html>
