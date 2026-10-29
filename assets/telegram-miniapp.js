@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const APP_VERSION = '20260731-2';
+  const APP_VERSION = '20261029-1';
   const tg = window.Telegram?.WebApp;
   const root = document.documentElement;
   let scrollRoot = null;
@@ -108,6 +108,9 @@
   }
 
   function markScrollRoot(){
+    // Long settings pages use the document scroller, including inside an iframe.
+    // An unbounded overflow:auto wrapper captures Android swipes without scrolling.
+    if (document.body.hasAttribute('data-miniapp-document-scroll')) return;
     scrollRoot = document.querySelector('[data-miniapp-scroll-root]')
       || document.querySelector('main.page, main.menu-shell, body > .wrap, body > .page, body > .menu-shell');
     if (!scrollRoot) return;
