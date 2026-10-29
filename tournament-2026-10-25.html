@@ -245,8 +245,13 @@
     .profile-overlay.active{ display:flex; }
 
     .profile-card{
+      --liquid-overflow:hidden auto;
+      overscroll-behavior-y:contain;
+      -webkit-overflow-scrolling:touch;
+      touch-action:pan-y;
       width:min(680px, 100%);
       max-height:min(86vh, 760px);
+      max-height:min(86dvh, 760px);
       overflow:auto;
       border-radius:18px;
       color:var(--text);
@@ -305,14 +310,14 @@
 
     @media (max-width:560px){
       .profile-stats{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
-      .profile-card{ max-height:88vh; }
+      .profile-card{ max-height:88vh; max-height:88dvh; }
       th,
       td{ padding:11px 12px; }
     }
 
   </style>
   <link rel="stylesheet" href="assets/liquid-glass.css">
-  <script src="assets/tournament-swiss.js?v=20261029-1"></script>
+  <script src="assets/tournament-swiss.js?v=20261029-2"></script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute;pointer-events:none" aria-hidden="true" focusable="false">
@@ -364,7 +369,7 @@
     const tournamentData = {
   "adults": {
     "title": "Взрослые",
-    "note": "21 участник · 7 туров. Места и дополнительные показатели — по итоговому протоколу.",
+    "note": "21 участник · 7 туров.",
     "tiebreakLabels": [
       "BHC1",
       "BH",
@@ -1028,10 +1033,10 @@
   },
   "kids": {
     "title": "Дети",
-    "note": "15 участников · 6 туров. Места рассчитаны по очкам, затем BHC1 → BH → SB → PS → DE → WIN → BWG. Bye — 1 очко; пропуски после выхода из турнира — 0.",
+    "note": "15 участников · 6 туров.",
     "tiebreakLabels": [
-      "BHC1",
       "BH",
+      "BHC1",
       "SB",
       "PS",
       "DE",
@@ -1051,22 +1056,10 @@
     "standings": [
       [
         "1",
-        "Ольшевский Данил",
-        "4.5",
-        "18",
-        "19",
-        "12.75",
-        "14",
-        "0",
-        "4",
-        "2"
-      ],
-      [
-        "2",
         "Михаил Акопян",
         "4.5",
-        "17.5",
         "19.5",
+        "17.5",
         "14.75",
         "14.5",
         "0",
@@ -1074,13 +1067,25 @@
         "2"
       ],
       [
-        "3",
+        "2",
         "Михалова Мария",
         "4.5",
-        "17.5",
         "19.5",
+        "17.5",
         "13.25",
         "15",
+        "0",
+        "4",
+        "2"
+      ],
+      [
+        "3",
+        "Ольшевский Данил",
+        "4.5",
+        "19",
+        "18",
+        "12.75",
+        "14",
         "0",
         "4",
         "2"
@@ -1089,8 +1094,8 @@
         "4",
         "Гезалян Даид",
         "4",
-        "21",
         "24",
+        "21",
         "16",
         "16",
         "0",
@@ -1101,8 +1106,8 @@
         "5",
         "Максим Козлов",
         "4",
-        "18",
         "20",
+        "18",
         "11.5",
         "16",
         "0",
@@ -1113,8 +1118,8 @@
         "6",
         "Катамадзе Алекс",
         "3.5",
-        "20",
         "22",
+        "20",
         "11.25",
         "15.5",
         "0",
@@ -1125,8 +1130,8 @@
         "7",
         "Виноградов Платон",
         "3",
-        "18.5",
         "20.5",
+        "18.5",
         "9.5",
         "11",
         "0",
@@ -1137,8 +1142,8 @@
         "8",
         "Суханов Лев",
         "3",
-        "17",
         "19",
+        "17",
         "8",
         "9",
         "0",
@@ -1149,8 +1154,8 @@
         "9",
         "Ануфриков Игорь",
         "3",
-        "17",
         "18",
+        "17",
         "6",
         "7",
         "0",
@@ -1161,8 +1166,8 @@
         "10",
         "Ананиади Триандафил",
         "3",
-        "16",
         "17",
+        "16",
         "5",
         "9",
         "0",
@@ -1173,8 +1178,8 @@
         "11",
         "Муханов Артем",
         "3",
-        "15.5",
         "16.5",
+        "15.5",
         "6",
         "10",
         "0",
@@ -1183,22 +1188,10 @@
       ],
       [
         "12",
-        "Кочетков Григорий",
-        "2",
-        "16",
-        "17",
-        "3",
-        "11",
-        "0",
-        "2",
-        "1"
-      ],
-      [
-        "13",
         "Тигран Гезолян",
         "2",
-        "15.5",
         "17.5",
+        "15.5",
         "5",
         "9",
         "0",
@@ -1206,11 +1199,23 @@
         "0"
       ],
       [
+        "13",
+        "Кочетков Григорий",
+        "2",
+        "17",
+        "16",
+        "3",
+        "11",
+        "0",
+        "2",
+        "1"
+      ],
+      [
         "14",
         "Табачников Егор",
         "1",
-        "15.5",
         "16.5",
+        "15.5",
         "1",
         "5",
         "0",
@@ -1221,8 +1226,8 @@
         "15",
         "Алиса Петрова",
         "1",
-        "12",
         "13",
+        "12",
         "1",
         "3",
         "0",
@@ -1478,7 +1483,7 @@
 };
 
     // Recalculate the kids standings from all six rounds using FIDE tie-breaks.
-    tournamentData.kids.standings = ChessSwiss.calculateStandings(tournamentData.kids.rounds);
+    tournamentData.kids.standings = ChessSwiss.calculateStandings(tournamentData.kids.rounds, { buchholzFirst:true });
 
     let activeCategory = 'adults';
 
