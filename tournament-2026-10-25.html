@@ -1,0 +1,1779 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <title>Турнир 25.10.26</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="assets/telegram-miniapp.js?v=20261029-1"></script>
+  <style>
+    @font-face{
+      font-family:"LiteraturnayaMenu";
+      src:url("assets/font/TEST-literaturnaya_book.otf") format("opentype");
+      font-weight:400;
+      font-style:normal;
+      font-display:swap;
+    }
+
+    :root{
+      --bg:#111;
+      --text:#f2eee5;
+      --muted:rgba(242,238,229,.62);
+      --gold:#c19154;
+      --panel:rgba(18,20,19,.90);
+      --border:rgba(255,255,255,.105);
+      --tg-safe-area-top:0px;
+      --app-safe-top:max(env(safe-area-inset-top), var(--tg-safe-area-top));
+    }
+
+    *, *::before, *::after{ box-sizing:border-box; }
+    html{ min-height:100%; min-height:100svh; min-height:100dvh; background:var(--bg); -webkit-text-size-adjust:100%; }
+    body{
+      margin:0;
+      min-height:100%;
+      min-height:100svh;
+      min-height:100dvh;
+      padding:calc(124px + var(--app-safe-top)) 12px calc(18px + env(safe-area-inset-bottom));
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 50% 112%, rgba(118,150,86,.16), transparent 42%),
+        linear-gradient(160deg, #171817 0%, #0f100f 48%, #0a0b0a 100%);
+      overflow-x:hidden;
+      -webkit-tap-highlight-color:transparent;
+    }
+    body.no-scroll{ overflow:hidden; }
+
+    .page{
+      position:relative;
+      z-index:1;
+      width:min(100%, 760px);
+      margin:0 auto;
+      display:grid;
+      gap:18px;
+    }
+
+    .back-link{
+      --liquid-position: fixed;
+      --liquid-overflow: visible;
+      position:fixed;
+      top:calc(62px + var(--app-safe-top));
+      left:10px;
+      z-index:10;
+      min-width:46px;
+      min-height:46px;
+      padding:10px 14px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:999px;
+      color:var(--text);
+      text-decoration:none;
+      font-weight:900;
+      transition:transform .11s ease;
+    }
+    .back-link svg{
+      width:24px;
+      height:24px;
+      display:block;
+      fill:none;
+      stroke:currentColor;
+      stroke-width:2.4;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+      transform:translateX(-1px);
+    }
+    .back-link:active{ transform:scale(.965); }
+
+    .page-title{
+      margin:0;
+      font-family:"LiteraturnayaMenu", Georgia, serif;
+      font-size:clamp(42px, 11vw, 64px);
+      font-weight:400;
+      line-height:.95;
+      letter-spacing:.015em;
+      text-align:center;
+      text-shadow:0 6px 18px rgba(0,0,0,.58), 0 0 1px rgba(255,255,255,.42);
+    }
+
+    .subtitle{
+      margin:12px 0;
+      color:var(--muted);
+      text-align:center;
+      font-weight:600;
+    }
+
+    .category-tabs{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+
+    .category-btn{
+      padding:13px 14px;
+      border-radius:14px;
+      color:var(--text);
+      text-align:center;
+      font-size:16px;
+      font-weight:600;
+      cursor:pointer;
+      transition:transform .11s ease;
+      touch-action:manipulation;
+    }
+    .category-btn:active{ transform:scale(.965); }
+    .category-btn.active{ border-color:rgba(193,145,84,.55); color:#fff6e6; }
+
+    .panel{
+      overflow:hidden;
+      border-radius:16px;
+      color:var(--text);
+    }
+
+    .tap-scale{
+      will-change:transform;
+      transform:translateZ(0);
+      -webkit-transform:translateZ(0);
+    }
+    .tap-scale.is-pressed{ transform:scale(.965) translateZ(0); }
+
+    .category-output{
+      display:grid;
+      gap:10px;
+    }
+
+    .panel-head{
+      padding:16px;
+      border-bottom:1px solid rgba(255,255,255,.09);
+      display:grid;
+      gap:4px;
+    }
+
+    .panel-title{
+      margin:0;
+      font-size:20px;
+      font-weight:600;
+      letter-spacing:-.02em;
+    }
+
+    .panel-note{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.35;
+    }
+
+    .elo-note{
+      margin:0;
+      padding:0 12px;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.45;
+      text-align:center;
+    }
+
+    .table-wrap{
+      width:100%;
+      overflow-x:auto;
+      overflow-y:hidden;
+      -webkit-overflow-scrolling:touch;
+      touch-action:auto;
+      overscroll-behavior-x:contain;
+      scrollbar-width:thin;
+      scrollbar-color:rgba(193,145,84,.58) rgba(255,255,255,.07);
+    }
+    .table-wrap::-webkit-scrollbar{ height:8px; }
+    .table-wrap::-webkit-scrollbar-track{
+      background:linear-gradient(90deg, rgba(255,255,255,.035), rgba(255,255,255,.075));
+      border-radius:999px;
+    }
+    .table-wrap::-webkit-scrollbar-thumb{
+      border-radius:999px;
+      background:linear-gradient(90deg, rgba(193,145,84,.88), rgba(242,218,174,.7));
+      border:2px solid rgba(15,16,15,.9);
+    }
+    .table-wrap::-webkit-scrollbar-thumb:hover{ background:linear-gradient(90deg, rgba(213,165,99,.95), rgba(255,231,187,.82)); }
+    table{ width:100%; border-collapse:collapse; min-width:1080px; }
+    th,
+    td{
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.075);
+      text-align:left;
+      font-size:14px;
+      white-space:nowrap;
+    }
+    th{
+      color:rgba(242,238,229,.72);
+      font-size:12px;
+      font-weight:600;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      background:rgba(0,0,0,.14);
+    }
+    td{ font-weight:600; }
+    tr:last-child td{ border-bottom:0; }
+    .num{ text-align:right; font-variant-numeric:tabular-nums; }
+    .place{ width:78px; color:#fff6e6; }
+
+    .player-link{
+      padding:0;
+      border:0;
+      background:none;
+      color:var(--text);
+      font:inherit;
+      font-weight:600;
+      cursor:pointer;
+      text-align:left;
+      text-decoration:underline;
+      text-decoration-color:rgba(193,145,84,.55);
+      text-underline-offset:4px;
+    }
+
+    .empty{ padding:18px; color:var(--muted); line-height:1.45; }
+
+    .profile-overlay{
+      position:fixed;
+      inset:0;
+      z-index:10000;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      background:rgba(0,0,0,.72);
+      backdrop-filter:blur(3px);
+      -webkit-backdrop-filter:blur(3px);
+    }
+    .profile-overlay.active{ display:flex; }
+
+    .profile-card{
+      width:min(680px, 100%);
+      max-height:min(86vh, 760px);
+      overflow:auto;
+      border-radius:18px;
+      color:var(--text);
+    }
+
+    .profile-head{
+      padding:18px;
+      border-bottom:1px solid rgba(255,255,255,.09);
+      display:grid;
+      gap:14px;
+    }
+
+    .profile-top{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:start;
+    }
+
+    .profile-name{
+      margin:0;
+      font-size:24px;
+      font-weight:600;
+      letter-spacing:-.03em;
+    }
+
+    .close-btn{
+      min-width:42px;
+      height:42px;
+      border-radius:999px;
+      border:0;
+      color:var(--text);
+      cursor:pointer;
+      font-size:24px;
+      line-height:1;
+    }
+
+    .profile-stats{
+      display:grid;
+      grid-template-columns:repeat(4, minmax(0, 1fr));
+      gap:8px;
+    }
+
+    .stat{
+      padding:10px;
+      border-radius:12px;
+      background:rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.08);
+    }
+    .stat-label{ color:var(--muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+    .stat-value{ margin-top:4px; font-size:18px; font-weight:600; }
+
+    .profile-body{ padding:16px; display:grid; gap:12px; }
+    .profile-section-title{ margin:0; font-size:17px; font-weight:600; }
+    .games-table{ min-width:0; }
+
+    @media (max-width:560px){
+      .profile-stats{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
+      .profile-card{ max-height:88vh; }
+      th,
+      td{ padding:11px 12px; }
+    }
+
+  </style>
+  <link rel="stylesheet" href="assets/liquid-glass.css">
+  <script src="assets/tournament-swiss.js?v=20261029-1"></script>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute;pointer-events:none" aria-hidden="true" focusable="false">
+    <filter id="liquid-glass-filter" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.018" numOctaves="2" seed="8" result="noise"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="10" xChannelSelector="R" yChannelSelector="G" result="displaced"></feDisplacementMap>
+      <feGaussianBlur in="displaced" stdDeviation="0.2" result="softened"></feGaussianBlur>
+      <feComposite in="softened" in2="SourceGraphic" operator="over"></feComposite>
+    </filter>
+  </svg>
+
+  <a class="back-link liquid-glass-pill tap-scale" href="tournament-results.html" aria-label="Вернуться к списку турниров">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M15 6 9 12l6 6"></path>
+    </svg>
+  </a>
+
+  <main class="page">
+    <header>
+      <h1 class="page-title">Турнир 25.10.26</h1>
+    </header>
+    <p class="subtitle">Турнир Красная Поляна</p>
+
+    <div class="category-tabs" aria-label="Категории турнира">
+      <button class="category-btn liquid-glass tap-scale active" type="button" data-category="adults">Взрослые</button>
+      <button class="category-btn liquid-glass tap-scale" type="button" data-category="kids">Дети</button>
+    </div>
+
+    <section id="categoryContent" class="category-output"></section>
+  </main>
+
+  <div id="profileOverlay" class="profile-overlay" role="dialog" aria-modal="true" aria-labelledby="profileName">
+    <article class="profile-card liquid-glass-panel">
+      <div class="profile-head">
+        <div class="profile-top">
+          <h2 id="profileName" class="profile-name"></h2>
+          <button id="closeProfile" class="close-btn liquid-glass-pill tap-scale" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <div id="profileStats" class="profile-stats"></div>
+      </div>
+      <div class="profile-body">
+        <h3 class="profile-section-title">Партии по турам</h3>
+        <div id="profileGames" class="table-wrap"></div>
+      </div>
+    </article>
+  </div>
+
+  <script>
+    const tournamentData = {
+  "adults": {
+    "title": "Взрослые",
+    "note": "21 участник · 7 туров. Места и дополнительные показатели — по итоговому протоколу.",
+    "tiebreakLabels": [
+      "BHC1",
+      "BH",
+      "SB",
+      "PS",
+      "DE",
+      "WIN",
+      "BWG"
+    ],
+    "initialRatings": {
+      "Михаил Сорокин": 1681,
+      "Владислав Иванов": 1562,
+      "Хмарин Алексей": 1619,
+      "Свиридов Павел": 1520,
+      "Демченко Сергей": 1558,
+      "Михайлова Екатерина": 1598,
+      "Стецкий Влад": 1478,
+      "Хмарин Андрей": 1544,
+      "Алексей Ковалев": 1393
+    },
+    "standings": [
+      [
+        "1",
+        "Михаил Сорокин",
+        "7",
+        "27",
+        "28",
+        "28",
+        "28",
+        "0",
+        "7",
+        "3"
+      ],
+      [
+        "2",
+        "Суханов Алексей",
+        "6",
+        "28.5",
+        "30.5",
+        "23.5",
+        "24",
+        "0",
+        "6",
+        "2"
+      ],
+      [
+        "3",
+        "Владислав Иванов",
+        "5",
+        "29",
+        "32",
+        "19",
+        "21",
+        "0",
+        "5",
+        "2"
+      ],
+      [
+        "4",
+        "Хмарин Алексей",
+        "4.5",
+        "28",
+        "30.5",
+        "15.5",
+        "20.5",
+        "0",
+        "4",
+        "1"
+      ],
+      [
+        "5",
+        "Владимир Степанов",
+        "4",
+        "30",
+        "33.5",
+        "15.5",
+        "19",
+        "0",
+        "4",
+        "3"
+      ],
+      [
+        "6",
+        "Свиридов Павел",
+        "4",
+        "26.5",
+        "29",
+        "13",
+        "17",
+        "0",
+        "4",
+        "2"
+      ],
+      [
+        "7",
+        "Демченко Сергей",
+        "4",
+        "25.5",
+        "27.5",
+        "12.75",
+        "17.5",
+        "0",
+        "3",
+        "2"
+      ],
+      [
+        "8",
+        "Дмитрий Лукин",
+        "4",
+        "24.5",
+        "27",
+        "13.75",
+        "18",
+        "0",
+        "3",
+        "1"
+      ],
+      [
+        "9",
+        "Михайлова Екатерина",
+        "4",
+        "24",
+        "27",
+        "14.5",
+        "16",
+        "0",
+        "4",
+        "2"
+      ],
+      [
+        "10",
+        "Стецкий Влад",
+        "4",
+        "22",
+        "23",
+        "9",
+        "16",
+        "0",
+        "4",
+        "2"
+      ],
+      [
+        "11",
+        "Азжеуров Виталий",
+        "4",
+        "21",
+        "23",
+        "10.5",
+        "13",
+        "0",
+        "4",
+        "1"
+      ],
+      [
+        "12",
+        "Хмарин Андрей",
+        "3.5",
+        "25",
+        "27.5",
+        "10.5",
+        "14",
+        "0",
+        "3",
+        "2"
+      ],
+      [
+        "13",
+        "Алексей Ковалев",
+        "3",
+        "22.5",
+        "25",
+        "8.5",
+        "14",
+        "0",
+        "3",
+        "2"
+      ],
+      [
+        "14",
+        "Роман Турпаков",
+        "3",
+        "20",
+        "21",
+        "5",
+        "11",
+        "0",
+        "3",
+        "1"
+      ],
+      [
+        "15",
+        "Римма Ноххова",
+        "3",
+        "17.5",
+        "18.5",
+        "6.5",
+        "11",
+        "0",
+        "3",
+        "1"
+      ],
+      [
+        "16",
+        "Лосев Максим",
+        "2.5",
+        "20.5",
+        "22.5",
+        "5.25",
+        "9.5",
+        "0",
+        "2",
+        "2"
+      ],
+      [
+        "17",
+        "Воронов Руслан",
+        "2.5",
+        "17.5",
+        "18.5",
+        "4.75",
+        "7.5",
+        "0",
+        "2",
+        "1"
+      ],
+      [
+        "18",
+        "Косарев Алексей",
+        "2",
+        "20.5",
+        "21.5",
+        "3",
+        "5",
+        "0",
+        "2",
+        "1"
+      ],
+      [
+        "19",
+        "Сергей Штыкалов",
+        "2",
+        "17",
+        "18",
+        "3.5",
+        "8",
+        "0",
+        "2",
+        "1"
+      ],
+      [
+        "20",
+        "Андрей Касулян",
+        "1",
+        "21.5",
+        "23.5",
+        "3",
+        "7",
+        "0",
+        "1",
+        "0"
+      ],
+      [
+        "21",
+        "Петров Никита",
+        "1",
+        "14",
+        "15",
+        "1",
+        "5",
+        "0",
+        "1",
+        "0"
+      ]
+    ],
+    "rounds": [
+      [
+        [
+          "Азжеуров Виталий",
+          "Михайлова Екатерина",
+          "0:1"
+        ],
+        [
+          "Петров Никита",
+          "Алексей Ковалев",
+          "0:1"
+        ],
+        [
+          "Андрей Касулян",
+          "Римма Ноххова",
+          "1:0"
+        ],
+        [
+          "Роман Турпаков",
+          "Владислав Иванов",
+          "0:1"
+        ],
+        [
+          "Воронов Руслан",
+          "Свиридов Павел",
+          "0:1"
+        ],
+        [
+          "Сергей Штыкалов",
+          "Демченко Сергей",
+          "0:1"
+        ],
+        [
+          "Дмитрий Лукин",
+          "Стецкий Влад",
+          "1:0"
+        ],
+        [
+          "Суханов Алексей",
+          "Косарев Алексей",
+          "1:0"
+        ],
+        [
+          "Лосев Максим",
+          "Хмарин Алексей",
+          "0:1"
+        ],
+        [
+          "Хмарин Андрей",
+          "Михаил Сорокин",
+          "0:1"
+        ],
+        [
+          "Владимир Степанов",
+          null,
+          "Bye"
+        ]
+      ],
+      [
+        [
+          "Алексей Ковалев",
+          "Дмитрий Лукин",
+          "0:1"
+        ],
+        [
+          "Михаил Сорокин",
+          "Андрей Касулян",
+          "1:0"
+        ],
+        [
+          "Михайлова Екатерина",
+          "Владимир Степанов",
+          "0:1"
+        ],
+        [
+          "Владислав Иванов",
+          "Свиридов Павел",
+          "1:0"
+        ],
+        [
+          "Демченко Сергей",
+          "Суханов Алексей",
+          "0:1"
+        ],
+        [
+          "Хмарин Алексей",
+          "Азжеуров Виталий",
+          "1:0"
+        ],
+        [
+          "Римма Ноххова",
+          "Воронов Руслан",
+          "1:0"
+        ],
+        [
+          "Косарев Алексей",
+          "Роман Турпаков",
+          "0:1"
+        ],
+        [
+          "Сергей Штыкалов",
+          "Лосев Максим",
+          "0:1"
+        ],
+        [
+          "Стецкий Влад",
+          "Петров Никита",
+          "1:0"
+        ],
+        [
+          "Хмарин Андрей",
+          null,
+          "Bye"
+        ]
+      ],
+      [
+        [
+          "Владимир Степанов",
+          "Михаил Сорокин",
+          "0:1"
+        ],
+        [
+          "Суханов Алексей",
+          "Владислав Иванов",
+          "1:0"
+        ],
+        [
+          "Дмитрий Лукин",
+          "Хмарин Алексей",
+          "½:½"
+        ],
+        [
+          "Римма Ноххова",
+          "Алексей Ковалев",
+          "0:1"
+        ],
+        [
+          "Андрей Касулян",
+          "Стецкий Влад",
+          "0:1"
+        ],
+        [
+          "Роман Турпаков",
+          "Демченко Сергей",
+          "0:1"
+        ],
+        [
+          "Лосев Максим",
+          "Хмарин Андрей",
+          "0:1"
+        ],
+        [
+          "Свиридов Павел",
+          "Михайлова Екатерина",
+          "1:0"
+        ],
+        [
+          "Азжеуров Виталий",
+          "Косарев Алексей",
+          "1:0"
+        ],
+        [
+          "Воронов Руслан",
+          "Сергей Штыкалов",
+          "0:1"
+        ],
+        [
+          "Петров Никита",
+          null,
+          "Bye"
+        ]
+      ],
+      [
+        [
+          "Михаил Сорокин",
+          "Суханов Алексей",
+          "1:0"
+        ],
+        [
+          "Владислав Иванов",
+          "Дмитрий Лукин",
+          "1:0"
+        ],
+        [
+          "Хмарин Алексей",
+          "Алексей Ковалев",
+          "1:0"
+        ],
+        [
+          "Свиридов Павел",
+          "Владимир Степанов",
+          "0:1"
+        ],
+        [
+          "Демченко Сергей",
+          "Хмарин Андрей",
+          "½:½"
+        ],
+        [
+          "Стецкий Влад",
+          "Лосев Максим",
+          "1:0"
+        ],
+        [
+          "Петров Никита",
+          "Азжеуров Виталий",
+          "0:1"
+        ],
+        [
+          "Роман Турпаков",
+          "Андрей Касулян",
+          "1:0"
+        ],
+        [
+          "Михайлова Екатерина",
+          "Римма Ноххова",
+          "1:0"
+        ],
+        [
+          "Косарев Алексей",
+          "Сергей Штыкалов",
+          "1:0"
+        ],
+        [
+          "Воронов Руслан",
+          null,
+          "Bye"
+        ]
+      ],
+      [
+        [
+          "Хмарин Алексей",
+          "Михаил Сорокин",
+          "0:1"
+        ],
+        [
+          "Владимир Степанов",
+          "Владислав Иванов",
+          "0:1"
+        ],
+        [
+          "Суханов Алексей",
+          "Стецкий Влад",
+          "1:0"
+        ],
+        [
+          "Дмитрий Лукин",
+          "Демченко Сергей",
+          "½:½"
+        ],
+        [
+          "Хмарин Андрей",
+          "Михайлова Екатерина",
+          "0:1"
+        ],
+        [
+          "Азжеуров Виталий",
+          "Роман Турпаков",
+          "1:0"
+        ],
+        [
+          "Алексей Ковалев",
+          "Свиридов Павел",
+          "0:1"
+        ],
+        [
+          "Сергей Штыкалов",
+          "Андрей Касулян",
+          "1:0"
+        ],
+        [
+          "Лосев Максим",
+          "Воронов Руслан",
+          "½:½"
+        ],
+        [
+          "Римма Ноххова",
+          "Косарев Алексей",
+          "1:0"
+        ]
+      ],
+      [
+        [
+          "Михаил Сорокин",
+          "Владислав Иванов",
+          "1:0"
+        ],
+        [
+          "Суханов Алексей",
+          "Хмарин Алексей",
+          "1:0"
+        ],
+        [
+          "Демченко Сергей",
+          "Азжеуров Виталий",
+          "1:0"
+        ],
+        [
+          "Стецкий Влад",
+          "Владимир Степанов",
+          "0:1"
+        ],
+        [
+          "Михайлова Екатерина",
+          "Дмитрий Лукин",
+          "1:0"
+        ],
+        [
+          "Свиридов Павел",
+          "Хмарин Андрей",
+          "1:0"
+        ],
+        [
+          "Алексей Ковалев",
+          "Роман Турпаков",
+          "1:0"
+        ],
+        [
+          "Сергей Штыкалов",
+          "Римма Ноххова",
+          "0:1"
+        ],
+        [
+          "Андрей Касулян",
+          "Воронов Руслан",
+          "0:1"
+        ],
+        [
+          "Косарев Алексей",
+          "Лосев Максим",
+          "0:1"
+        ]
+      ],
+      [
+        [
+          "Михаил Сорокин",
+          "Свиридов Павел",
+          "1:0"
+        ],
+        [
+          "Владимир Степанов",
+          "Суханов Алексей",
+          "0:1"
+        ],
+        [
+          "Владислав Иванов",
+          "Демченко Сергей",
+          "1:0"
+        ],
+        [
+          "Хмарин Алексей",
+          "Михайлова Екатерина",
+          "1:0"
+        ],
+        [
+          "Азжеуров Виталий",
+          "Алексей Ковалев",
+          "1:0"
+        ],
+        [
+          "Римма Ноххова",
+          "Стецкий Влад",
+          "0:1"
+        ],
+        [
+          "Дмитрий Лукин",
+          "Лосев Максим",
+          "1:0"
+        ],
+        [
+          "Воронов Руслан",
+          "Хмарин Андрей",
+          "0:1"
+        ],
+        [
+          "Роман Турпаков",
+          "Сергей Штыкалов",
+          "1:0"
+        ],
+        [
+          "Андрей Касулян",
+          "Косарев Алексей",
+          "0:1"
+        ]
+      ]
+    ]
+  },
+  "kids": {
+    "title": "Дети",
+    "note": "15 участников · 6 туров. Места рассчитаны по очкам, затем BHC1 → BH → SB → PS → DE → WIN → BWG. Bye — 1 очко; пропуски после выхода из турнира — 0.",
+    "tiebreakLabels": [
+      "BHC1",
+      "BH",
+      "SB",
+      "PS",
+      "DE",
+      "WIN",
+      "BWG"
+    ],
+    "initialRatings": {
+      "Михаил Акопян": 1579,
+      "Михалова Мария": 1561,
+      "Гезалян Даид": 1651,
+      "Максим Козлов": 1535,
+      "Катамадзе Алекс": 1599,
+      "Виноградов Платон": 1547,
+      "Ананиади Триандафил": 1504,
+      "Тигран Гезолян": 1485
+    },
+    "standings": [
+      [
+        "1",
+        "Ольшевский Данил",
+        "4.5",
+        "18",
+        "19",
+        "12.75",
+        "14",
+        "0",
+        "4",
+        "2"
+      ],
+      [
+        "2",
+        "Михаил Акопян",
+        "4.5",
+        "17.5",
+        "19.5",
+        "14.75",
+        "14.5",
+        "0",
+        "4",
+        "2"
+      ],
+      [
+        "3",
+        "Михалова Мария",
+        "4.5",
+        "17.5",
+        "19.5",
+        "13.25",
+        "15",
+        "0",
+        "4",
+        "2"
+      ],
+      [
+        "4",
+        "Гезалян Даид",
+        "4",
+        "21",
+        "24",
+        "16",
+        "16",
+        "0",
+        "4",
+        "2"
+      ],
+      [
+        "5",
+        "Максим Козлов",
+        "4",
+        "18",
+        "20",
+        "11.5",
+        "16",
+        "0",
+        "4",
+        "2"
+      ],
+      [
+        "6",
+        "Катамадзе Алекс",
+        "3.5",
+        "20",
+        "22",
+        "11.25",
+        "15.5",
+        "0",
+        "3",
+        "2"
+      ],
+      [
+        "7",
+        "Виноградов Платон",
+        "3",
+        "18.5",
+        "20.5",
+        "9.5",
+        "11",
+        "0",
+        "3",
+        "2"
+      ],
+      [
+        "8",
+        "Суханов Лев",
+        "3",
+        "17",
+        "19",
+        "8",
+        "9",
+        "0",
+        "3",
+        "3"
+      ],
+      [
+        "9",
+        "Ануфриков Игорь",
+        "3",
+        "17",
+        "18",
+        "6",
+        "7",
+        "0",
+        "3",
+        "1"
+      ],
+      [
+        "10",
+        "Ананиади Триандафил",
+        "3",
+        "16",
+        "17",
+        "5",
+        "9",
+        "0",
+        "3",
+        "2"
+      ],
+      [
+        "11",
+        "Муханов Артем",
+        "3",
+        "15.5",
+        "16.5",
+        "6",
+        "10",
+        "0",
+        "2",
+        "1"
+      ],
+      [
+        "12",
+        "Кочетков Григорий",
+        "2",
+        "16",
+        "17",
+        "3",
+        "11",
+        "0",
+        "2",
+        "1"
+      ],
+      [
+        "13",
+        "Тигран Гезолян",
+        "2",
+        "15.5",
+        "17.5",
+        "5",
+        "9",
+        "0",
+        "1",
+        "0"
+      ],
+      [
+        "14",
+        "Табачников Егор",
+        "1",
+        "15.5",
+        "16.5",
+        "1",
+        "5",
+        "0",
+        "1",
+        "0"
+      ],
+      [
+        "15",
+        "Алиса Петрова",
+        "1",
+        "12",
+        "13",
+        "1",
+        "3",
+        "0",
+        "1",
+        "0"
+      ]
+    ],
+    "rounds": [
+      [
+        [
+          "Алиса Петрова",
+          "Максим Козлов",
+          "0:1"
+        ],
+        [
+          "Михаил Акопян",
+          "Ананиади Триандафил",
+          "1:0"
+        ],
+        [
+          "Ануфриков Игорь",
+          "Михалова Мария",
+          "0:1"
+        ],
+        [
+          "Муханов Артем",
+          "Виноградов Платон",
+          "1:0"
+        ],
+        [
+          "Гезалян Даид",
+          "Ольшевский Данил",
+          "1:0"
+        ],
+        [
+          "Суханов Лев",
+          "Катамадзе Алекс",
+          "0:1"
+        ],
+        [
+          "Кочетков Григорий",
+          "Табачников Егор",
+          "1:0"
+        ],
+        [
+          "Тигран Гезолян",
+          null,
+          "Bye"
+        ]
+      ],
+      [
+        [
+          "Михалова Мария",
+          "Гезалян Даид",
+          "0:1"
+        ],
+        [
+          "Катамадзе Алекс",
+          "Михаил Акопян",
+          "½:½"
+        ],
+        [
+          "Тигран Гезолян",
+          "Кочетков Григорий",
+          "0:1"
+        ],
+        [
+          "Максим Козлов",
+          "Муханов Артем",
+          "1:0"
+        ],
+        [
+          "Виноградов Платон",
+          "Алиса Петрова",
+          "1:0"
+        ],
+        [
+          "Ананиади Триандафил",
+          "Суханов Лев",
+          "0:1"
+        ],
+        [
+          "Ольшевский Данил",
+          "Ануфриков Игорь",
+          "1:0"
+        ],
+        [
+          "Табачников Егор",
+          null,
+          "Bye"
+        ]
+      ],
+      [
+        [
+          "Гезалян Даид",
+          "Максим Козлов",
+          "1:0"
+        ],
+        [
+          "Кочетков Григорий",
+          "Катамадзе Алекс",
+          "0:1"
+        ],
+        [
+          "Михаил Акопян",
+          "Виноградов Платон",
+          "0:1"
+        ],
+        [
+          "Суханов Лев",
+          "Михалова Мария",
+          "0:1"
+        ],
+        [
+          "Муханов Артем",
+          "Тигран Гезолян",
+          "½:½"
+        ],
+        [
+          "Табачников Егор",
+          "Ольшевский Данил",
+          "0:1"
+        ],
+        [
+          "Алиса Петрова",
+          "Ананиади Триандафил",
+          "0:1"
+        ],
+        [
+          "Ануфриков Игорь",
+          null,
+          "Bye"
+        ]
+      ],
+      [
+        [
+          "Катамадзе Алекс",
+          "Гезалян Даид",
+          "1:0"
+        ],
+        [
+          "Виноградов Платон",
+          "Максим Козлов",
+          "0:1"
+        ],
+        [
+          "Михалова Мария",
+          "Кочетков Григорий",
+          "1:0"
+        ],
+        [
+          "Ольшевский Данил",
+          "Муханов Артем",
+          "1:0"
+        ],
+        [
+          "Тигран Гезолян",
+          "Михаил Акопян",
+          "0:1"
+        ],
+        [
+          "Ананиади Триандафил",
+          "Табачников Егор",
+          "1:0"
+        ],
+        [
+          "Ануфриков Игорь",
+          "Суханов Лев",
+          "0:1"
+        ],
+        [
+          "Алиса Петрова",
+          null,
+          "Bye"
+        ]
+      ],
+      [
+        [
+          "Максим Козлов",
+          "Катамадзе Алекс",
+          "1:0"
+        ],
+        [
+          "Ольшевский Данил",
+          "Михалова Мария",
+          "½:½"
+        ],
+        [
+          "Гезалян Даид",
+          "Михаил Акопян",
+          "0:1"
+        ],
+        [
+          "Кочетков Григорий",
+          "Ананиади Триандафил",
+          "0:1"
+        ],
+        [
+          "Суханов Лев",
+          "Виноградов Платон",
+          "0:1"
+        ],
+        [
+          "Муханов Артем",
+          "Тигран Гезолян",
+          "½:½"
+        ],
+        [
+          "Табачников Егор",
+          "Ануфриков Игорь",
+          "0:1"
+        ]
+      ],
+      [
+        [
+          "Михаил Акопян",
+          "Максим Козлов",
+          "1:0"
+        ],
+        [
+          "Катамадзе Алекс",
+          "Ольшевский Данил",
+          "0:1"
+        ],
+        [
+          "Михалова Мария",
+          "Ананиади Триандафил",
+          "1:0"
+        ],
+        [
+          "Виноградов Платон",
+          "Гезалян Даид",
+          "0:1"
+        ],
+        [
+          "Ануфриков Игорь",
+          "Кочетков Григорий",
+          "1:0"
+        ],
+        [
+          "Тигран Гезолян",
+          "Суханов Лев",
+          "0:1"
+        ],
+        [
+          "Табачников Егор",
+          "Муханов Артем",
+          "0:1"
+        ]
+      ]
+    ]
+  }
+};
+
+    // Recalculate the kids standings from all six rounds using FIDE tie-breaks.
+    tournamentData.kids.standings = ChessSwiss.calculateStandings(tournamentData.kids.rounds);
+
+    let activeCategory = 'adults';
+
+    function escapeHtml(value){
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        '&':'&amp;',
+        '<':'&lt;',
+        '>':'&gt;',
+        '"':'&quot;',
+        "'":'&#039;'
+      }[char]));
+    }
+
+    function resultFor(score, color){
+      if (score === '\u00bd:\u00bd') return '\u041d\u0438\u0447\u044c\u044f';
+      if (score === '1:0') return color === '\u0411\u0435\u043b\u044b\u0435' ? '\u041f\u043e\u0431\u0435\u0434\u0430' : '\u041f\u043e\u0440\u0430\u0436\u0435\u043d\u0438\u0435';
+      if (score === '0:1') return color === '\u0427\u0435\u0440\u043d\u044b\u0435' ? '\u041f\u043e\u0431\u0435\u0434\u0430' : '\u041f\u043e\u0440\u0430\u0436\u0435\u043d\u0438\u0435';
+      return 'Bye';
+    }
+
+    function gameScoreFor(score, color){
+      if (score === '\u00bd:\u00bd') return 0.5;
+      if (score === '1:0') return color === '\u0411\u0435\u043b\u044b\u0435' ? 1 : 0;
+      if (score === '0:1') return color === '\u0427\u0435\u0440\u043d\u044b\u0435' ? 1 : 0;
+      return null;
+    }
+
+    function expectedScore(playerRating, opponentRating){
+      return 1 / (1 + 10 ** ((opponentRating - playerRating) / 400));
+    }
+
+    function calculateElo(category){
+      const ratings = new Map();
+      const profiles = new Map();
+      const ensurePlayer = (name) => {
+        if (!name) return;
+        const initialRating = category.initialRatings?.[name] ?? 1500;
+        if (!ratings.has(name)) ratings.set(name, initialRating);
+        if (!profiles.has(name)) profiles.set(name, { before: initialRating, after: initialRating, delta: 0, games: new Map() });
+      };
+
+      (category.standings || []).forEach(([, name]) => ensurePlayer(name));
+      (category.rounds || []).forEach((games) => {
+        games.forEach(([white, black]) => {
+          ensurePlayer(white);
+          ensurePlayer(black);
+        });
+      });
+
+      (category.rounds || []).forEach((games, roundIndex) => {
+        const pending = [];
+        games.forEach(([white, black, score]) => {
+          if (!black || !ratings.has(white) || !ratings.has(black)) return;
+          const whiteRating = ratings.get(white);
+          const blackRating = ratings.get(black);
+          const whiteScore = gameScoreFor(score, '\u0411\u0435\u043b\u044b\u0435');
+          const blackScore = gameScoreFor(score, '\u0427\u0435\u0440\u043d\u044b\u0435');
+          if (whiteScore === null || blackScore === null) return;
+          const whiteDelta = 32 * (whiteScore - expectedScore(whiteRating, blackRating));
+          const blackDelta = 32 * (blackScore - expectedScore(blackRating, whiteRating));
+          pending.push({ name:white, oldRating:whiteRating, delta:whiteDelta, round:roundIndex + 1 });
+          pending.push({ name:black, oldRating:blackRating, delta:blackDelta, round:roundIndex + 1 });
+        });
+        pending.forEach(({ name, oldRating, delta, round }) => {
+          const nextRating = oldRating + delta;
+          ratings.set(name, nextRating);
+          const profile = profiles.get(name);
+          profile.games.set(round, {
+            before: Math.round(oldRating),
+            delta: Math.round(delta),
+            after: Math.round(nextRating)
+          });
+        });
+      });
+
+      profiles.forEach((profile, name) => {
+        profile.after = Math.round(ratings.get(name) ?? profile.before);
+        profile.delta = profile.after - profile.before;
+      });
+      return profiles;
+    }
+
+    function formatSigned(value){
+      const number = Number(value) || 0;
+      return number > 0 ? `+${number}` : String(number);
+    }
+
+    function getTiebreakLabels(category){
+      if (Array.isArray(category.tiebreakLabels) && category.tiebreakLabels.length){
+        return category.tiebreakLabels;
+      }
+      return [category.tiebreakLabel || '\u0411\u0443\u0445\u0433\u043e\u043b\u044c\u0446'];
+    }
+
+    function buildProfiles(category){
+      const map = new Map();
+      const eloMap = calculateElo(category);
+      (category.standings || []).forEach(([place, name, points, ...tiebreaks]) => {
+        const elo = eloMap.get(name) || null;
+        map.set(name, { place, name, points, tiebreaks, elo, games: [], wins:0, draws:0, losses:0 });
+      });
+
+      (category.rounds || []).forEach((games, roundIndex) => {
+        const round = roundIndex + 1;
+        games.forEach(([white, black, score]) => {
+          if (!black){
+            const profile = map.get(white);
+            if (!profile) return;
+            profile.games.push({ round, color:'\u2014', opponent:'\u041d\u0435\u0442 \u043f\u0440\u043e\u0442\u0438\u0432\u043d\u0438\u043a\u0430', result:'Bye (+1 очко)', elo:null });
+            return;
+          }
+          [
+            { name:white, color:'\u0411\u0435\u043b\u044b\u0435', opponent:black },
+            { name:black, color:'\u0427\u0435\u0440\u043d\u044b\u0435', opponent:white }
+          ].forEach((entry) => {
+            const profile = map.get(entry.name);
+            if (!profile) return;
+            const result = resultFor(score, entry.color);
+            const elo = profile.elo?.games.get(round) || null;
+            profile.games.push({ round, color:entry.color, opponent:entry.opponent, result, elo });
+            if (result === '\u041f\u043e\u0431\u0435\u0434\u0430') profile.wins += 1;
+            if (result === '\u041d\u0438\u0447\u044c\u044f') profile.draws += 1;
+            if (result === '\u041f\u043e\u0440\u0430\u0436\u0435\u043d\u0438\u0435') profile.losses += 1;
+          });
+        });
+      });
+
+      map.forEach((profile) => {
+        for (let round = 1; round <= category.rounds.length; round++){
+          if (!profile.games.some((game) => game.round === round)){
+            profile.games.push({ round, color:'—', opponent:'Не участвовал(а)', result:'0 очков', elo:null });
+          }
+        }
+        profile.games.sort((a, b) => a.round - b.round);
+      });
+      return map;
+    }
+
+    function getActiveData(){
+      return tournamentData[activeCategory] || tournamentData.kids;
+    }
+
+    function renderCategory(){
+      const content = document.getElementById('categoryContent');
+      const category = getActiveData();
+      const hasElo = category.hasElo !== false;
+      const showScores = category.showScores !== false;
+      const showTiebreak = category.showTiebreak !== false;
+      const hasProfiles = (category.rounds || []).length > 0;
+      const tiebreakLabels = getTiebreakLabels(category);
+      const eloMap = hasElo ? calculateElo(category) : new Map();
+      const rows = category.standings.map(([place, player, points, ...tiebreaks]) => {
+        const elo = eloMap.get(player);
+        const playerCell = hasProfiles
+          ? `<button class="player-link" type="button" data-player="${escapeHtml(player)}">${escapeHtml(player)}</button>`
+          : `<span>${escapeHtml(player)}</span>`;
+        return `
+          <tr>
+            <td class="place">${escapeHtml(place)}</td>
+            <td>${playerCell}</td>
+            ${showScores ? `<td class="num">${escapeHtml(points)}</td>` : ''}
+            ${showTiebreak ? tiebreakLabels.map((label, index) => `<td class="num">${escapeHtml(tiebreaks[index] ?? '')}</td>`).join('') : ''}
+            ${hasElo ? `<td class="num">${elo?.before ?? 1500}</td><td class="num">${formatSigned(elo?.delta ?? 0)}</td><td class="num">${elo?.after ?? 1500}</td>` : ''}
+          </tr>
+        `;
+      }).join('');
+
+      content.innerHTML = `
+        <div class="panel liquid-glass-panel">
+          <div class="panel-head">
+            <h3 class="panel-title">\u0418\u0442\u043e\u0433\u043e\u0432\u0430\u044f \u0442\u0430\u0431\u043b\u0438\u0446\u0430 \u00b7 ${escapeHtml(category.title)}</h3>
+            ${category.note ? `<p class="panel-note">${escapeHtml(category.note)}</p>` : ''}
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>\u041c\u0435\u0441\u0442\u043e</th>
+                  <th>\u0418\u0433\u0440\u043e\u043a</th>
+                  ${showScores ? '<th class="num">\u041e\u0447\u043a\u0438</th>' : ''}
+                  ${showTiebreak ? tiebreakLabels.map((label) => `<th class="num">${escapeHtml(label)}</th>`).join('') : ''}
+                  ${hasElo ? '<th class="num">Elo \u0434\u043e</th><th class="num">\u0418\u0437\u043c. Elo</th><th class="num">Elo \u043f\u043e\u0441\u043b\u0435</th>' : ''}
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>
+        ${hasElo ? '<p class="elo-note">\u0045lo \u0441\u0447\u0438\u0442\u0430\u0435\u0442\u0441\u044f \u0442\u043e\u043b\u044c\u043a\u043e \u043f\u043e \u0441\u044b\u0433\u0440\u0430\u043d\u043d\u044b\u043c \u043f\u0430\u0440\u0442\u0438\u044f\u043c. Bye \u043d\u0435 \u0432\u043b\u0438\u044f\u0435\u0442 \u043d\u0430 \u0440\u0435\u0439\u0442\u0438\u043d\u0433.</p>' : ''}
+      `;
+    }
+
+    function openProfile(name){
+      const profiles = buildProfiles(getActiveData());
+      const profile = profiles.get(name);
+      const category = getActiveData();
+      const hasElo = category.hasElo !== false;
+      const showScores = category.showScores !== false;
+      const showTiebreak = category.showTiebreak !== false;
+      const tiebreakLabels = getTiebreakLabels(category);
+      if (!profile) return;
+      document.getElementById('profileName').textContent = profile.name;
+      document.getElementById('profileStats').innerHTML = `
+        <div class="stat"><div class="stat-label">\u041c\u0435\u0441\u0442\u043e</div><div class="stat-value">${escapeHtml(profile.place)}</div></div>
+        ${showScores ? `<div class="stat"><div class="stat-label">\u041e\u0447\u043a\u0438</div><div class="stat-value">${escapeHtml(profile.points)}</div></div>` : ''}
+        ${showTiebreak ? tiebreakLabels.map((label, index) => `<div class="stat"><div class="stat-label">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(profile.tiebreaks[index] ?? '')}</div></div>`).join('') : ''}
+        <div class="stat"><div class="stat-label">\u0412 / \u041d / \u041f</div><div class="stat-value">${profile.wins} / ${profile.draws} / ${profile.losses}</div></div>
+        ${hasElo ? `<div class="stat"><div class="stat-label">Elo \u0434\u043e</div><div class="stat-value">${profile.elo?.before ?? 1500}</div></div><div class="stat"><div class="stat-label">\u0418\u0437\u043c. Elo</div><div class="stat-value">${formatSigned(profile.elo?.delta ?? 0)}</div></div><div class="stat"><div class="stat-label">Elo \u043f\u043e\u0441\u043b\u0435</div><div class="stat-value">${profile.elo?.after ?? 1500}</div></div>` : ''}
+      `;
+      const rows = profile.games.map((game) => `
+        <tr>
+          <td class="num">${game.round}</td>
+          <td>${escapeHtml(game.color)}</td>
+          <td>${escapeHtml(game.opponent)}</td>
+          <td>${escapeHtml(game.result)}</td>
+          ${hasElo ? `<td class="num">${game.elo ? formatSigned(game.elo.delta) : '\u2014'}</td>` : ''}
+        </tr>
+      `).join('');
+      document.getElementById('profileGames').innerHTML = `
+        <table class="games-table">
+          <thead>
+            <tr>
+              <th class="num">\u0422\u0443\u0440</th>
+              <th>\u0426\u0432\u0435\u0442</th>
+              <th>\u0421\u043e\u043f\u0435\u0440\u043d\u0438\u043a</th>
+              <th>\u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442</th>
+              ${hasElo ? '<th class="num">\u0418\u0437\u043c. Elo</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+      document.getElementById('profileOverlay').classList.add('active');
+      document.body.classList.add('no-scroll');
+    }
+
+    function closeProfile(){
+      document.getElementById('profileOverlay').classList.remove('active');
+      document.body.classList.remove('no-scroll');
+    }
+
+    document.querySelectorAll('.category-btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        activeCategory = button.dataset.category;
+        document.querySelectorAll('.category-btn').forEach((item) => {
+          item.classList.toggle('active', item === button);
+        });
+        renderCategory();
+      });
+    });
+
+    document.getElementById('categoryContent').addEventListener('click', (event) => {
+      const button = event.target.closest('.player-link');
+      if (button) openProfile(button.dataset.player);
+    });
+
+    document.getElementById('closeProfile').addEventListener('click', closeProfile);
+    document.getElementById('profileOverlay').addEventListener('click', (event) => {
+      if (event.target.id === 'profileOverlay') closeProfile();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeProfile();
+    });
+
+    const tg = window.Telegram?.WebApp;
+    if (tg){
+      tg.ready();
+      tg.expand?.();
+      tg.disableVerticalSwipes?.();
+      document.documentElement.style.setProperty('--tg-safe-area-top', `${tg.safeAreaInset?.top || 0}px`);
+    }
+
+    function installTapScaleFeedback(){
+      const elements = document.querySelectorAll('.tap-scale');
+      const release = (event) => {
+        const target = event.target.closest('.tap-scale');
+        if (target) target.classList.remove('is-pressed');
+      };
+      elements.forEach((element) => {
+        element.addEventListener('touchstart', () => element.classList.add('is-pressed'), { passive: true });
+        element.addEventListener('touchend', () => element.classList.remove('is-pressed'), { passive: true });
+        element.addEventListener('touchcancel', () => element.classList.remove('is-pressed'), { passive: true });
+        element.addEventListener('pointerdown', () => element.classList.add('is-pressed'));
+      });
+      document.addEventListener('pointerup', release, { passive: true });
+      document.addEventListener('pointercancel', release, { passive: true });
+      document.addEventListener('touchmove', () => {
+        document.querySelectorAll('.tap-scale.is-pressed').forEach((node) => node.classList.remove('is-pressed'));
+      }, { passive: true });
+    }
+
+    installTapScaleFeedback();
+    renderCategory();
+  </script>
+
+
+</body>
+</html>
