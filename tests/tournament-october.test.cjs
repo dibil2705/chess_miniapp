@@ -57,19 +57,19 @@ test('children match every pre-round total shown in the six screenshots', () => 
   for (const [,name,total] of data.kids.standings) assert.equal(points.get(name), Number(total));
 });
 
-test('child medals are separated by BHC1 then SB; withdrawals adjust opponents only', () => {
+test('child medals use BH first; withdrawals adjust opponents only', () => {
   const {data} = loadPage();
   assert.deepEqual(data.kids.standings.slice(0,3), [
-    ['1','Ольшевский Данил','4.5','18','19','12.75','14','0','4','2'],
-    ['2','Михаил Акопян','4.5','17.5','19.5','14.75','14.5','0','4','2'],
-    ['3','Михалова Мария','4.5','17.5','19.5','13.25','15','0','4','2']
+    ['1','Михаил Акопян','4.5','19.5','17.5','14.75','14.5','0','4','2'],
+    ['2','Михалова Мария','4.5','19.5','17.5','13.25','15','0','4','2'],
+    ['3','Ольшевский Данил','4.5','19','18','12.75','14','0','4','2']
   ]);
   const alice = data.kids.standings.find(row => row[1] === 'Алиса Петрова');
   assert.equal(alice[2], '1');
-  assert.equal(alice[3], '12');
-  assert.equal(alice[4], '13');
+  assert.equal(alice[3], '13');
+  assert.equal(alice[4], '12');
   const maxim = data.kids.standings.find(row => row[1] === 'Максим Козлов');
-  assert.equal(maxim[4], '20');
+  assert.equal(maxim[3], '20');
   const tigran = data.kids.standings.find(row => row[1] === 'Тигран Гезолян');
   assert.equal(tigran[8], '1'); // WIN includes his allocated bye.
 });

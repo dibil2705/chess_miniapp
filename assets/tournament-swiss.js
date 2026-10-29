@@ -3,7 +3,7 @@
 
   // FIDE C.07 (March 2026), articles 7–9, 14 and 16:
   // https://handbook.fide.com/chapter/TieBreakRegulations032026
-  function calculateStandings(rounds){
+  function calculateStandings(rounds, { buchholzFirst = false } = {}){
     const players = new Map();
     const ensure = (name) => {
       if (!players.has(name)) players.set(name, { name, games:Array(rounds.length).fill(null) });
@@ -57,6 +57,7 @@
         player.games.filter((game) => game?.score === 1).length,
         player.games.filter((game) => game?.black && game.score === 1).length
       ];
+      if (buchholzFirst) [player.values[0], player.values[1]] = [player.values[1], player.values[0]];
     });
 
     const compare = (a, b, count = 7) => {

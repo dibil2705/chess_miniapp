@@ -353,8 +353,13 @@
     .profile-overlay.active{ display:flex; }
 
     .profile-card{
+      --liquid-overflow:hidden auto;
+      overscroll-behavior-y:contain;
+      -webkit-overflow-scrolling:touch;
+      touch-action:pan-y;
       width:min(680px, 100%);
       max-height:min(86vh, 760px);
+      max-height:min(86dvh, 760px);
       overflow:auto;
       border-radius:18px;
       color:var(--text);
@@ -420,7 +425,7 @@
       .partner-link img{ width:44px; height:38px; }
       .partner-name{ font-size:14px; }
       .profile-stats{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
-      .profile-card{ max-height:88vh; }
+      .profile-card{ max-height:88vh; max-height:88dvh; }
       th,
       td{ padding:11px 12px; }
     }
